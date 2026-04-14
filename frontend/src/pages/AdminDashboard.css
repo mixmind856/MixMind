@@ -1,0 +1,953 @@
+/* ==================== ADMIN DASHBOARD STYLES ==================== */
+
+.admin-dashboard {
+  min-height: 100vh;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  padding: 2rem;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+}
+
+.admin-dashboard.loading,
+.admin-dashboard.error {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  height: 100vh;
+  color: white;
+  text-align: center;
+  gap: 1rem;
+}
+
+.admin-dashboard.error {
+  background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+}
+
+.loader {
+  width: 50px;
+  height: 50px;
+  border: 4px solid rgba(255, 255, 255, 0.3);
+  border-top: 4px solid white;
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* ==================== DASHBOARD HEADER ==================== */
+
+.dashboard-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 3rem;
+  gap: 1rem;
+}
+
+.header-content h1 {
+  font-size: 2.5rem;
+  color: white;
+  margin: 0;
+  font-weight: 700;
+}
+
+.header-content .subtitle {
+  color: rgba(255, 255, 255, 0.8);
+  margin: 0.5rem 0 0 0;
+  font-size: 1rem;
+}
+
+.refresh-button,
+.retry-button {
+  background: white;
+  color: #667eea;
+  border: none;
+  padding: 0.75rem 1.5rem;
+  border-radius: 50px;
+  font-size: 1rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
+}
+
+.refresh-button:hover,
+.retry-button:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.15);
+}
+
+/* ==================== SUMMARY SECTION ==================== */
+
+.summary-section h2 {
+  color: white;
+  font-size: 1.5rem;
+  margin-bottom: 1.5rem;
+  margin-top: 2rem;
+}
+
+.summary-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: 1.5rem;
+  margin-bottom: 3rem;
+}
+
+.summary-card {
+  background: white;
+  border-radius: 15px;
+  padding: 1.5rem;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.15);
+  transition: all 0.3s ease;
+  border-left: 5px solid;
+}
+
+.summary-card:hover {
+  transform: translateY(-5px);
+  box-shadow: 0 15px 40px rgba(0, 0, 0, 0.2);
+}
+
+.summary-card.venues-card {
+  border-left-color: #667eea;
+}
+
+.summary-card.revenue-card {
+  border-left-color: #52c41a;
+}
+
+.summary-card.requests-card {
+  border-left-color: #faad14;
+}
+
+.summary-card.approval-card {
+  border-left-color: #f5222d;
+}
+
+.card-header {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  margin-bottom: 1rem;
+  color: #666;
+}
+
+.card-header svg {
+  color: #667eea;
+}
+
+.badge {
+  display: inline-block;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  color: white;
+  padding: 0.25rem 0.75rem;
+  border-radius: 20px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  margin-left: auto;
+}
+
+.card-content h3 {
+  font-size: 2rem;
+  color: #333;
+  margin: 0 0 0.5rem 0;
+  font-weight: 700;
+}
+
+.card-content p {
+  color: #888;
+  margin: 0;
+  font-size: 0.9rem;
+}
+
+.card-stats {
+  margin-top: 1rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  font-size: 0.85rem;
+  color: #666;
+}
+
+.card-stats .active {
+  color: #52c41a;
+  font-weight: 600;
+}
+
+.card-stats .inactive {
+  color: #f5222d;
+  font-weight: 600;
+}
+
+.card-stats .approved {
+  color: #52c41a;
+}
+
+.card-stats .pending {
+  color: #faad14;
+}
+
+.card-stats .transactions {
+  display: block;
+}
+
+.card-stats .avg-per-venue {
+  display: block;
+  color: #667eea;
+  font-weight: 600;
+}
+
+.progress-bar {
+  width: 100%;
+  height: 6px;
+  background: #eee;
+  border-radius: 3px;
+  overflow: hidden;
+  margin-top: 0.5rem;
+}
+
+.progress-fill {
+  height: 100%;
+  background: linear-gradient(90deg, #667eea 0%, #764ba2 100%);
+  border-radius: 3px;
+}
+
+/* ==================== TABS ==================== */
+
+.tabs-container {
+  display: flex;
+  gap: 1rem;
+  margin-bottom: 2rem;
+  flex-wrap: wrap;
+}
+
+.tab-button {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  background: rgba(255, 255, 255, 0.2);
+  color: white;
+  border: 2px solid transparent;
+  padding: 0.75rem 1.5rem;
+  border-radius: 50px;
+  font-size: 1rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.3s ease;
+}
+
+.tab-button:hover {
+  background: rgba(255, 255, 255, 0.3);
+}
+
+.tab-button.active {
+  background: white;
+  color: #667eea;
+  border-color: white;
+}
+
+/* ==================== TAB CONTENT ==================== */
+
+.tab-content {
+  animation: fadeIn 0.3s ease;
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* ==================== CARDS ==================== */
+
+.card {
+  background: white;
+  border-radius: 15px;
+  padding: 2rem;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.1);
+  margin-bottom: 1.5rem;
+}
+
+.card h3 {
+  color: #333;
+  font-size: 1.3rem;
+  margin: 0 0 1.5rem 0;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.card.full-width {
+  grid-column: 1 / -1;
+}
+
+.tab-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(350px, 1fr));
+  gap: 1.5rem;
+}
+
+/* ==================== STATUS DISTRIBUTION ==================== */
+
+.status-distribution {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.status-item {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  padding: 1rem;
+  border-radius: 10px;
+  background: #f5f5f5;
+  transition: all 0.3s ease;
+}
+
+.status-item:hover {
+  background: #eee;
+}
+
+.status-item.approved {
+  background: #f0f9e8;
+  border-left: 4px solid #52c41a;
+}
+
+.status-item.pending {
+  background: #fffbe6;
+  border-left: 4px solid #faad14;
+}
+
+.status-item.rejected {
+  background: #fff2f0;
+  border-left: 4px solid #f5222d;
+}
+
+.status-item svg {
+  font-size: 1.5rem;
+  min-width: 20px;
+}
+
+.status-item.approved svg {
+  color: #52c41a;
+}
+
+.status-item.pending svg {
+  color: #faad14;
+}
+
+.status-item.rejected svg {
+  color: #f5222d;
+}
+
+.status-info {
+  flex: 1;
+}
+
+.status-info .label {
+  color: #666;
+  margin: 0;
+  font-size: 0.9rem;
+}
+
+.status-info .count {
+  color: #333;
+  margin: 0.25rem 0 0 0;
+  font-size: 1.5rem;
+  font-weight: 700;
+}
+
+/* ==================== VENUES LIST ==================== */
+
+.venues-list {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.venue-item {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  padding: 1rem;
+  background: #f9f9f9;
+  border-radius: 10px;
+  border-left: 4px solid #667eea;
+  transition: all 0.3s ease;
+}
+
+.venue-item:hover {
+  background: #f0f0f0;
+  transform: translateX(5px);
+}
+
+.venue-item .rank {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  color: white;
+  border-radius: 50%;
+  font-weight: 700;
+  font-size: 1.1rem;
+  flex-shrink: 0;
+}
+
+.venue-item .venue-details {
+  flex: 1;
+}
+
+.venue-item .name {
+  color: #333;
+  margin: 0;
+  font-weight: 600;
+  font-size: 1rem;
+}
+
+.venue-item .stats {
+  color: #999;
+  margin: 0.25rem 0 0 0;
+  font-size: 0.85rem;
+}
+
+.venue-item .revenue {
+  font-size: 1.2rem;
+  font-weight: 700;
+  color: #52c41a;
+  min-width: 100px;
+  text-align: right;
+}
+
+/* ==================== SONGS LIST ==================== */
+
+.songs-list {
+  display: flex;
+  flex-direction: column;
+}
+
+.songs-header {
+  display: grid;
+  grid-template-columns: 50px 1fr 100px 100px;
+  gap: 1rem;
+  padding: 1rem;
+  background: #f5f5f5;
+  border-radius: 10px 10px 0 0;
+  font-weight: 600;
+  color: #666;
+  font-size: 0.9rem;
+}
+
+.song-row {
+  display: grid;
+  grid-template-columns: 50px 1fr 100px 100px;
+  gap: 1rem;
+  padding: 1rem;
+  border-bottom: 1px solid #eee;
+  align-items: center;
+  transition: all 0.3s ease;
+}
+
+.song-row:hover {
+  background: #fafafa;
+}
+
+.song-row .rank {
+  color: #667eea;
+  font-weight: 600;
+}
+
+.song-row .song {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.song-row .song strong {
+  color: #333;
+  font-size: 0.95rem;
+}
+
+.song-row .song small {
+  color: #999;
+  font-size: 0.85rem;
+}
+
+.song-row .requests {
+  text-align: center;
+  color: #333;
+  font-weight: 600;
+}
+
+.song-row .status {
+  text-align: center;
+  color: #52c41a;
+  font-weight: 600;
+}
+
+/* ==================== VENUES TABLE ==================== */
+
+.venues-table-container {
+  background: white;
+  border-radius: 15px;
+  overflow: hidden;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.1);
+}
+
+.data-table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.data-table thead {
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  color: white;
+}
+
+.data-table th {
+  padding: 1.25rem;
+  text-align: left;
+  font-weight: 600;
+  font-size: 0.95rem;
+}
+
+.data-table td {
+  padding: 1.25rem;
+  border-bottom: 1px solid #eee;
+  color: #333;
+}
+
+.data-table tbody tr {
+  transition: all 0.3s ease;
+}
+
+.data-table tbody tr:hover {
+  background: #f9f9f9;
+}
+
+.data-table .venue-name {
+  font-weight: 600;
+  color: #333;
+}
+
+.data-table .status-badge {
+  display: inline-block;
+  padding: 0.5rem 1rem;
+  border-radius: 20px;
+  font-size: 0.85rem;
+  font-weight: 600;
+}
+
+.data-table .status-badge.active {
+  background: #f0f9e8;
+  color: #52c41a;
+}
+
+.data-table .status-badge.inactive {
+  background: #fff2f0;
+  color: #f5222d;
+}
+
+.data-table .approved {
+  color: #52c41a;
+  font-weight: 600;
+}
+
+.data-table .pending {
+  color: #faad14;
+  font-weight: 600;
+}
+
+.data-table .revenue {
+  color: #52c41a;
+  font-weight: 700;
+}
+
+/* ==================== REVENUE SECTION ==================== */
+
+.revenue-summary-card {
+  background: white;
+  border-radius: 15px;
+  padding: 2rem;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.1);
+  margin-bottom: 2rem;
+}
+
+.revenue-summary-card h3 {
+  color: #333;
+  font-size: 1.3rem;
+  margin: 0 0 1.5rem 0;
+}
+
+.revenue-stats {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 1.5rem;
+}
+
+.revenue-stats .stat {
+  padding: 1.5rem;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  border-radius: 10px;
+  color: white;
+}
+
+.revenue-stats .stat .label {
+  margin: 0;
+  font-size: 0.9rem;
+  opacity: 0.9;
+}
+
+.revenue-stats .stat .value {
+  margin: 0.5rem 0 0 0;
+  font-size: 1.8rem;
+  font-weight: 700;
+}
+
+.revenue-by-venue h3 {
+  color: white;
+  font-size: 1.3rem;
+  margin: 2rem 0 1.5rem 0;
+}
+
+.venue-revenue-list {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+  gap: 1.5rem;
+}
+
+.venue-revenue-card {
+  background: white;
+  border-radius: 15px;
+  padding: 1.5rem;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.1);
+  border-top: 4px solid #667eea;
+  transition: all 0.3s ease;
+}
+
+.venue-revenue-card:hover {
+  transform: translateY(-5px);
+  box-shadow: 0 15px 40px rgba(0, 0, 0, 0.15);
+}
+
+.venue-revenue-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 1rem;
+}
+
+.venue-revenue-header h4 {
+  color: #333;
+  margin: 0;
+  font-size: 1.1rem;
+}
+
+.venue-revenue-header .total {
+  color: #52c41a;
+  font-size: 1.4rem;
+  font-weight: 700;
+}
+
+.venue-revenue-stats {
+  display: flex;
+  justify-content: space-between;
+  color: #999;
+  font-size: 0.9rem;
+}
+
+.venue-revenue-stats .avg {
+  font-weight: 600;
+  color: #667eea;
+}
+
+/* ==================== SONGS SECTION ==================== */
+
+.songs-stats {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 1.5rem;
+  margin-bottom: 2rem;
+}
+
+.stat-card {
+  background: white;
+  border-radius: 15px;
+  padding: 1.5rem;
+  text-align: center;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.1);
+  border-top: 4px solid #667eea;
+}
+
+.stat-card.approved {
+  border-top-color: #52c41a;
+}
+
+.stat-card.pending {
+  border-top-color: #faad14;
+}
+
+.stat-card.rejected {
+  border-top-color: #f5222d;
+}
+
+.stat-card h4 {
+  color: #999;
+  margin: 0 0 0.5rem 0;
+  font-size: 0.9rem;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+}
+
+.stat-card .big-number {
+  color: #333;
+  margin: 0;
+  font-size: 2.5rem;
+  font-weight: 700;
+}
+
+.songs-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(350px, 1fr));
+  gap: 1.5rem;
+}
+
+.songs-grid .card {
+  display: flex;
+  flex-direction: column;
+}
+
+.requests-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.request-item {
+  padding: 1rem;
+  background: #f9f9f9;
+  border-radius: 10px;
+  border-left: 4px solid;
+  transition: all 0.3s ease;
+}
+
+.request-item:hover {
+  background: #f0f0f0;
+  transform: translateX(5px);
+}
+
+.request-item.approved {
+  border-left-color: #52c41a;
+}
+
+.request-item.pending {
+  border-left-color: #faad14;
+}
+
+.request-item.rejected {
+  border-left-color: #f5222d;
+}
+
+.request-item .song {
+  margin: 0;
+  color: #333;
+}
+
+.request-item .song strong {
+  display: block;
+  font-weight: 600;
+  font-size: 0.95rem;
+  margin-bottom: 0.25rem;
+}
+
+.request-item .song small {
+  display: block;
+  color: #999;
+  font-size: 0.8rem;
+}
+
+.request-item .meta {
+  margin: 0.5rem 0 0 0;
+  color: #999;
+  font-size: 0.85rem;
+}
+
+.request-item .amount {
+  margin: 0.5rem 0 0 0;
+  color: #52c41a;
+  font-weight: 700;
+  font-size: 0.95rem;
+}
+
+/* ==================== FOOTER ==================== */
+
+.dashboard-footer {
+  text-align: center;
+  color: rgba(255, 255, 255, 0.7);
+  margin-top: 3rem;
+  padding: 1rem;
+  font-size: 0.9rem;
+}
+
+/* ==================== RESPONSIVE DESIGN ==================== */
+
+@media (max-width: 1024px) {
+  .summary-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+
+  .tab-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .card.full-width {
+    grid-column: auto;
+  }
+
+  .songs-header,
+  .song-row {
+    grid-template-columns: 40px 1fr 80px 80px;
+    font-size: 0.85rem;
+  }
+}
+
+@media (max-width: 768px) {
+  .admin-dashboard {
+    padding: 1rem;
+  }
+
+  .dashboard-header {
+    flex-direction: column;
+    text-align: center;
+  }
+
+  .header-content h1 {
+    font-size: 1.8rem;
+  }
+
+  .summary-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .summary-card {
+    padding: 1rem;
+  }
+
+  .tabs-container {
+    gap: 0.5rem;
+  }
+
+  .tab-button {
+    flex: 1;
+    justify-content: center;
+    padding: 0.5rem 1rem;
+    font-size: 0.9rem;
+  }
+
+  .card {
+    padding: 1.5rem;
+    margin-bottom: 1rem;
+  }
+
+  .tab-grid,
+  .songs-grid,
+  .venue-revenue-list {
+    grid-template-columns: 1fr;
+  }
+
+  .data-table {
+    font-size: 0.85rem;
+  }
+
+  .data-table th,
+  .data-table td {
+    padding: 0.75rem;
+  }
+
+  .songs-header,
+  .song-row {
+    grid-template-columns: 30px 1fr 60px 60px;
+    font-size: 0.8rem;
+  }
+
+  .revenue-stats {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 480px) {
+  .admin-dashboard {
+    padding: 0.5rem;
+  }
+
+  .header-content h1 {
+    font-size: 1.5rem;
+  }
+
+  .header-content .subtitle {
+    font-size: 0.85rem;
+  }
+
+  .refresh-button,
+  .retry-button {
+    padding: 0.6rem 1rem;
+    font-size: 0.9rem;
+  }
+
+  .summary-section h2,
+  .revenue-by-venue h3 {
+    font-size: 1.2rem;
+  }
+
+  .tabs-container {
+    flex-direction: column;
+  }
+
+  .tab-button {
+    flex: 1;
+    font-size: 0.85rem;
+  }
+
+  .card {
+    padding: 1rem;
+  }
+
+  .card h3 {
+    font-size: 1.1rem;
+  }
+
+  .data-table {
+    font-size: 0.7rem;
+  }
+
+  .data-table th,
+  .data-table td {
+    padding: 0.5rem;
+  }
+
+  .songs-header {
+    display: none;
+  }
+
+  .song-row {
+    grid-template-columns: 1fr;
+    gap: 0.5rem;
+  }
+
+  .song-row .rank,
+  .song-row .requests,
+  .song-row .status {
+    display: inline;
+    margin-right: 0.5rem;
+  }
+}

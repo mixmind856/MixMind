@@ -1,0 +1,9 @@
+{
+  "watch": ["."],
+  "ignore": [
+    "worker/utils/beatsource-auth.json",
+    "worker/recordings/**",
+    "**/*.zip",
+    "**/*.webm"
+  ]
+}

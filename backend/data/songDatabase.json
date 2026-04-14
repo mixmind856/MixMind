@@ -1,0 +1,34 @@
+[
+  {
+    "name": "(I've Had) The Time of My Life",
+    "artist": "Bill Medley & Jennifer Warnes",
+    "genre": "COMMERCIAL_POP",
+    "secondary": ["MID_ENERGY", "CLUB", "UNIVERSAL"],
+    "essential": false,
+    "moment": null
+  },
+  {
+    "name": "9 to 5",
+    "artist": "Dolly Parton",
+    "genre": "COMMERCIAL_POP",
+    "secondary": ["80S", "MID_ENERGY", "CLUB", "THROWBACK", "UNIVERSAL"],
+    "essential": false,
+    "moment": null
+  },
+  {
+    "name": "Happy Birthday",
+    "artist": "Stevie Wonder",
+    "genre": "RNB",
+    "secondary": ["SINGALONG", "UNIVERSAL"],
+    "essential": true,
+    "moment": "birthday"
+  },
+  {
+    "name": "In Da Club",
+    "artist": "50 Cent",
+    "genre": "US_HIPHOP",
+    "secondary": ["2000S", "ANTHEM", "CLUB", "PEAK_TIME", "MID_ENERGY"],
+    "essential": true,
+    "moment": "birthday"
+  }
+]

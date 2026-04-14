@@ -1,0 +1,69 @@
+{
+  "cookies": [
+    {
+      "name": "sessionId",
+      "value": "s%3Adf5fae2c-1e6e-4bd6-8d2a-5e15f976f8c8.9IR3kqEhugoazMREko6ztkNQQULu6sR278Ke1f4ZcyA",
+      "domain": "www.beatsource.com",
+      "path": "/",
+      "expires": 1775154002.372344,
+      "httpOnly": true,
+      "secure": true,
+      "sameSite": "Lax"
+    },
+    {
+      "name": "_cfuvid",
+      "value": "vT5pDETxbkG.UwGZ6d4HbdwyEujO3P5vsfI9.xXV_c8-1772561988472-0.0.1.1-604800000",
+      "domain": ".cardinalcommerce.com",
+      "path": "/",
+      "expires": -1,
+      "httpOnly": true,
+      "secure": true,
+      "sameSite": "None"
+    },
+    {
+      "name": "csrftoken",
+      "value": "0pkJYm60aTKZGeN101iT9s320TyeuC5x",
+      "domain": "account.beatport.com",
+      "path": "/",
+      "expires": 1804011593.877413,
+      "httpOnly": true,
+      "secure": true,
+      "sameSite": "None"
+    },
+    {
+      "name": "sessionid",
+      "value": "k1omg2itn2ovher6vfco8hr9b3ar4s3u",
+      "domain": "account.beatport.com",
+      "path": "/",
+      "expires": 1775153993.877586,
+      "httpOnly": true,
+      "secure": true,
+      "sameSite": "None"
+    },
+    {
+      "name": "OptanonConsent",
+      "value": "isGpcEnabled=0&datestamp=Tue+Mar+03+2026+23%3A50%3A02+GMT%2B0530+(India+Standard+Time)&version=202502.1.0&browserGpcFlag=0&isIABGlobal=false&hosts=&consentId=51192cce-ec4a-4707-a92d-8066cdebe9c6&interactionCount=1&isAnonUser=1&landingPath=NotLandingPage&groups=C0004%3A0%2CC0002%3A0%2CC0003%3A0%2CC0001%3A1&AwaitingReconsent=false",
+      "domain": ".beatsource.com",
+      "path": "/",
+      "expires": 1804098002,
+      "httpOnly": false,
+      "secure": false,
+      "sameSite": "Lax"
+    }
+  ],
+  "origins": [
+    {
+      "origin": "https://www.beatsource.com",
+      "localStorage": [
+        {
+          "name": "BS_IDS_code_verifier",
+          "value": "eXTPTuPIcD_YuvRzFIWSfHQTQ8jWnBxRnV8-XtuTezk="
+        },
+        {
+          "name": "btsrcSession",
+          "value": "{\"application_id\":198,\"user_id\":10551448,\"username\":\"Venue_1\",\"first_name\":\"venue\",\"last_name\":\"one\",\"scope\":\"app:store user:dj user:bs_legacy\",\"feature\":[\"feature:needledrop\",\"feature:territoryrestrictions\",\"feature:subscriptions\",\"feature:estracks\",\"feature:esreleases\",\"feature:pagemoduleitemcache\",\"feature:fulltrackplayback\",\"feature:checkout\",\"feature:ondemandencoding\",\"feature:escharts\",\"feature:publicplaylist\",\"feature:alverification\",\"feature:cdnfulfillment\",\"feature:cdnfulfillment-link\",\"feature:bang_v2\",\"feature:muzookawebhook\",\"feature:trackviewcache\",\"feature:genreviewcache\",\"feature:auxiliaryviewcache\",\"feature:artistviewcache\",\"feature:releaseviewcache\",\"feature:curatedplaylistviewcache\",\"feature:labelviewcache\",\"feature:mgorderreceipt\",\"feature:removedownloadrestrictionsforbeatsource\",\"feature:beatsourcepurchasedtracksplaylist\"],\"subscription\":\"bsrc_link\",\"person_id\":527393,\"access_token\":\"eyJ0eXAiOiAiSldUIiwgImFsZyI6ICJSUzI1NiIsICJraWQiOiAiYldZY2FnNk1ERTdreTFteDgxTUdpbjd5OGJheWdLRWFwQ2hWWlJpcjkwQSJ9.eyJqdGkiOiAiNjY5ZWJiZGEtNmZmNi00NWRiLWIzYTktNmMwYmE0ZDU3OTI2IiwgInN1YiI6ICJWZW51ZV8xIiwgImNsaWVudF9pZCI6ICJsQkF1SFRobE9EVzBlUVdxV2pSdlJ2bGNqY0hoZ0tvcTNpVnNzWXRmIiwgImF1ZCI6ICJ1cm46YnA6aWRlbnRpdHktc2VydmljZSIsICJpc3MiOiAidXJuOmJwOmlkZW50aXR5LXNlcnZpY2UiLCAiaWF0IjogMTc3MjU2MTk5NiwgImV4cCI6IDE3NzI1NjI1OTYsICJzY29wZSI6ICJhcHA6c3RvcmUgdXNlcjpic19sZWdhY3kgdXNlcjpkaiJ9.EVUePsLpWQZ67kl4cGZgmOxV8x9mNR7bEMwdNzn0W33yhdKBcP2lMD1tBHVhEEJj8JpBDZNJP_bayWxfm7MctAym75cRKCQGZpqj9lJwamR43vP7xVavQbU4FsnPP9T9vnVpk7YdzVdoWUbFJyFVSjQ9m6dMYrYkxOepG9CMjIDv08DV4s1ZTl7q3vEsF78u9-VLX_AWPcIcfPRx-h9m9L_Ph9sf8ND8bOtD52zrbB8JuvjVM9HSUoGwLRKVOvZBKnUwsjz-I6vc5fcqahZy7gGMIWBOWvjdeO8xY8Si8D-lfQp262erBiHEvJ4CV8D2rRivg9oACZPT8foKQCZJaycAt6zBEYDRAULlzXmSG989XsjGpSu0-AHFbxZr93VtC9s8lwwyUFgeIKtlj5btgY1VtRuB06hYPyYTUnzznzVsA68SZJjDA9YeVbPy77X8vRNsdyFnrazi_XnL1dPnTxnDZBnlQPisTXO7aJ47I8po7744BhdjJ-ZkASwvBWmuPoZDz_3uoDfVX4Kp4qpemGlA1NLzJuwDquOlfXqFGbhfI8ajl1xHMByVZonYbxXHlHiSaShUu4G3IXSxehJsBIlBITbot4TOUlJoMGe_eAVJHT3xXPmI0LIRH1O15oWZqggnFeI6ST8dnZVBVJXThcX2_vpfNGK_1MYbsnIFtew\",\"expires_in\":600,\"token_type\":\"Bearer\",\"refresh_token\":\"RIAG3tj7MKj8TZ98J6qjBDaAOPerz7\",\"expires_at\":1772562542360,\"expires_in_ms\":600000,\"timestamp\":1772562002360}"
+        }
+      ]
+    }
+  ]
+}
