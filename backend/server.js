@@ -5,6 +5,23 @@ const connectDB = require("./db");
 const workerManager = require("./worker/workerManager");
 const axios = require("axios");
 
+// ================== ENVIRONMENT DIAGNOSTICS ==================
+console.log(`\n${'═'.repeat(60)}`);
+console.log(`🔧 ENVIRONMENT CONFIGURATION`);
+console.log(`${'═'.repeat(60)}`);
+console.log(`📧 EMAIL CONFIGURATION:`);
+console.log(`   GMAIL_USER: ${process.env.GMAIL_USER || "❌ NOT SET"}`);
+console.log(`   GMAIL_PASSWORD: ${process.env.GMAIL_PASSWORD ? "✅ SET" : "❌ NOT SET"}`);
+console.log(`   EMAIL_SERVICE: ${process.env.EMAIL_SERVICE || "default (gmail)"}`);
+console.log(`   SENDGRID_API_KEY: ${process.env.SENDGRID_API_KEY ? "✅ SET" : "❌ NOT SET"}`);
+console.log(`\n🔗 OTHER VARIABLES:`);
+console.log(`   NODE_ENV: ${process.env.NODE_ENV || "development"}`);
+console.log(`   PORT: ${process.env.PORT || 4000}`);
+console.log(`   CLIENT_URL: ${process.env.CLIENT_URL || "❌ NOT SET"}`);
+console.log(`   STRIPE_SECRET_KEY: ${process.env.STRIPE_SECRET_KEY ? "✅ SET" : "❌ NOT SET"}`);
+console.log(`   MONGODB_URI: ${process.env.MONGODB_URI ? "✅ SET" : "❌ NOT SET"}`);
+console.log(`${'═'.repeat(60)}\n`);
+
 const app = express();
 const PORT = process.env.PORT || 4000;
 
@@ -28,6 +45,7 @@ app.use("/api/payments", require("./features/payments"));
 app.use("/api/stripe", require("./features/payments/stripe")); // webhook route
 app.use("/api/venue", require("./features/venues")); // venue auth routes
 app.use("/api/dj", require("./features/dj")); // DJ mode routes
+app.use("/api/coupons", require("./features/coupons")); // coupon validation routes
 
 // ================== HEALTH CHECK ENDPOINT ==================
 // This endpoint can be called from frontend to check if backend is running

@@ -8,6 +8,8 @@ const Stripe = require("stripe");
 const Payment = require("../models/Payment");
 const Request = require("../models/Request");
 const Venue = require("../models/Venue");
+const User = require("../models/User");
+const couponService = require("./couponService");
 
 const DEMO_MODE = process.env.DEMO_MODE === "true" || !process.env.STRIPE_SECRET_KEY;
 const stripe = !DEMO_MODE ? new Stripe(process.env.STRIPE_SECRET_KEY) : null;
@@ -61,6 +63,33 @@ async function capturePaymentAndUpdateRevenue(paymentIntentId, requestId, venueI
       venue.lastRevenueUpdateAt = new Date();
       await venue.save();
       console.log(`💰 Venue revenue updated: Total=$${venue.totalRevenue}, Captured=${venue.totalCapturedPayments}`);
+    }
+
+    // ===== GENERATE & SEND COUPON TO USER =====
+    console.log(`\n🎁 Generating coupon for user after payment capture...`);
+    try {
+      // Fetch the request to get user info
+      const request = await Request.findById(requestId).populate("userId");
+      if (request && request.userId) {
+        const user = request.userId;
+        console.log(`   User: ${user.email}`);
+        
+        // Verify payment was saved with captured status
+        const verifyPayment = await Payment.findOne({ stripePaymentIntentId: paymentIntentId });
+        if (verifyPayment) {
+          console.log(`   ✅ Payment verified - Status: ${verifyPayment.status}, Amount: £${verifyPayment.capturedAmount}`);
+          // Generate coupon (£3 = 1 free song)
+          await couponService.generateAndSendCoupon(verifyPayment, user, request);
+          console.log(`✅ Coupon generated and sent to ${user.email}`);
+        } else {
+          console.log(`⚠️  Payment not found for ID: ${paymentIntentId}`);
+        }
+      } else {
+        console.log(`⚠️  Could not fetch user from request for coupon generation`);
+      }
+    } catch (couponErr) {
+      console.error(`⚠️  Coupon generation failed: ${couponErr.message}`);
+      // Don't throw - coupon failure shouldn't break payment flow
     }
 
     return { success: true, captureResult };

@@ -10,6 +10,7 @@ const Venue = require("../../models/Venue");
 const axios = require("axios");
 const { pushToStack, getStackSize } = require("../../services/stackService");
 const { createCheckoutSession, createCheckoutSessionDJ, createPaymentIntentDJ } = require("../../features/payments/stripe/stripe.service");
+const couponService = require("../../services/couponService");
 
 /* -------------------- UTILITY: SLEEP -------------------- */
 function sleep(ms) {
@@ -30,13 +31,13 @@ function isEssentialSong(songName, artistName) {
 /* -------------------- CREATE REQUEST -------------------- */
 async function createRequest(req, res) {
   try {
-    const { name, email, title, artist, price, songTitle, artistName, userName, venueId, phone, countryCode } = req.body;
+    const { name, email, title, artist, price, songTitle, artistName, userName, venueId, phone, countryCode, couponCode } = req.body;
 
     console.log(`\n📨 INCOMING REQUEST:`);
     console.log(`   Name: ${name}, Email: ${email}`);
     console.log(`   Song: ${songTitle || title}, Artist: ${artistName || artist}`);
     console.log(`   Phone: ${phone}, Country Code: ${countryCode}`);
-    console.log(`   VenueId: ${venueId}\n`);
+    console.log(`   Coupon Code: ${couponCode || "None"}\n`);
 
     // Use new field names or fallback to old ones for backwards compatibility
     // IMPORTANT: Trim whitespace from song and artist names for Last.fm API matching
@@ -100,11 +101,37 @@ async function createRequest(req, res) {
     // ===== CALCULATE DYNAMIC PRICING BASED ON DJ MODE =====
     // DJ Mode ON: £9 | DJ Mode OFF: £3
     let finalPrice = price || 0;
+    let appliedCoupon = null;
+    let couponDiscountAmount = 0;
+    
     if (venueId && venue) {
       finalPrice = djModeEnabled ? 9 : 3;
       console.log(`💷 PRICING CALCULATION:`);
       console.log(`   DJ Mode: ${djModeEnabled ? "ON" : "OFF"}`);
-      console.log(`   Price: £${finalPrice}`);
+      console.log(`   Initial Price: £${finalPrice}`);
+    }
+
+    // ===== APPLY COUPON CODE IF PROVIDED =====
+    if (couponCode) {
+      console.log(`\n🎟️  APPLYING COUPON CODE: ${couponCode}`);
+      const couponValidation = await couponService.validateAndApplyCoupon(
+        couponCode,
+        user._id,
+        finalPrice
+      );
+
+      if (couponValidation.isValid) {
+        appliedCoupon = couponValidation.couponId;
+        couponDiscountAmount = couponValidation.discount;
+        finalPrice = couponValidation.finalPrice;
+        console.log(`   ✅ Coupon applied - Discount: £${couponDiscountAmount}, New Price: £${finalPrice}`);
+      } else {
+        console.log(`   ❌ Coupon invalid: ${couponValidation.error}`);
+        return res.status(400).json({ 
+          error: "Invalid coupon code",
+          details: couponValidation.error 
+        });
+      }
     }
 
     const requestData = {
@@ -118,7 +145,9 @@ async function createRequest(req, res) {
       countryCode: countryCode,
       price: finalPrice,
       status: initialStatus,
-      sourcePlaylistId: process.env.SOURCE_PLAYLIST_ID
+      sourcePlaylistId: process.env.SOURCE_PLAYLIST_ID,
+      appliedCoupon: appliedCoupon,
+      couponDiscountAmount: couponDiscountAmount
     };
 
     // Add venueId if provided
@@ -134,7 +163,18 @@ async function createRequest(req, res) {
     console.log(`✅ Request.create() returned:`);
     console.log(`   ID: ${request._id}`);
     console.log(`   Title: ${request.title}`);
+    console.log(`   Price: £${request.price}`);
     console.log(`   Status: ${request.status}`);
+    
+    // Redeem coupon if one was applied
+    if (appliedCoupon) {
+      try {
+        await couponService.redeemCoupon(couponCode, user._id, request._id);
+        console.log(`✅ Coupon redeemed and marked as used`);
+      } catch (couponErr) {
+        console.error(`⚠️  Failed to mark coupon as redeemed:`, couponErr.message);
+      }
+    }
     
     // Force flush to database with explicit wait
     const savedReq = await Request.findById(request._id);

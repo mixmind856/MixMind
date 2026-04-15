@@ -6,8 +6,10 @@
 const stripe = require("stripe")(process.env.STRIPE_SECRET_KEY);
 const Request = require("../../../models/Request");
 const Payment = require("../../../models/Payment");
+const User = require("../../../models/User");
 const { createSplitTransfers } = require("./stripe.service");
 const { pushToStack } = require("../../../services/stackService");
+const couponService = require("../../../services/couponService");
 
 /**
  * Verify a Stripe checkout session and complete the payment
@@ -317,6 +319,39 @@ async function verifyCheckoutSession(checkoutSessionId) {
         console.log(`✅ LIVE mode transfers completed`);
       } catch (transferErr) {
         console.warn("⚠️ Transfer failed but payment marked as paid:", transferErr.message);
+      }
+
+      // ===== GENERATE & SEND COUPON (LIVE MODE) =====
+      console.log(`\n🎁 COUPON GENERATION CHECK - LIVE MODE`);
+      
+      // Only generate coupon if they DIDN'T use a coupon as discount
+      if (request.appliedCoupon) {
+        console.log(`⚠️  Request already has applied coupon, skipping reward coupon generation`);
+        console.log(`   Applied Coupon: ${request.appliedCoupon}`);
+        console.log(`   Discount Amount: £${request.couponDiscountAmount || 0}`);
+      } else {
+        console.log(`✅ No coupon was used - Eligible for reward coupon`);
+        try {
+          // Fetch full user data
+          const user = await User.findById(request.userId);
+          if (!user) {
+            console.error(`❌ User not found for coupon generation`);
+          } else {
+            console.log(`✅ User found: ${user.email}`);
+            console.log(`   Payment Status: ${updatedPayment.status}`);
+            console.log(`   Amount: £${payment.amount}`);
+            
+            const couponResult = await couponService.generateAndSendCoupon(updatedPayment, user, request);
+            if (couponResult) {
+              console.log(`✅ Coupon generated and sent - Code: ${couponResult.code}`);
+            } else {
+              console.warn(`⚠️ Coupon generation returned null`);
+            }
+          }
+        } catch (couponErr) {
+          console.error(`❌ Coupon generation exception: ${couponErr.message}`);
+          console.error(`   Stack:`, couponErr.stack);
+        }
       }
     } else {
       console.log(`⏳ DJ MODE: Transfers will be processed when DJ approves the request`);

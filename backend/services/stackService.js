@@ -24,7 +24,7 @@ async function pushToStack(venueId, requestData) {
     // Ensure status is "queued"
     if (request.status !== "queued") {
       request.status = "queued";
-      request.flowStatus = "queued";
+      request.flowStatus = "pending"; // Flow status tracks the 3-step processing, starts as pending
       await request.save();
     }
     
@@ -100,7 +100,7 @@ async function removeFromStack(venueId, requestId) {
     
     // Update status to something other than "queued"
     request.status = "rejected";
-    request.flowStatus = "removed";
+    request.flowStatus = "failed"; // Mark flow as failed when removing
     await request.save();
     
     console.log(`🗑️  Removed request from queue: ${requestId}`);
@@ -172,7 +172,7 @@ async function clearStack(venueId) {
     // Update all queued requests to rejected
     await Request.updateMany(
       { venueId: venueId, status: "queued" },
-      { status: "rejected", flowStatus: "cleared" }
+      { status: "rejected", flowStatus: "failed" }
     );
     
     console.log(`🔄 Cleared queue for venue ${venueId}`);

@@ -10,12 +10,12 @@ const mongoose = require("mongoose");
  * @returns {Promise<void>}
  */
 async function connectDatabase() {
-  if (!process.env.MONGO_URI) {
-    throw new Error("MONGO_URI environment variable not set");
+  if (!process.env.MONGODB_URI) {
+    throw new Error("MONGODB_URI environment variable not set");
   }
 
   try {
-    await mongoose.connect(process.env.MONGO_URI);
+    await mongoose.connect(process.env.MONGODB_URI);
     console.log("✅ Worker: MongoDB connected");
   } catch (error) {
     console.error("❌ Worker: MongoDB connection failed:", error.message);

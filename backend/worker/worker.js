@@ -1,4 +1,17 @@
-require("dotenv").config();
+const path = require("path");
+const fs = require("fs");
+
+// Load .env with explicit path
+const envPath = path.resolve(__dirname, "../.env");
+require("dotenv").config({ path: envPath });
+
+if (!process.env.MONGODB_URI) {
+  console.error(`\n❌ CRITICAL: MONGODB_URI not set!`);
+  console.error(`   Expected .env at: ${envPath}`);
+  console.error(`   File exists: ${fs.existsSync(envPath) ? "YES" : "NO"}`);
+  process.exit(1);
+}
+
 const { Worker } = require("bullmq");
 const mongoose = require("mongoose");
 const runBeatsourceFlow = require("./beatsourceClient");
@@ -10,8 +23,8 @@ const connection = {
 };
 
 async function connectDB() {
-  if (!process.env.MONGO_URI) throw new Error("MONGO_URI not set");
-  await mongoose.connect(process.env.MONGO_URI);
+  if (!process.env.MONGODB_URI) throw new Error("MONGODB_URI not set");
+  await mongoose.connect(process.env.MONGODB_URI);
   console.log("Worker MongoDB connected");
 }
 

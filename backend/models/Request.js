@@ -12,6 +12,10 @@ const RequestSchema = new Schema(
     phone: { type: String },
     countryCode: { type: String }, // e.g., "+44", "+1", "+33"
     price: { type: Number, required: true, default: 0 },
+    
+    // Coupon tracking
+    appliedCoupon: { type: String }, // Code of the applied coupon
+    couponDiscountAmount: { type: Number, default: 0 }, // Discount amount in pounds
 
     status: {
       type: String,

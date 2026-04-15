@@ -6,7 +6,9 @@ import {
   Mic2,
   DollarSign,
   CheckCircle2,
-  X
+  X,
+  Gift,
+  Check
 } from "lucide-react";
 import StripePayment from "../components/payment/StripePayment.jsx";
 
@@ -20,9 +22,13 @@ function RequestForm() {
     email: "",
     title: "",
     artist: "",
-    price: 5
+    price: 3,
+    couponCode: ""
   });
 
+  const [couponData, setCouponData] = useState(null); // { discount, finalPrice }
+  const [couponValidating, setCouponValidating] = useState(false);
+  const [couponError, setCouponError] = useState(null);
   const [showPayment, setShowPayment] = useState(false);
   const [requestId, setRequestId] = useState(null);
   const [loading, setLoading] = useState(false);
@@ -33,6 +39,54 @@ function RequestForm() {
     setForm(s => ({ ...s, [e.target.name]: e.target.value }));
   }
 
+  /* Validate coupon code */
+  async function handleValidateCoupon() {
+    if (!form.couponCode.trim()) {
+      setCouponError("Please enter a coupon code");
+      return;
+    }
+
+    setCouponValidating(true);
+    setCouponError(null);
+
+    try {
+      const res = await fetch(`${API}/api/coupons/validate`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          couponCode: form.couponCode,
+          originalPrice: form.price
+        })
+      });
+
+      const data = await res.json();
+
+      if (!res.ok) {
+        setCouponError(data.error || "Invalid coupon code");
+        setCouponData(null);
+        return;
+      }
+
+      setCouponData({
+        discount: data.discount,
+        finalPrice: data.finalPrice,
+        couponCode: data.couponCode
+      });
+      setCouponError(null);
+    } catch (err) {
+      setCouponError("Failed to validate coupon");
+    } finally {
+      setCouponValidating(false);
+    }
+  }
+
+  /* Remove coupon */
+  function handleRemoveCoupon() {
+    setCouponData(null);
+    setForm(s => ({ ...s, couponCode: "" }));
+    setCouponError(null);
+  }
+
   /* Step 1: Submit form to create request */
   async function handleFormSubmit(e) {
     e.preventDefault();
@@ -40,10 +94,16 @@ function RequestForm() {
     setError(null);
 
     try {
+      const requestBody = {
+        ...form,
+        // Pass the final price (already discounted if coupon applied)
+        price: couponData ? couponData.finalPrice : form.price
+      };
+
       const reqRes = await fetch(`${API}/api/requests`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(form)
+        body: JSON.stringify(requestBody)
       });
 
       if (!reqRes.ok) {
@@ -130,7 +190,72 @@ function RequestForm() {
         <Input label="Email" icon={<Mail />} type="email" name="email" value={form.email} onChange={onChange} />
         <Input label="Song Title" icon={<Music />} name="title" value={form.title} onChange={onChange} />
         <Input label="Artist" icon={<Mic2 />} name="artist" value={form.artist} onChange={onChange} />
-        <Input label="Price (GBP)" icon={<DollarSign />} type="number" name="price" value={form.price} onChange={onChange} />
+
+        {/* PRICE DISPLAY */}
+        <div className="bg-gradient-to-r from-blue-50 to-indigo-50 rounded-xl p-4 border border-blue-100">
+          <div className="flex justify-between items-center mb-2">
+            <span className="text-gray-600 font-medium">Base Price:</span>
+            <span className="text-lg font-semibold text-gray-800">£{parseFloat(form.price).toFixed(2)}</span>
+          </div>
+          {couponData && (
+            <>
+              <div className="h-px bg-gradient-to-r from-transparent via-blue-300 to-transparent my-2"></div>
+              <div className="flex justify-between items-center mb-2 text-green-600">
+                <span className="font-medium">✨ Discount:</span>
+                <span className="text-lg font-semibold">-£{parseFloat(couponData.discount).toFixed(2)}</span>
+              </div>
+              <div className="flex justify-between items-center pt-2 border-t border-blue-200">
+                <span className="text-gray-700 font-bold">Final Price:</span>
+                <span className="text-2xl font-bold text-green-600">£{parseFloat(couponData.finalPrice).toFixed(2)}</span>
+              </div>
+            </>
+          )}
+        </div>
+
+        {/* COUPON INPUT */}
+        <div>
+          <label className="flex items-center gap-2 text-sm font-semibold mb-2">
+            <Gift size={16} /> Have a Coupon? (Optional)
+          </label>
+          <div className="flex gap-2">
+            <input
+              type="text"
+              name="couponCode"
+              value={form.couponCode}
+              onChange={onChange}
+              disabled={couponData !== null}
+              placeholder="Enter coupon code for discount"
+              className="flex-1 px-4 py-3 border-2 rounded-xl disabled:bg-gray-100"
+            />
+            {!couponData && (
+              <button
+                type="button"
+                onClick={handleValidateCoupon}
+                disabled={couponValidating || !form.couponCode.trim()}
+                className="px-6 py-3 bg-green-600 text-white rounded-xl hover:bg-green-700 disabled:opacity-50 font-medium transition-all"
+              >
+                {couponValidating ? "Checking..." : "Apply"}
+              </button>
+            )}
+            {couponData && (
+              <button
+                type="button"
+                onClick={handleRemoveCoupon}
+                className="px-4 py-3 bg-gray-300 text-gray-700 rounded-xl hover:bg-gray-400 transition-all"
+              >
+                ✕ Remove
+              </button>
+            )}
+          </div>
+          {couponError && (
+            <p className="text-red-600 text-sm mt-2">❌ {couponError}</p>
+          )}
+          {couponData && (
+            <p className="text-green-600 text-sm mt-2 flex items-center gap-1">
+              <Check size={16} /> Coupon applied! Save £{parseFloat(couponData.discount).toFixed(2)}
+            </p>
+          )}
+        </div>
 
         {error && <div className="text-red-600 font-medium">{error}</div>}
 
@@ -171,14 +296,21 @@ function RequestForm() {
             <div className="px-8 py-4 bg-blue-50 border-b border-blue-100">
               <div className="flex justify-between items-center">
                 <span className="text-gray-600 font-medium">Amount to Pay:</span>
-                <span className="text-2xl font-bold text-blue-600">£{parseFloat(form.price).toFixed(2)}</span>
+                <span className="text-2xl font-bold text-blue-600">
+                  £{parseFloat(couponData ? couponData.finalPrice : form.price).toFixed(2)}
+                </span>
               </div>
+              {couponData && (
+                <p className="text-sm text-green-600 mt-2">
+                  ✨ With coupon discount applied (Save £{parseFloat(couponData.discount).toFixed(2)})
+                </p>
+              )}
             </div>
 
             {/* Stripe Payment Component */}
             <div className="p-8">
               <StripePayment 
-                amount={form.price}
+                amount={couponData ? couponData.finalPrice : form.price}
                 onPaymentSuccess={handlePaymentSuccess}
                 onPaymentError={handlePaymentError}
               />

@@ -2,6 +2,7 @@ import { useState, useEffect } from "react";
 import { useParams } from "react-router-dom";
 import VenuePaymentModalWrapper from "../componentsRequest/VenuePaymentModal";
 import logo from "../assets/Mixmind.jpeg";
+import { Gift, Check } from "lucide-react";
 
 export default function VenuePublicRequest() {
   const { venueId } = useParams();
@@ -29,6 +30,10 @@ export default function VenuePublicRequest() {
   const [pendingRequestId, setPendingRequestId] = useState(null);
   const [checkoutUrl, setCheckoutUrl] = useState(null);
   const [checkoutSessionId, setCheckoutSessionId] = useState(null);
+  const [couponCode, setCouponCode] = useState("");
+  const [couponData, setCouponData] = useState(null);
+  const [couponValidating, setCouponValidating] = useState(false);
+  const [couponError, setCouponError] = useState("");
 
   useEffect(() => {
     fetchVenueData();
@@ -86,6 +91,55 @@ export default function VenuePublicRequest() {
     }));
   };
 
+  const handleValidateCoupon = async () => {
+    if (!couponCode.trim()) {
+      setCouponError("Please enter a coupon code");
+      return;
+    }
+
+    setCouponValidating(true);
+    setCouponError("");
+
+    try {
+      const res = await fetch(
+        `${import.meta.env.VITE_API_URL}/api/coupons/validate`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            couponCode: couponCode,
+            originalPrice: formData.price
+          })
+        }
+      );
+
+      const data = await res.json();
+
+      if (!res.ok) {
+        setCouponError(data.error || "Invalid coupon code");
+        setCouponData(null);
+        return;
+      }
+
+      setCouponData({
+        discount: data.discount,
+        finalPrice: data.finalPrice,
+        couponCode: data.couponCode
+      });
+      setCouponError("");
+    } catch (err) {
+      setCouponError("Failed to validate coupon");
+    } finally {
+      setCouponValidating(false);
+    }
+  };
+
+  const handleRemoveCoupon = () => {
+    setCouponData(null);
+    setCouponCode("");
+    setCouponError("");
+  };
+
   const handleSubmit = async (e) => {
     e.preventDefault();
     setSubmitting(true);
@@ -106,7 +160,8 @@ export default function VenuePublicRequest() {
             artist: formData.artistName,
             phone: formData.phone,
             countryCode: formData.countryCode,
-            price: parseFloat(formData.price),
+            price: couponData ? couponData.finalPrice : parseFloat(formData.price),
+            couponCode: couponData?.couponCode || null,
             venueId: venueId
           })
         }
@@ -152,6 +207,9 @@ export default function VenuePublicRequest() {
       countryCode: "+44",
       price: resetPrice
     });
+    setCouponCode("");
+    setCouponData(null);
+    setCouponError("");
     setPendingRequestId(null);
     setSubmitting(false);
 
@@ -369,10 +427,96 @@ export default function VenuePublicRequest() {
               />
             </div>
 
-            {/* Request Fee */}
+            {/* Price Display with Coupon */}
             <div className="mt-6 p-4 rounded-xl" style={{ background: 'rgba(34,227,161,0.1)', border: '1px solid rgba(34,227,161,0.2)' }}>
-              <p className="text-xs" style={{ color: 'rgba(255,255,255,0.72)' }}>Request Fee</p>
-              <p className="font-bold text-2xl" style={{ color: '#22E3A1' }}>£{formData.price}</p>
+              <div className="flex justify-between items-center mb-2">
+                <p className="text-xs" style={{ color: 'rgba(255,255,255,0.72)' }}>Base Price</p>
+                <p className="text-sm font-semibold" style={{ color: 'rgba(255,255,255,0.72)' }}>£{formData.price.toFixed(2)}</p>
+              </div>
+              {couponData && (
+                <>
+                  <div className="h-px" style={{ background: 'rgba(34,227,161,0.3)', margin: '8px 0' }}></div>
+                  <div className="flex justify-between items-center mb-2">
+                    <p className="text-xs font-medium" style={{ color: '#22E3A1' }}>✨ Discount</p>
+                    <p className="text-sm font-semibold" style={{ color: '#22E3A1' }}>-£{couponData.discount.toFixed(2)}</p>
+                  </div>
+                </>
+              )}
+              <div className="flex justify-between items-center pt-2" style={{ borderTop: '1px solid rgba(34,227,161,0.3)' }}>
+                <p className="text-xs font-bold" style={{ color: 'rgba(255,255,255,0.72)' }}>Total to Pay</p>
+                <p className="font-bold text-xl" style={{ color: '#22E3A1' }}>£{(couponData ? couponData.finalPrice : formData.price).toFixed(2)}</p>
+              </div>
+            </div>
+
+            {/* Coupon Input */}
+            <div className="mt-6">
+              <label className="flex items-center gap-2 text-xs font-600 mb-2" style={{ color: 'rgba(255,255,255,0.72)' }}>
+                <Gift size={14} /> Have a Coupon? (Optional)
+              </label>
+              <div className="flex gap-2">
+                <input
+                  type="text"
+                  value={couponCode}
+                  onChange={(e) => setCouponCode(e.target.value)}
+                  disabled={couponData !== null}
+                  placeholder="Enter coupon code"
+                  className="flex-1 px-4 py-3 rounded-xl text-white placeholder-gray-500 focus:outline-none transition-all"
+                  style={{
+                    background: 'rgba(168,85,247,0.1)',
+                    border: couponData ? '1px solid rgba(34,227,161,0.3)' : '1px solid rgba(255,255,255,0.08)',
+                    color: '#FFFFFF'
+                  }}
+                  onFocus={(e) => {
+                    if (!couponData) {
+                      e.target.style.borderColor = '#A855F7';
+                      e.target.style.boxShadow = '0 0 20px rgba(168,85,247,0.3)';
+                    }
+                  }}
+                  onBlur={(e) => {
+                    if (!couponData) {
+                      e.target.style.borderColor = 'rgba(255,255,255,0.08)';
+                      e.target.style.boxShadow = 'none';
+                    }
+                  }}
+                />
+                {!couponData && (
+                  <button
+                    type="button"
+                    onClick={handleValidateCoupon}
+                    disabled={couponValidating || !couponCode.trim()}
+                    className="px-4 py-3 rounded-xl font-medium transition-all"
+                    style={{
+                      background: couponValidating || !couponCode.trim() ? 'rgba(168,85,247,0.3)' : 'linear-gradient(135deg, #22E3A1 0%, #10B981 100%)',
+                      color: '#FFFFFF',
+                      opacity: couponValidating || !couponCode.trim() ? 0.5 : 1
+                    }}
+                  >
+                    {couponValidating ? "Checking..." : "Apply"}
+                  </button>
+                )}
+                {couponData && (
+                  <button
+                    type="button"
+                    onClick={handleRemoveCoupon}
+                    className="px-4 py-3 rounded-xl font-medium transition-all"
+                    style={{
+                      background: 'rgba(168,85,247,0.2)',
+                      color: '#A855F7',
+                      border: '1px solid rgba(168,85,247,0.3)'
+                    }}
+                  >
+                    ✕ Remove
+                  </button>
+                )}
+              </div>
+              {couponError && (
+                <p className="text-red-300 text-xs mt-2">❌ {couponError}</p>
+              )}
+              {couponData && (
+                <p className="text-xs mt-2 flex items-center gap-1" style={{ color: '#22E3A1' }}>
+                  <Check size={14} /> Coupon applied! Save £{couponData.discount.toFixed(2)}
+                </p>
+              )}
             </div>
 
             {/* CTA Button */}
@@ -404,7 +548,7 @@ export default function VenuePublicRequest() {
           setSubmitting(false);
         }}
         requestId={pendingRequestId}
-        amount={parseFloat(formData.price)}
+        amount={couponData ? couponData.finalPrice : parseFloat(formData.price)}
         venueId={venueId}
         checkoutUrl={checkoutUrl}
         checkoutSessionId={checkoutSessionId}

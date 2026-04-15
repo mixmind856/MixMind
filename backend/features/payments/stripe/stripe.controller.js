@@ -2,6 +2,8 @@ const Stripe = require("stripe");
 const Payment = require("../../../models/Payment");
 const Request = require("../../../models/Request");
 const Venue = require("../../../models/Venue");
+const User = require("../../../models/User");
+const couponService = require("../../../services/couponService");
 const { createSplitTransfers } = require("./stripe.service");
 const { pushToStack } = require("../../../services/stackService");
 
@@ -20,12 +22,20 @@ async function handleWebhook(req, res) {
   const sig = req.headers["stripe-signature"];
   let event;
 
+  console.log(`\n${'═'.repeat(70)}`);
+  console.log(`🔔 STRIPE WEBHOOK RECEIVED`);
+  console.log(`   Signature present: ${sig ? "✅" : "❌"}`);
+  console.log(`${'═'.repeat(70)}`);
+
   try {
     event = stripe.webhooks.constructEvent(
       req.body,
       sig,
       process.env.STRIPE_WEBHOOK_SECRET
     );
+    console.log(`✅ Webhook signature verified`);
+    console.log(`   Event type: ${event.type}`);
+    console.log(`   Event ID: ${event.id}`);
   } catch (err) {
     console.error("❌ Stripe signature error:", err.message);
     return res.status(400).send("Invalid signature");
@@ -39,9 +49,16 @@ async function handleWebhook(req, res) {
       const requestId = obj.metadata?.requestId;
       const venueId = obj.metadata?.venueId;
       
-      if (!requestId) return res.json({ received: true });
+      console.log(`\n═══════════════════════════════════════════════════════`);
+      console.log(`💳 [WEBHOOK] Checkout Session Completed: ${obj.id}`);
+      console.log(`   Request ID: ${requestId}`);
+      console.log(`   Venue ID: ${venueId}`);
+      console.log(`═══════════════════════════════════════════════════════`);
 
-      console.log(`\n💳 [WEBHOOK] Checkout Session Completed: ${obj.id}`);
+      if (!requestId) {
+        console.log("⚠️ No requestId in metadata, skipping webhook");
+        return res.json({ received: true });
+      }
 
       // Prevent duplicate processing
       const existingPayment = await Payment.findOne({ stripeCheckoutSessionId: obj.id });
@@ -50,11 +67,17 @@ async function handleWebhook(req, res) {
         return res.json({ received: true });
       }
 
-      // Determine if this is DJ mode or LIVE mode FIRST
-      const Venue = require("../../models/Venue");
-      const venue = venueId ? await Venue.findById(venueId) : null;
-      const isDJMode = venue?.djMode;
-      
+      // Fetch request first  
+      const request = await Request.findById(requestId);
+      if (!request) {
+        console.error(`❌ Request not found: ${requestId}`);
+        return res.json({ received: true });
+      }
+      console.log(`✅ Request found: ${request.songTitle || request.title}`);
+
+      // Determine if this is DJ mode or LIVE mode
+      const venue = venueId && venueId !== "direct" ? await Venue.findById(venueId) : null;
+      const isDJMode = venue?.djMode === true;
       console.log(`📍 Mode: ${isDJMode ? "DJ MODE 🎧" : "LIVE MODE 🎵"}`);
 
       // In DJ mode: Mark as "authorized" (funds held, NOT captured)
@@ -69,7 +92,7 @@ async function handleWebhook(req, res) {
           ...(isDJMode ? { authorizedAt: new Date() } : { paidAt: new Date(), capturedAmount: obj.amount_total / 100 }),
           amount: obj.amount_total / 100,
           lastStripeEventId: event.id,
-          testMode: obj.livemode === false,  // True if test mode
+          testMode: obj.livemode === false,
           cardBrand: obj.payment_details?.card?.brand || null,
           cardLast4: obj.payment_details?.card?.last4 || null,
           customerId: obj.customer || null
@@ -77,12 +100,17 @@ async function handleWebhook(req, res) {
         { new: true }
       );
       
+      if (!payment) {
+        console.error(`❌ Payment record not found or failed to update`);
+        return res.json({ received: true });
+      }
+      console.log(`✅ Payment updated - Status: ${paymentStatus}`);
+      
       // Update Request
       const requestUpdateData = { 
         checkoutSessionId: obj.id
       };
       
-      // Only mark as captured in LIVE mode; DJ mode stays "pending_dj_approval"
       if (!isDJMode) {
         requestUpdateData.paymentStatus = "captured";
         requestUpdateData.paidAmount = obj.amount_total / 100;
@@ -91,15 +119,10 @@ async function handleWebhook(req, res) {
         requestUpdateData.paymentStatus = "authorized";
       }
       
-      const request = await Request.findByIdAndUpdate(requestId, requestUpdateData, { new: true });
-
-      console.log(`✅ Checkout completed for request: ${requestId}`);
-      console.log(`   Payment Status: ${paymentStatus.toUpperCase()}`);
-      if (payment.testMode) console.log(`   🎪 TEST MODE payment`);
-      if (payment.cardLast4) console.log(`   💳 Card: ${payment.cardBrand?.toUpperCase() || "Unknown"} •••• ${payment.cardLast4}`);
+      await Request.findByIdAndUpdate(requestId, requestUpdateData, { new: true });
+      console.log(`✅ Request updated`);
 
       // Only process transfers in LIVE mode
-      // DJ mode transfers will be processed when DJ approves the request
       if (!isDJMode) {
         try {
           console.log(`💳 Processing LIVE mode splits...`);
@@ -108,10 +131,63 @@ async function handleWebhook(req, res) {
         } catch (transferErr) {
           console.warn("⚠️ Transfer failed but payment marked as paid:", transferErr.message);
         }
+
+        // ===== GENERATE & SEND COUPON TO USER (LIVE MODE) =====
+        console.log(`\n🎁 COUPON GENERATION CHECK - LIVE MODE`);
+        
+        // Only generate coupon if they DIDN'T use a coupon as discount
+        if (request.appliedCoupon) {
+          console.log(`⚠️  Request already has applied coupon, skipping reward coupon generation`);
+          console.log(`   Applied Coupon: ${request.appliedCoupon}`);
+          console.log(`   Discount Amount: £${request.couponDiscountAmount || 0}`);
+        } else {
+          console.log(`✅ No coupon was used - Eligible for reward coupon`);
+          try {
+            // Fetch request with populated user
+            console.log(`   Fetching request with userId population...`);
+            const requestWithUser = await Request.findById(requestId).populate("userId");
+            
+            if (!requestWithUser) {
+              console.error(`❌ Request not found when fetching for coupon`);
+              return res.json({ received: true });
+            }
+
+            if (!requestWithUser.userId) {
+              console.error(`❌ Request has no userId populated`);
+              console.log(`   Request data:`, {
+                _id: requestWithUser._id,
+                title: requestWithUser.title,
+                userId: requestWithUser.userId,
+                userName: requestWithUser.userName,
+                email: requestWithUser.email
+              });
+              return res.json({ received: true });
+            }
+
+            const user = requestWithUser.userId;
+            console.log(`✅ User found: ${user.email}`);
+            console.log(`   Payment Status: ${payment.status}`);
+            console.log(`   Payment Amount: £${payment.amount}`);
+            
+            // Generate coupon
+            console.log(`   Calling generateAndSendCoupon...`);
+            const couponResult = await couponService.generateAndSendCoupon(payment, user, requestWithUser);
+            
+            if (couponResult) {
+              console.log(`✅ Coupon successfully generated - Code: ${couponResult.code}`);
+            } else {
+              console.warn(`⚠️ Coupon generation returned null`);
+            }
+          } catch (couponErr) {
+            console.error(`❌ Coupon generation exception: ${couponErr.message}`);
+            console.error(`   Stack:`, couponErr.stack);
+          }
+        }
       } else {
         console.log(`⏳ DJ MODE: Waiting for DJ approval to capture payment and process transfers...`);
       }
 
+      console.log(`═══════════════════════════════════════════════════════\n`);
       res.json({ received: true });
     }
 
@@ -359,6 +435,25 @@ async function completeDemoPayment(req, res) {
       } catch (queueErr) {
         console.warn("⚠️ Failed to re-queue request:", queueErr.message);
       }
+    }
+
+    // ===== GENERATE & SEND COUPON =====
+    console.log(`\n🎁 Generating coupon...`);
+    try {
+      const requestWithUser = await Request.findById(payment.requestId).populate("userId");
+      if (requestWithUser && requestWithUser.userId) {
+        const user = requestWithUser.userId;
+        console.log(`   User: ${user.email}`);
+        console.log(`   Payment Status: ${payment.status}`);
+        console.log(`   Amount: £${payment.amount}`);
+        
+        await couponService.generateAndSendCoupon(payment, user, requestWithUser);
+        console.log(`✅ Coupon sent to ${user.email}`);
+      } else {
+        console.log(`⚠️ Could not fetch user for coupon generation`);
+      }
+    } catch (couponErr) {
+      console.error(`⚠️ Coupon generation failed:`, couponErr.message);
     }
 
     res.json({

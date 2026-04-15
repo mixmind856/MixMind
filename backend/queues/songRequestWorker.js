@@ -1,4 +1,5 @@
-require("dotenv").config();
+const path = require("path");
+require("dotenv").config({ path: path.resolve(__dirname, "../.env") });
 const axios = require("axios");
 const mongoose = require("mongoose");
 const Request = require("../models/Request");
@@ -290,7 +291,7 @@ function setupSignalHandlers() {
 async function initializeDatabase() {
   if (mongoose.connection.readyState !== 1) {
     try {
-      await mongoose.connect(process.env.MONGO_URI);
+      await mongoose.connect(process.env.MONGODB_URI);
       console.log("✅ MongoDB connected for Song Request Worker");
     } catch (err) {
       console.error("❌ Failed to connect MongoDB:", err.message);
@@ -396,7 +397,7 @@ async function startStackWorker() {
               // Update request status to rejected
               await Request.findByIdAndUpdate(requestData._id, { 
                 status: "rejected",
-                flowStatus: "genre_mismatch",
+                flowStatus: "failed",
                 rejectionReason: `Song genre doesn't match venue preferences. ${genreValidation.reason}`,
                 genreCheckPassed: false
               });

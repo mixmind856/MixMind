@@ -9,7 +9,7 @@
  * - Handle playlist events
  */
 
-require("dotenv").config();
+require("dotenv").config({ path: require("path").resolve(__dirname, "../../.env") });
 const { Worker } = require("bullmq");
 const WORKER_CONFIG = require("../config/workerConfig");
 const { connectDatabase, disconnectDatabase, logJobStart, logJobComplete, logJobFailed } = require("../shared/workerUtils");

@@ -1,4 +1,4 @@
-require("dotenv").config();
+require("dotenv").config({ path: require("path").resolve(__dirname, "../.env") });
 const axios = require("axios");
 const mongoose = require("mongoose");
 
@@ -206,7 +206,7 @@ async function livePlaylistWorker(sessionId) {
 // -------------------- START WORKER --------------------
 async function startWorker(venueIdOrSessionId) {
   try {
-    await mongoose.connect(process.env.MONGO_URI);
+    await mongoose.connect(process.env.MONGODB_URI);
     console.log("✅ MongoDB connected");
 
     let finalSessionId = null;

@@ -1,4 +1,21 @@
-require("dotenv").config();
+const path = require("path");
+const fs = require("fs");
+
+// Try to load .env from backend folder
+const envPath = path.resolve(__dirname, "../.env");
+console.log(`\n📋 Loading .env from: ${envPath}`);
+console.log(`   File exists: ${fs.existsSync(envPath) ? "✅ YES" : "❌ NO"}`);
+
+require("dotenv").config({ path: envPath });
+
+console.log(`   MONGODB_URI: ${process.env.MONGODB_URI ? "✅ SET" : "❌ NOT SET"}`);
+if (!process.env.MONGODB_URI) {
+  console.error(`❌ CRITICAL: MONGODB_URI not loaded from .env file!`);
+  console.error(`   Make sure .env file exists at: ${envPath}`);
+  process.exit(1);
+}
+console.log();
+
 const axios = require("axios");
 const mongoose = require("mongoose");
 const Venue = require("../models/Venue");
@@ -211,7 +228,7 @@ async function startStackProcessor() {
   
   // Connect to MongoDB
   try {
-    await mongoose.connect(process.env.MONGO_URI);
+    await mongoose.connect(process.env.MONGODB_URI);
     console.log("✅ MongoDB connected for Stack Processor Worker\n");
   } catch (err) {
     console.error("❌ Failed to connect MongoDB:", err.message);

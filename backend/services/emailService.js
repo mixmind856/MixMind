@@ -10,7 +10,13 @@ const LOGO_URL = "https://res.cloudinary.com/dmpxbwwjt/image/upload/v1774978846/
 
 // Create transporter
 const createTransporter = () => {
+  console.log(`\n📧 EMAIL SERVICE - Creating transporter`);
+  console.log(`   GMAIL_USER: ${process.env.GMAIL_USER || "NOT SET"}`);
+  console.log(`   GMAIL_PASSWORD: ${process.env.GMAIL_PASSWORD ? "***SET***" : "NOT SET"}`);
+  console.log(`   EMAIL_SERVICE: ${process.env.EMAIL_SERVICE || "default (gmail)"}`);
+
   if (process.env.EMAIL_SERVICE === "gmail") {
+    console.log(`   ✅ Using Gmail service`);
     return nodemailer.createTransport({
       service: "gmail",
       auth: {
@@ -19,6 +25,7 @@ const createTransporter = () => {
       }
     });
   } else if (process.env.EMAIL_SERVICE === "sendgrid") {
+    console.log(`   ✅ Using SendGrid service`);
     return nodemailer.createTransport({
       host: "smtp.sendgrid.net",
       port: 587,
@@ -28,6 +35,7 @@ const createTransporter = () => {
       }
     });
   } else {
+    console.log(`   ✅ Using default Gmail service`);
     return nodemailer.createTransport({
       service: "gmail",
       auth: {
@@ -483,9 +491,126 @@ async function sendWaitlistConfirmation(email, name, venueName) {
   }
 }
 
+/**
+ * Send coupon code after Stripe payment
+ */
+async function sendCouponCode(email, userName, couponCode, discount, expiresAt) {
+  try {
+    console.log(`\n📧 SEND COUPON CODE EMAIL`);
+    console.log(`   To: ${email}`);
+    console.log(`   User: ${userName}`);
+    console.log(`   Code: ${couponCode}`);
+    console.log(`   Discount: £${discount}`);
+
+    const daysUntilExpiry = Math.ceil((expiresAt - new Date()) / (1000 * 60 * 60 * 24));
+    const FRONTEND_URL = process.env.FRONTEND_URL || "https://mixmind.app";
+    const REQUEST_PAGE_URL = `${FRONTEND_URL}/venue-request`;
+
+    const mailOptions = {
+      from: process.env.GMAIL_USER || "noreply@mixmind.com",
+      to: email,
+      subject: `🎉 Your MixMind Coupon: £${discount} Off! - Expires in ${daysUntilExpiry} days`,
+      html: `
+        <!DOCTYPE html>
+        <html>
+        <head>${EMAIL_HEAD}</head>
+        <body style="background-color: #07070B; padding: 40px 20px;">
+          <div style="max-width: 500px; margin: 0 auto;">
+            <div style="background: linear-gradient(135deg, rgba(18,18,34,0.92) 0%, rgba(18,18,34,0.55) 100%); border: 1px solid rgba(255,255,255,0.08); border-radius: 16px; padding: 32px;">
+
+              <table width="100%" border="0" cellspacing="0" cellpadding="0" style="margin-bottom: 24px;">
+                <tr>
+                  <td align="center">
+                    <div style="width: 100px; height: 100px; border-radius: 50%; box-shadow: 0 0 30px rgba(34,227,161,0.3); line-height: 100px; text-align: center; background: rgba(34,227,161,0.05);">
+                      <img src="${LOGO_URL}" width="62" height="62" style="vertical-align: middle; border-radius: 50%;" alt="MixMind"/>
+                    </div>
+                  </td>
+                </tr>
+              </table>
+
+              <h1 class="font-display" style="font-size: 32px; font-weight: 700; text-align: center; margin-bottom: 8px; color: #22E3A1;">Thank You!</h1>
+              
+              <p style="text-align: center; font-size: 16px; margin-bottom: 32px; color: rgba(255,255,255,0.72);">Here's your reward for supporting MixMind</p>
+
+              <!-- Coupon Code Box -->
+              <div style="background: linear-gradient(135deg, rgba(34,227,161,0.15) 0%, rgba(34,227,161,0.05) 100%); border: 2px solid rgba(34,227,161,0.3); border-radius: 16px; padding: 24px; margin-bottom: 24px; text-align: center;">
+                <p style="font-size: 12px; font-weight: 600; color: rgba(34,227,161,0.8); margin-bottom: 12px; text-transform: uppercase; letter-spacing: 1px;">Your Coupon Code</p>
+                
+                <div style="background: rgba(0,0,0,0.3); padding: 16px; border-radius: 12px; margin-bottom: 12px;">
+                  <p class="font-display" style="font-size: 24px; font-weight: 700; color: #22E3A1; letter-spacing: 2px; word-break: break-all; margin: 0;">${couponCode}</p>
+                </div>
+
+                <p style="font-size: 14px; font-weight: 600; color: #22E3A1; margin-bottom: 4px;">Save £${discount} on Your Next Request!</p>
+                <p style="font-size: 12px; color: rgba(34,227,161,0.7); margin: 0;">Expires in ${daysUntilExpiry} days (${expiresAt.toLocaleDateString()})</p>
+              </div>
+
+              <!-- Details -->
+              <div style="background: rgba(168,85,247,0.08); border: 1px solid rgba(168,85,247,0.2); border-radius: 12px; padding: 16px; margin-bottom: 24px; font-size: 13px;">
+                <p style="margin: 0 0 8px 0; color: rgba(255,255,255,0.7);"><strong style="color: #FFFFFF;">How to use your coupon:</strong></p>
+                <ul style="margin: 8px 0 0 20px; color: rgba(255,255,255,0.6); padding-left: 0;">
+                  <li style="margin-bottom: 6px;">Visit the song request page</li>
+                  <li style="margin-bottom: 6px;">Enter your coupon code at checkout</li>
+                  <li>Save £${discount} on your request!</li>
+                </ul>
+              </div>
+
+              <!-- Terms -->
+              <div style="background: rgba(255,255,255,0.03); border-left: 3px solid rgba(168,85,247,0.3); border-radius: 4px; padding: 12px; margin-bottom: 24px; font-size: 12px;">
+                <p style="margin: 0; color: rgba(255,255,255,0.5);"><strong style="color: rgba(255,255,255,0.7);">Terms:</strong> One coupon per request. Cannot be combined with other offers. Valid for ${daysUntilExpiry} days only.</p>
+              </div>
+
+              <a href="${REQUEST_PAGE_URL}" class="glow-button font-display" style="display: block; width: 100%; text-decoration: none; color: #FFFFFF; font-weight: 700; padding: 16px 0; border-radius: 16px; font-size: 14px; text-align: center; margin-bottom: 16px;">
+                Use My Coupon Now
+              </a>
+
+              <p style="font-size: 12px; text-align: center; color: rgba(255,255,255,0.4); margin-top: 24px;">
+                Questions? Visit our support page or reply to this email.
+              </p>
+
+              <p style="font-size: 11px; text-align: center; margin-top: 16px; color: rgba(255,255,255,0.3);">
+                Keep supporting great music at your favorite venues!<br>
+                — The MixMind Team
+              </p>
+            </div>
+          </div>
+        </body>
+        </html>
+      `
+    };
+
+    console.log(`   📧 Mail options created`);
+    console.log(`   - From: ${mailOptions.from}`);
+    console.log(`   - To: ${mailOptions.to}`);
+    console.log(`   - Subject: ${mailOptions.subject}`);
+
+    console.log(`   🔌 Creating transporter...`);
+    const transporter = createTransporter();
+
+    console.log(`   📤 Attempting to send email...`);
+    const info = await transporter.sendMail(mailOptions);
+    
+    console.log(`   ✅ Email sent successfully!`);
+    console.log(`   - Message ID: ${info.messageId}`);
+    console.log(`   - Response: ${info.response}`);
+    
+    return { success: true, message: "Coupon code email sent", messageId: info.messageId };
+  } catch (err) {
+    console.error(`\n❌ FAILED TO SEND COUPON EMAIL`);
+    console.error(`   Error Type: ${err.name}`);
+    console.error(`   Error Message: ${err.message}`);
+    console.error(`   Error Code: ${err.code}`);
+    if (err.response) console.error(`   SMTP Response: ${err.response}`);
+    if (err.command) console.error(`   SMTP Command: ${err.command}`);
+    console.error(`   Stack: ${err.stack}`);
+    
+    return { success: false, error: err.message, errorType: err.name };
+  }
+}
+
 module.exports = {
   sendDJAcceptanceEmail,
   sendDJRejectionEmail,
   sendGenreRejectionEmail,
-  sendWaitlistConfirmation
+  sendWaitlistConfirmation,
+  sendCouponCode
 };
