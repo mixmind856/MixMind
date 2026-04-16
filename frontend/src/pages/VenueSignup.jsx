@@ -35,7 +35,7 @@ export default function VenueSignup() {
     setError("");
 
     try {
-      const response = await fetch(`${import.meta.env.VITE_API_URL}/api/venue/signup`, {
+      const response = await fetch(`https://api-production-be9c0.up.railway.app/api/venue/signup`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(formData)
