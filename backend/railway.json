@@ -4,7 +4,6 @@
     "builder": "NIXPACKS"
   },
   "deploy": {
-    "startCommand":
     "restartPolicyMaxRetries": 5
   }
 }
