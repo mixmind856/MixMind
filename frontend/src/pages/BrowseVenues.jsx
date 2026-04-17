@@ -6,7 +6,6 @@ const BrowseVenues = () => {
   const [song, setSong] = useState("");
   const [loading, setLoading] = useState(false);
 
-  // 🔥 Fetch venues directly from backend
   useEffect(() => {
     const fetchVenues = async () => {
       try {
@@ -20,9 +19,16 @@ const BrowseVenues = () => {
 
         console.log("VENUES FROM API:", data);
 
-        setVenues(Array.isArray(data) ? data : []);
+        // ✅ SAFE CHECK
+        if (Array.isArray(data)) {
+          setVenues(data);
+        } else {
+          console.error("❌ Data is not array:", data);
+          setVenues([]);
+        }
       } catch (err) {
         console.error("❌ Error fetching venues:", err);
+        setVenues([]);
       } finally {
         setLoading(false);
       }
@@ -31,23 +37,20 @@ const BrowseVenues = () => {
     fetchVenues();
   }, []);
 
-  // 🔥 Submit song request
   const handleSubmit = async (e) => {
     e.preventDefault();
 
     if (!selectedVenue || !song) {
-      alert("Please select a venue and enter a song");
+      alert("Select venue + enter song");
       return;
     }
 
     try {
-      const res = await fetch(
+      await fetch(
         "https://api-production-be9c0.up.railway.app/api/requests",
         {
           method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-          },
+          headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
             venueId: selectedVenue,
             songName: song,
@@ -55,15 +58,11 @@ const BrowseVenues = () => {
         }
       );
 
-      const data = await res.json();
-
-      console.log("REQUEST RESPONSE:", data);
-
-      alert("Song requested successfully!");
+      alert("Request sent!");
       setSong("");
     } catch (err) {
-      console.error("❌ Request failed:", err);
-      alert("Failed to send request");
+      console.error(err);
+      alert("Request failed");
     }
   };
 
@@ -71,41 +70,43 @@ const BrowseVenues = () => {
     <div style={{ padding: "20px" }}>
       <h2>Request a Song</h2>
 
-      {loading ? (
-        <p>Loading venues...</p>
-      ) : (
-        <form onSubmit={handleSubmit}>
-          {/* Venue Dropdown */}
-          <select
-            value={selectedVenue}
-            onChange={(e) => setSelectedVenue(e.target.value)}
-          >
-            <option value="">Select Venue</option>
+      {loading && <p>Loading venues...</p>}
 
-            {venues.map((venue) => (
-              <option key={venue._id} value={venue._id}>
-                {venue.name}
-              </option>
-            ))}
-          </select>
+      <form onSubmit={handleSubmit}>
+        <select
+          value={selectedVenue}
+          onChange={(e) => setSelectedVenue(e.target.value)}
+        >
+          <option value="">Select Venue</option>
 
-          <br />
-          <br />
+          {/* ✅ SAFE MAP */}
+          {Array.isArray(venues) &&
+            venues.map((venue) => {
+              if (!venue || !venue._id) return null;
 
-          {/* Song Input */}
-          <input
-            type="text"
-            placeholder="Enter song name"
-            value={song}
-            onChange={(e) => setSong(e.target.value)}
-          />
+              return (
+                <option key={venue._id} value={venue._id}>
+                  {venue.name || "Unnamed Venue"}
+                </option>
+              );
+            })}
+        </select>
 
-          <br />
-          <br />
+        <br />
+        <br />
 
-          <button type="submit">Request Song</button>
-        </form>
-      )}
+        <input
+          type="text"
+          placeholder="Enter song"
+          value={song}
+          onChange={(e) => setSong(e.target.value)}
+        />
+
+        <br />
+        <br />
+
+        <button type="submit">Request Song</button>
+      </form>
     </div>
   );
 };
