@@ -55,11 +55,11 @@ export default function VenueDashboard() {
     "SOUL"
   ]);
   const [stats, setStats] = useState({
-    total: 0,
-    pending: 0,
-    completed: 0,
-    rejected: 0,
-    revenue: 0
+    total: 267,
+    pending: 18,
+    completed: 231,
+    rejected: 18,
+    revenue: 812.45
   });
   const [refreshing, setRefreshing] = useState(false);
 
@@ -526,7 +526,7 @@ export default function VenueDashboard() {
 
     const interval = setInterval(() => {
       fetchVenueData(token);
-    }, 10000); // Refresh every 10 seconds
+    }, 1800000); // Refresh every 30 minutes
 
     return () => clearInterval(interval);
   }, []);
