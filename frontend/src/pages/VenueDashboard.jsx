@@ -54,7 +54,7 @@ export default function VenueDashboard() {
     "70S",
     "SOUL"
   ]);
-  const [stats, setStats] = useState({
+  setStats({
     total: 267,
     pending: 18,
     completed: 231,
