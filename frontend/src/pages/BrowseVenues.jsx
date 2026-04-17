@@ -23,7 +23,22 @@ export default function BrowseVenues() {
   const fetchVenues = async () => {
     try {
       setLoading(true);
-      const data = await venueService.getActiveVenues();
+      useEffect(() => {
+  const fetchVenues = async () => {
+    try {
+      const res = await fetch("https://api-production-be9c0.up.railway.app/api/venue/active-venues");
+      const data = await res.json();
+
+      console.log("VENUES:", data);
+
+      setVenues(data);
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
+  fetchVenues();
+}, []);
       setVenues(data || []);
       setError(null);
     } catch (err) {
