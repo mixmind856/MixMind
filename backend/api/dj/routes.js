@@ -1,3 +1,4 @@
+// LEGACY FILE - not mounted by the current primary server.js route tree. Do not use for new code unless reactivated intentionally.
 const express = require("express");
 const router = express.Router();
 const djController = require("./dj.controller");

@@ -1,3 +1,4 @@
+// LEGACY FILE - not mounted by the current primary server.js route tree. Do not use for new code unless reactivated intentionally.
 const DJ = require("../../models/DJ");
 const DJVenueAccess = require("../../models/DJVenueAccess");
 const Venue = require("../../models/Venue");
