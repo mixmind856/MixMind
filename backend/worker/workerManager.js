@@ -3,6 +3,7 @@ const { spawn } = require('child_process');
 
 let livePlaylistChild = null;
 let beatsourceWorkerChild = null;
+let songRequestWorkerChild = null;
 
 function isLivePlaylistRunning() {
   return livePlaylistChild && !livePlaylistChild.killed;
@@ -13,7 +14,11 @@ function isBeatsourceWorkerRunning() {
 }
 
 function isRunning() {
-  return isLivePlaylistRunning() || isBeatsourceWorkerRunning();
+  return isLivePlaylistRunning() || isBeatsourceWorkerRunning() || isSongRequestWorkerRunning();
+}
+
+function isSongRequestWorkerRunning() {
+  return songRequestWorkerChild && !songRequestWorkerChild.killed;
 }
 
 function startLivePlaylist(venueId) {
@@ -49,9 +54,52 @@ function startLivePlaylist(venueId) {
       livePlaylistChild = null;
     });
 
-    return { started: true, pid: livePlaylistChild.pid, type: 'live-playlist', venueId };
+    // Ensure song request worker is running when playlist mode is active
+    const requestWorkerResult = startSongRequestWorker();
+
+    return {
+      started: true,
+      pid: livePlaylistChild.pid,
+      type: 'live-playlist',
+      venueId,
+      requestWorker: requestWorkerResult
+    };
   } catch (err) {
     console.error(`Failed to start live playlist worker: ${err.message}`);
+    return { started: false, error: err.message };
+  }
+}
+
+function startSongRequestWorker() {
+  if (isSongRequestWorkerRunning()) {
+    return { started: false, message: 'Song request worker already running' };
+  }
+
+  const workerPath = path.resolve(__dirname, '../queues/songRequestWorker.js');
+
+  try {
+    songRequestWorkerChild = spawn(process.execPath, [workerPath], {
+      cwd: path.resolve(__dirname, '..'),
+      detached: false,
+      stdio: ['ignore', 'pipe', 'pipe']
+    });
+
+    songRequestWorkerChild.stdout.on('data', (data) => {
+      process.stdout.write(`[song-request-worker] ${data.toString()}`);
+    });
+
+    songRequestWorkerChild.stderr.on('data', (data) => {
+      process.stderr.write(`[song-request-worker-err] ${data.toString()}`);
+    });
+
+    songRequestWorkerChild.on('exit', (code, signal) => {
+      console.log(`[song-request-worker] exited code=${code} signal=${signal}`);
+      songRequestWorkerChild = null;
+    });
+
+    return { started: true, pid: songRequestWorkerChild.pid, type: 'song-request-worker' };
+  } catch (err) {
+    console.error(`Failed to start song request worker: ${err.message}`);
     return { started: false, error: err.message };
   }
 }
@@ -119,6 +167,15 @@ function stop() {
     }
   }
 
+  if (isSongRequestWorkerRunning()) {
+    try {
+      songRequestWorkerChild.kill('SIGTERM');
+      results.push({ stopped: true, type: 'song-request-worker' });
+    } catch (err) {
+      results.push({ stopped: false, type: 'song-request-worker', error: err.message });
+    }
+  }
+
   return { 
     stopped: results.some(r => r.stopped), 
     workers: results 
@@ -131,8 +188,10 @@ module.exports = {
   isRunning,
   isLivePlaylistRunning,
   isBeatsourceWorkerRunning,
+  isSongRequestWorkerRunning,
   startLivePlaylist,
   startBeatsourceWorker,
+  startSongRequestWorker,
   stopLivePlaylist: () => {
     if (isLivePlaylistRunning()) {
       try {
@@ -143,6 +202,17 @@ module.exports = {
       }
     }
     return { stopped: false, message: 'Live playlist worker not running' };
+  },
+  stopSongRequestWorker: () => {
+    if (isSongRequestWorkerRunning()) {
+      try {
+        songRequestWorkerChild.kill('SIGTERM');
+        return { stopped: true, type: 'song-request-worker' };
+      } catch (err) {
+        return { stopped: false, type: 'song-request-worker', error: err.message };
+      }
+    }
+    return { stopped: false, message: 'Song request worker not running' };
   },
   stopBeatsourceWorker: () => {
     if (isBeatsourceWorkerRunning()) {

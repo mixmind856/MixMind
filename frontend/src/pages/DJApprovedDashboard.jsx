@@ -47,7 +47,7 @@ export default function DJApprovedDashboard() {
       // Get venue details and requests
       // Using the venue ID passed in the URL
       const response = await fetch(
-        `${import.meta.env.VITE_API_URL}/api/dj/requests/${venueId}`,
+        `${import.meta.env.VITE_API_URL}/dj/requests/${venueId}`,
         { headers }
       );
 
@@ -85,7 +85,7 @@ export default function DJApprovedDashboard() {
     setProcessingId(requestId);
     try {
       const response = await fetch(
-        `${import.meta.env.VITE_API_URL}/api/dj/requests/${requestId}/accept`,
+        `${import.meta.env.VITE_API_URL}/dj/requests/${requestId}/accept`,
         {
           method: "POST",
           headers: {
@@ -113,7 +113,7 @@ export default function DJApprovedDashboard() {
     setProcessingId(requestId);
     try {
       const response = await fetch(
-        `${import.meta.env.VITE_API_URL}/api/dj/requests/${requestId}/reject`,
+        `${import.meta.env.VITE_API_URL}/dj/requests/${requestId}/reject`,
         {
           method: "POST",
           headers: {

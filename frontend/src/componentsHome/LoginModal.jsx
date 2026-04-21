@@ -27,7 +27,7 @@ export default function LoginModal({ isOpen, onClose, type }) {
     setError("")
 
     try {
-      const response = await fetch(`${import.meta.env.VITE_API_URL}/api/venue/signin`, {
+      const response = await fetch(`${import.meta.env.VITE_API_URL}/venue/signin`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(formData)

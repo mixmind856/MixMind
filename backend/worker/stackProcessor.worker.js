@@ -20,7 +20,8 @@ const axios = require("axios");
 const mongoose = require("mongoose");
 const Venue = require("../models/Venue");
 const Request = require("../models/Request");
-const { popFromStack, getStackSize } = require("../services/stackService");
+const { popFromStack, getStackSize, pushToStack } = require("../services/stackService");
+const REQUEST_INSERTION_INTERVAL_MS = 40000; // 4 minutes 30 seconds
 
 // Global stop signal for graceful shutdown
 let SHOULD_STOP = false;
@@ -40,6 +41,17 @@ function setupSignalHandlers() {
 // -------------------- UTILITY: SLEEP --------------------
 function sleep(ms) {
   return new Promise(resolve => setTimeout(resolve, ms));
+}
+
+async function resetToBackgroundPlaylistState(baseUrl) {
+  try {
+    const resetScript = `browser_gotofolder "beatport:\\Mixmind" & browser_window "songs" & browser_focus & browser_scroll -1000`;
+    const resetUrl = `${baseUrl}/execute?script=${encodeURIComponent(resetScript)}`;
+    await axios.get(resetUrl, { timeout: 5000 });
+    console.log(`🔄 Reset to background Beatport playlist state`);
+  } catch (resetErr) {
+    console.warn(`⚠️  Failed to reset background playlist state:`, resetErr.message);
+  }
 }
 
 // -------------------- ADD SONG TO BEATPORT (3-STEP FLOW) --------------------
@@ -129,6 +141,10 @@ async function addSongToBeatportFlow(songName, artistName) {
     }
     
     console.log(`✅ All three steps completed successfully!`);
+
+    // IMPORTANT: reset back to background playlist view after request-search mode
+    await resetToBackgroundPlaylistState(baseUrl);
+
     return {
       success: true,
       message: "Song successfully added to Beatport automix",
@@ -163,7 +179,7 @@ async function processVenueStack(venueId) {
       return { processed: false, reason: "Stack is empty" };
     }
     
-    // Pop from stack (LIFO - most recent first)
+    // Pop from stack (FIFO handled in stackService)
     const popResult = await popFromStack(venueId);
     
     if (!popResult.success || !popResult.data) {
@@ -172,15 +188,15 @@ async function processVenueStack(venueId) {
     }
     
     const requestData = popResult.data;
-    console.log(`\n${'='.repeat(70)}`);
-    console.log(`🎵 PROCESSING FROM STACK (LIFO)`);
-    console.log(`${'='.repeat(70)}`);
+    console.log(`\n${"=".repeat(70)}`);
+    console.log(`🎵 PROCESSING FROM STACK`);
+    console.log(`${"=".repeat(70)}`);
     console.log(`   Venue ID: ${venueId}`);
     console.log(`   Request ID: ${requestData._id}`);
     console.log(`   Song: "${requestData.title}" by "${requestData.artist}"`);
     console.log(`   User: ${requestData.userName}`);
     console.log(`   Remaining in stack: ${stackSize - 1}`);
-    console.log(`${'='.repeat(70)}\n`);
+    console.log(`${"=".repeat(70)}\n`);
     
     // Execute the 3-step flow to add to Beatport
     const flowResult = await addSongToBeatportFlow(requestData.title, requestData.artist);
@@ -201,10 +217,9 @@ async function processVenueStack(venueId) {
       
       return { processed: true, success: true, requestId: requestData._id };
     } else {
-      // If failed, put the request back on the stack (push to front)
+      // If failed, put the request back on the stack
       console.log(`⚠️  Adding back to stack due to processing failure`);
-      
-      // Note: We'd need to re-add to stack, but for now just log
+      await pushToStack(venueId, requestData);
       return { processed: false, reason: "Processing failed", error: flowResult.error };
     }
     
@@ -235,14 +250,14 @@ async function startStackProcessor() {
     process.exit(1);
   }
   
-  console.log(`\n${'='.repeat(70)}`);
+  console.log(`\n${"=".repeat(70)}`);
   console.log(`🎵 STACK PROCESSOR WORKER STARTED`);
-  console.log(`${'='.repeat(70)}`);
-  console.log(`⏱️  Check interval: ${process.env.STACK_PROCESS_INTERVAL || 10000}ms`);
-  console.log(`${'='.repeat(70)}\n`);
+  console.log(`${"=".repeat(70)}`);
+  console.log(`⏱️  Request insertion interval: ${REQUEST_INSERTION_INTERVAL_MS}ms`);
+  console.log(`${"=".repeat(70)}\n`);
   
-  // Processing delay between songs (default: 2 seconds)
-  const processInterval = Number(process.env.STACK_PROCESS_INTERVAL) || 10000;
+  // One queued request per active venue every 4m30s
+  const processInterval = REQUEST_INSERTION_INTERVAL_MS;
   
   let processCount = 0;
   

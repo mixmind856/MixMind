@@ -18,7 +18,7 @@ export default function DJVenueSelection() {
     try {
       setLoading(true);
       const response = await fetch(
-        `${import.meta.env.VITE_API_URL}/api/dj/venues-with-dj-mode`
+        `${import.meta.env.VITE_API_URL}/dj/venues-with-dj-mode`
       );
 
       if (!response.ok) {
@@ -45,7 +45,7 @@ export default function DJVenueSelection() {
       const token = localStorage.getItem("djToken");
 
       const response = await fetch(
-        `${import.meta.env.VITE_API_URL}/api/dj/request-access`,
+        `${import.meta.env.VITE_API_URL}/dj/request-access`,
         {
           method: "POST",
           headers: {

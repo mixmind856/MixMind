@@ -224,14 +224,20 @@ async function toggleLivePlaylist(req, res) {
         console.log(`🎛️  Starting rotation worker for venue ${venue.name} (ID: ${venueId})`);
         
         // ===== WEBHOOK CALL WHEN LIVE PLAYLIST TURNS ON =====
-        // Call the Beatsource/MixMind webhook to start automix
+        // Call the Beatsource/MixMind webhook to clear queue and explicitly start automix playback
         try {
-          const webhookUrl = "http://127.0.0.1:80/execute?script=browser_window%20%22automix%22%20%26%20playlist_clear";
-          console.log(`🔗 Calling webhook to start automix: ${webhookUrl}`);
+          const clearUrl = "http://127.0.0.1:80/execute?script=browser_window%20%22automix%22%20%26%20playlist_clear";
+          const startPlaybackUrl = "http://127.0.0.1:80/execute?script=browser_window%20%22automix%22%20%26%20automix_start";
+
+          console.log(`🔗 Clearing automix queue: ${clearUrl}`);
           
           const axios = require("axios");
-          const webhookResponse = await axios.post(webhookUrl);
-          console.log(`✅ Webhook called successfully:`, webhookResponse.status);
+          const clearResponse = await axios.post(clearUrl);
+          console.log(`✅ Automix queue cleared:`, clearResponse.status);
+
+          console.log(`🔗 Starting automix playback: ${startPlaybackUrl}`);
+          const startResponse = await axios.post(startPlaybackUrl);
+          console.log(`✅ Automix playback start command sent:`, startResponse.status);
         } catch (webhookErr) {
           console.warn(`⚠️  Webhook call failed (non-critical):`, webhookErr.message);
           // Don't fail the request for webhook errors

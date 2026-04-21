@@ -27,9 +27,9 @@ export default function AdminRequestApproval() {
       setLoading(true);
       const key = adminKey || localStorage.getItem("adminKey");
       
-      let url = `${import.meta.env.VITE_API_URL}/api/admin/requests?status=${status}`;
+      let url = `${import.meta.env.VITE_API_URL}/admin/requests?status=${status}`;
       if (venueId && venueId !== "all") {
-        url = `${import.meta.env.VITE_API_URL}/api/admin/requests/venue/${venueId}?status=${status}`;
+        url = `${import.meta.env.VITE_API_URL}/admin/requests/venue/${venueId}?status=${status}`;
       }
 
       const response = await fetch(url, {
@@ -57,7 +57,7 @@ export default function AdminRequestApproval() {
       const key = adminKey || localStorage.getItem("adminKey");
 
       const response = await fetch(
-        `${import.meta.env.VITE_API_URL}/api/admin/requests/${requestId}/approve`,
+        `${import.meta.env.VITE_API_URL}/admin/requests/${requestId}/approve`,
         {
           method: "POST",
           headers: { "x-admin-key": key }
@@ -83,7 +83,7 @@ export default function AdminRequestApproval() {
       const key = adminKey || localStorage.getItem("adminKey");
 
       const response = await fetch(
-        `${import.meta.env.VITE_API_URL}/api/admin/requests/${requestId}/reject`,
+        `${import.meta.env.VITE_API_URL}/admin/requests/${requestId}/reject`,
         {
           method: "POST",
           headers: { "x-admin-key": key }

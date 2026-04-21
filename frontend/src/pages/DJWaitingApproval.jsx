@@ -17,7 +17,7 @@ export default function DJWaitingApproval() {
         
         // Get access status
         const response = await fetch(
-          `${import.meta.env.VITE_API_URL}/api/dj/access-status`,
+          `${import.meta.env.VITE_API_URL}/dj/access-status`,
           {
             headers: {
               Authorization: `Bearer ${token}`

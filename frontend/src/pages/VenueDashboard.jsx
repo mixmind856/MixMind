@@ -103,7 +103,7 @@ export default function VenueDashboard() {
       setError("");
       
       // Fetch venue profile
-      const venueRes = await fetch(`${import.meta.env.VITE_API_URL}/api/venue/profile`, {
+      const venueRes = await fetch(`${import.meta.env.VITE_API_URL}/venue/profile`, {
         headers: { Authorization: `Bearer ${token}` }
       });
 
@@ -121,7 +121,7 @@ export default function VenueDashboard() {
 
       // Fetch venue requests
       const requestsRes = await fetch(
-        `${import.meta.env.VITE_API_URL}/api/requests/venue/${venueData._id}`,
+        `${import.meta.env.VITE_API_URL}/requests/venue/${venueData._id}`,
         { headers: { Authorization: `Bearer ${token}` } }
       );
 
@@ -192,7 +192,7 @@ export default function VenueDashboard() {
 
     try {
       const response = await fetch(
-        `${import.meta.env.VITE_API_URL}/api/requests/${requestId}/approve`,
+        `${import.meta.env.VITE_API_URL}/requests/${requestId}/approve`,
         {
           method: "POST",
           headers: {
@@ -226,7 +226,7 @@ export default function VenueDashboard() {
 
     try {
       const response = await fetch(
-        `${import.meta.env.VITE_API_URL}/api/requests/${requestId}/reject`,
+        `${import.meta.env.VITE_API_URL}/requests/${requestId}/reject`,
         {
           method: "POST",
           headers: {
@@ -261,7 +261,7 @@ export default function VenueDashboard() {
 
     try {
       const response = await fetch(
-        `${import.meta.env.VITE_API_URL}/api/venue/toggle-live-playlist`,
+        `${import.meta.env.VITE_API_URL}/venue/toggle-live-playlist`,
         {
           method: "POST",
           headers: {
@@ -309,7 +309,7 @@ export default function VenueDashboard() {
 
     try {
       const response = await fetch(
-        `${import.meta.env.VITE_API_URL}/api/venue/toggle-status`,
+        `${import.meta.env.VITE_API_URL}/venue/toggle-status`,
         {
           method: "POST",
           headers: {
@@ -365,7 +365,7 @@ export default function VenueDashboard() {
       if (!djMode) {
         // Enable DJ mode
         const response = await fetch(
-          `${import.meta.env.VITE_API_URL}/api/dj/initialize/${venue._id}`,
+          `${import.meta.env.VITE_API_URL}/dj/initialize/${venue._id}`,
           {
             method: "POST",
             headers: {
@@ -389,7 +389,7 @@ export default function VenueDashboard() {
       } else {
         // Disable DJ mode
         const response = await fetch(
-          `${import.meta.env.VITE_API_URL}/api/dj/toggle/${venue._id}`,
+          `${import.meta.env.VITE_API_URL}/dj/toggle/${venue._id}`,
           {
             method: "POST",
             headers: {
@@ -424,7 +424,7 @@ export default function VenueDashboard() {
 
   const fetchPreferredGenres = async (token) => {
     try {
-      const response = await fetch(`${import.meta.env.VITE_API_URL}/api/venue/genres/get`, {
+      const response = await fetch(`${import.meta.env.VITE_API_URL}/venue/genres/get`, {
         headers: { Authorization: `Bearer ${token}` }
       });
 
@@ -459,7 +459,7 @@ export default function VenueDashboard() {
         ? { genreCheckBypass: true }
         : { preferredGenres: selectedGenres, genreCheckBypass: false };
 
-      const response = await fetch(`${import.meta.env.VITE_API_URL}/api/venue/genres/set`, {
+      const response = await fetch(`${import.meta.env.VITE_API_URL}/venue/genres/set`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",

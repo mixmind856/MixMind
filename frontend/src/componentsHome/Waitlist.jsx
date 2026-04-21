@@ -26,7 +26,7 @@ export default function Waitlist() {
     setLoading(true)
 
     try {
-      const response = await fetch(`${import.meta.env.VITE_API_URL}/api/venue/waitlist`, {
+      const response = await fetch(`${import.meta.env.VITE_API_URL}/venue/waitlist`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json'

@@ -70,7 +70,7 @@ export default function DJ() {
         throw new Error("DJ password is required");
       }
 
-      const response = await fetch(`${import.meta.env.VITE_API_URL}/api/dj/login`, {
+      const response = await fetch(`${import.meta.env.VITE_API_URL}/dj/login`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ venueId, djPassword })
@@ -115,8 +115,8 @@ export default function DJ() {
       };
       
       const [requestsRes, statsRes] = await Promise.all([
-        fetch(`${import.meta.env.VITE_API_URL}/api/dj/requests/${vId}`, { headers }),
-        fetch(`${import.meta.env.VITE_API_URL}/api/dj/stats/${vId}`, { headers })
+        fetch(`${import.meta.env.VITE_API_URL}/dj/requests/${vId}`, { headers }),
+        fetch(`${import.meta.env.VITE_API_URL}/dj/stats/${vId}`, { headers })
       ]);
       
       if (requestsRes.ok) {
@@ -156,7 +156,7 @@ export default function DJ() {
     
     try {
       const response = await fetch(
-        `${import.meta.env.VITE_API_URL}/api/dj/requests/${requestId}/accept`,
+        `${import.meta.env.VITE_API_URL}/dj/requests/${requestId}/accept`,
         {
           method: "POST",
           headers: {
@@ -194,7 +194,7 @@ export default function DJ() {
     
     try {
       const response = await fetch(
-        `${import.meta.env.VITE_API_URL}/api/dj/requests/${requestId}/reject`,
+        `${import.meta.env.VITE_API_URL}/dj/requests/${requestId}/reject`,
         {
           method: "POST",
           headers: {

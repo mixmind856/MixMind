@@ -7,10 +7,25 @@ const Venue = require("../models/Venue");
 const { popFromStack, getStackSize } = require("../services/stackService");
 const { validateSongGenre } = require("../services/lastfmGenreService");
 const { sendGenreRejectionEmail } = require("../services/emailService");
+const REQUEST_INSERTION_INTERVAL_MS = 40000; // 4 minutes 30 seconds
 
 /* -------------------- UTILITY: SLEEP -------------------- */
 function sleep(ms) {
   return new Promise(resolve => setTimeout(resolve, ms));
+}
+
+/* -------------------- RESET TO BACKGROUND PLAYLIST STATE -------------------- */
+async function resetToBackgroundPlaylistState(baseUrl) {
+  try {
+    // Reset search/browser state so background worker does not stay in request search results
+    const resetScript = `browser_gotofolder "beatport:\\Mixmind" & browser_window "songs" & browser_focus & browser_scroll -1000`;
+    const resetUrl = `${baseUrl}/execute?script=${encodeURIComponent(resetScript)}`;
+    await axios.get(resetUrl, { timeout: 8000 });
+    console.log(`   🔄 Reset to background Beatport playlist state`);
+  } catch (resetErr) {
+    // Non-fatal: request was already added to automix
+    console.warn(`   ⚠️  Failed to reset to background playlist state:`, resetErr.message);
+  }
 }
 
 /* -------------------- UTILITY: Check if song is essential -------------------- */
@@ -157,7 +172,7 @@ async function executeThreeStepRequestFlow(songName, artistName) {
       console.log(`   Response:`, goToFolderResponse.data);
     } catch (err) {
       console.error(`   ✗ Pre-Step 1 failed:`, err.code || err.message);
-      if (err.code === 'ECONNREFUSED') {
+      if (err.code === "ECONNREFUSED") {
         console.error(`   💡 Connection refused - Is the automation API running at ${baseUrl}?`);
       }
       throw new Error(`Go to folder failed: ${err.message}`);
@@ -249,6 +264,10 @@ async function executeThreeStepRequestFlow(songName, artistName) {
     console.log(`\n✅ SONG SUCCESSFULLY ADDED TO AUTOMIX! 🎉`);
     console.log(`   Song: "${songName}" by "${artistName}"`);
     console.log(`   Status: Added to beatport:\\Mixmind\\automix queue`);
+
+    // IMPORTANT: reset worker browser state back to background playlist source
+    await resetToBackgroundPlaylistState(baseUrl);
+
     return {
       success: true,
       message: "Song successfully added to Beatport automix",
@@ -258,9 +277,9 @@ async function executeThreeStepRequestFlow(songName, artistName) {
     
   } catch (err) {
     console.error(`\n❌ THREE-STEP FLOW ERROR:`, err.message);
-    console.error(`   Error Type: ${err.code || 'Unknown'}`);
-    if (err.code === 'ECONNREFUSED') {
-      console.error(`   💡 DEBUG: Connection refused to ${process.env.EXECUTE_API_URL || 'http://127.0.0.1:80'}`);
+    console.error(`   Error Type: ${err.code || "Unknown"}`);
+    if (err.code === "ECONNREFUSED") {
+      console.error(`   💡 DEBUG: Connection refused to ${process.env.EXECUTE_API_URL || "http://127.0.0.1:80"}`);
       console.error(`   💡 DEBUG: Make sure the Beatport automation API is running!`);
     }
     console.error(`   Stack: ${err.stack}`);
@@ -313,14 +332,14 @@ async function startStackWorker() {
     process.exit(1);
   }
   
-  console.log(`\n${'='.repeat(70)}`);
+  console.log(`\n${"=".repeat(70)}`);
   console.log(`🎵 STACK-BASED SONG REQUEST WORKER STARTED`);
-  console.log(`${'='.repeat(70)}`);
-  console.log(`⏱️  Process all songs every 30 seconds`);
-  console.log(`${'='.repeat(70)}\n`);
+  console.log(`${"=".repeat(70)}`);
+  console.log(`⏱️  Request insertion interval: ${REQUEST_INSERTION_INTERVAL_MS}ms`);
+  console.log(`${"=".repeat(70)}\n`);
   
-  // Processing interval: 30 seconds
-  const processInterval = 30000; // 30 seconds
+  // Processing interval: inject at most one queued request per venue per tick
+  const processInterval = REQUEST_INSERTION_INTERVAL_MS;
   let cycleCount = 0;
   let totalProcessed = 0;
   
@@ -329,166 +348,143 @@ async function startStackWorker() {
       cycleCount++;
       let songsProcessedThisCycle = 0;
       
-      console.log(`\n${'='.repeat(70)}`);
-      console.log(`🎵 CYCLE #${cycleCount} - Processing ALL songs in stack`);
-      console.log(`${'='.repeat(70)}\n`);
+      console.log(`\n${"=".repeat(70)}`);
+      console.log(`🎵 CYCLE #${cycleCount} - Processing one queued song per active venue`);
+      console.log(`${"=".repeat(70)}\n`);
       
       // Get all venues with Live Playlist enabled
       const venues = await Venue.find({ livePlaylistActive: true });
       
       if (venues.length === 0) {
-        console.log(`⏳ No venues with Live Playlist enabled - waiting 30 seconds...\n`);
+        console.log(`⏳ No venues with Live Playlist enabled - waiting ${processInterval / 1000} seconds...\n`);
         await sleep(processInterval);
         continue;
       }
       
-      // For each venue, process ALL songs in its stack
+      // For each venue, process at most ONE queued song per interval tick
       for (const venue of venues) {
         if (SHOULD_STOP) break;
-        
-        let venueStackProcessed = 0;
-        
-        // Keep processing until stack is empty for this venue
-        while (true) {
-          if (SHOULD_STOP) break;
+
+        // Get stack size
+        const sizeResult = await getStackSize(venue._id.toString());
+        const stackSize = sizeResult.data || 0;
+
+        if (stackSize === 0) {
+          console.log(`📭 ${venue.name}: No queued requests`);
+          continue;
+        }
+
+        // Pop one queued request only (FIFO from stackService)
+        const popResult = await popFromStack(venue._id.toString());
+
+        if (!popResult.success || !popResult.data) {
+          console.log(`⚠️  Failed to pop from stack for venue ${venue.name}`);
+          continue;
+        }
+
+        const requestData = popResult.data;
+        songsProcessedThisCycle++;
+        totalProcessed++;
+
+        console.log(`   🎵 [${venue.name}] Processing queued song: "${requestData.title}" by "${requestData.artist}"`);
+        console.log(`      Request ID: ${requestData._id}`);
+        console.log(`      User: ${requestData.userName}`);
+        console.log(`      Remaining in Stack: ${stackSize - 1}`);
           
-          // Get stack size
-          const sizeResult = await getStackSize(venue._id.toString());
-          const stackSize = sizeResult.data || 0;
-          
-          if (stackSize === 0) {
-            if (venueStackProcessed > 0) {
-              console.log(`✅ ${venue.name}: All ${venueStackProcessed} song(s) processed from stack\n`);
-            }
-            break;
-          }
-          
-          // Pop from stack (LIFO - most recent first)
-          const popResult = await popFromStack(venue._id.toString());
-          
-          if (!popResult.success || !popResult.data) {
-            console.log(`⚠️  Failed to pop from stack for venue ${venue.name}`);
-            break;
-          }
-          
-          const requestData = popResult.data;
-          venueStackProcessed++;
-          songsProcessedThisCycle++;
-          totalProcessed++;
-          
-          console.log(`   🎵 [${venue.name}] Song ${venueStackProcessed}: "${requestData.title}" by "${requestData.artist}"`);
-          console.log(`      Request ID: ${requestData._id}`);
-          console.log(`      User: ${requestData.userName}`);
-          console.log(`      Remaining in Stack: ${stackSize - 1}`);
-          
-          try {
-            // Update request status to "processing"
+        try {
+          // Update request status to "processing"
+          await Request.findByIdAndUpdate(requestData._id, { 
+            status: "processing",
+            flowStatus: "in_progress"
+          });
+            
+          // ===== VALIDATE SONG GENRE =====
+          const genreValidation = await validateAndProcessSong(requestData, venue);
+            
+          if (!genreValidation.isValid) {
+            console.log(`      ❌ Genre validation failed: ${genreValidation.reason}`);
+              
+            // Update request status to rejected
             await Request.findByIdAndUpdate(requestData._id, { 
-              status: "processing",
-              flowStatus: "in_progress"
+              status: "rejected",
+              flowStatus: "failed",
+              rejectionReason: `Song genre doesn't match venue preferences. ${genreValidation.reason}`,
+              genreCheckPassed: false
             });
-            
-            // ===== VALIDATE SONG GENRE =====
-            const genreValidation = await validateAndProcessSong(requestData, venue);
-            
-            if (!genreValidation.isValid) {
-              console.log(`      ❌ Genre validation failed: ${genreValidation.reason}`);
               
-              // Update request status to rejected
-              await Request.findByIdAndUpdate(requestData._id, { 
-                status: "rejected",
-                flowStatus: "failed",
-                rejectionReason: `Song genre doesn't match venue preferences. ${genreValidation.reason}`,
-                genreCheckPassed: false
-              });
-              
-              // Fetch user and send rejection email
-              try {
-                const request = await Request.findById(requestData._id).populate("userId");
-                if (request && request.userId && request.userId.email) {
-                  const emailResult = await sendGenreRejectionEmail(
-                    request,
-                    venue,
-                    genreValidation.reason,
-                    genreValidation.songTags
-                  );
+            // Fetch user and send rejection email
+            try {
+              const request = await Request.findById(requestData._id).populate("userId");
+              if (request && request.userId && request.userId.email) {
+                const emailResult = await sendGenreRejectionEmail(
+                  request,
+                  venue,
+                  genreValidation.reason,
+                  genreValidation.songTags
+                );
                   
-                  if (emailResult.success) {
-                    console.log(`      📧 Genre rejection email sent to ${request.userId.email}`);
-                  } else {
-                    console.error(`      ❌ Failed to send rejection email:`, emailResult.error);
-                  }
+                if (emailResult.success) {
+                  console.log(`      📧 Genre rejection email sent to ${request.userId.email}`);
+                } else {
+                  console.error(`      ❌ Failed to send rejection email:`, emailResult.error);
                 }
-              } catch (emailErr) {
-                console.error(`      ❌ Error sending rejection email:`, emailErr.message);
               }
+            } catch (emailErr) {
+              console.error(`      ❌ Error sending rejection email:`, emailErr.message);
+            }
               
-              // Move to next song in stack
-              continue;
-            }
+            // Move to next venue; next request from this venue waits for next interval tick
+            continue;
+          }
             
-            // Genre validation passed, proceed with 3-step flow
-            console.log(`      ✅ Genre validation passed`);
+          // Genre validation passed, proceed with 3-step flow
+          console.log(`      ✅ Genre validation passed`);
             
-            // ===== CHECK PAYMENT FOR LIVE MODE =====
-            // IMPORTANT: Reload fresh Request from DB (not stack data) to get latest payment status
-            let freshRequest = await Request.findById(requestData._id);
-            if (!freshRequest) {
-              console.log(`      ❌ Request not found in database`);
-              continue;
-            }
+          // ===== CHECK PAYMENT FOR LIVE MODE =====
+          // IMPORTANT: Reload fresh Request from DB (not stack data) to get latest payment status
+          let freshRequest = await Request.findById(requestData._id);
+          if (!freshRequest) {
+            console.log(`      ❌ Request not found in database`);
+            continue;
+          }
             
-            const isLiveMode = !!freshRequest.checkoutSessionId;
-            if (isLiveMode) {
-              // LIVE mode: Check if payment is confirmed
-              if (freshRequest.paymentStatus !== "captured" && freshRequest.paymentStatus !== "paid") {
-                console.log(`      ⏳ LIVE mode: Waiting for payment confirmation`);
-                console.log(`         Current paymentStatus: ${freshRequest.paymentStatus}`);
-                console.log(`         Required: "captured" or "paid"`);
-                console.log(`         Checkout Session: ${freshRequest.checkoutSessionId}`);
+          const isLiveMode = !!freshRequest.checkoutSessionId;
+          if (isLiveMode) {
+            // LIVE mode: Check if payment is confirmed
+            if (freshRequest.paymentStatus !== "captured" && freshRequest.paymentStatus !== "paid") {
+              console.log(`      ⏳ LIVE mode: Waiting for payment confirmation`);
+              console.log(`         Current paymentStatus: ${freshRequest.paymentStatus}`);
+              console.log(`         Required: "captured" or "paid"`);
+              console.log(`         Checkout Session: ${freshRequest.checkoutSessionId}`);
                 
-                // Defensive check: If we have a checkout session ID, verify it with Stripe
-                // This handles cases where the DB might be out of sync
-                if (freshRequest.checkoutSessionId) {
-                  console.log(`         🔍 Attempting verification check with Stripe...`);
-                  try {
-                    const { verifyCheckoutSession } = require("../features/payments/stripe/stripe.verification");
-                    const verifyResult = await verifyCheckoutSession(freshRequest.checkoutSessionId);
+              // Defensive check: If we have a checkout session ID, verify it with Stripe
+              // This handles cases where the DB might be out of sync
+              if (freshRequest.checkoutSessionId) {
+                console.log(`         🔍 Attempting verification check with Stripe...`);
+                try {
+                  const { verifyCheckoutSession } = require("../features/payments/stripe/stripe.verification");
+                  const verifyResult = await verifyCheckoutSession(freshRequest.checkoutSessionId);
                     
-                    if (verifyResult.success) {
-                      console.log(`         ✅ Verification successful! Re-fetching request...`);
-                      // Try fetching again after verification
-                      freshRequest = await Request.findById(requestData._id);
+                  if (verifyResult.success) {
+                    console.log(`         ✅ Verification successful! Re-fetching request...`);
+                    // Try fetching again after verification
+                    freshRequest = await Request.findById(requestData._id);
                       
-                      if (freshRequest.paymentStatus === "captured" || freshRequest.paymentStatus === "paid") {
-                        console.log(`         ✅ Request now shows paymentStatus: ${freshRequest.paymentStatus}`);
-                      } else {
-                        console.log(`         ⚠️  After verification, paymentStatus is still: ${freshRequest.paymentStatus}`);
-                      }
+                    if (freshRequest.paymentStatus === "captured" || freshRequest.paymentStatus === "paid") {
+                      console.log(`         ✅ Request now shows paymentStatus: ${freshRequest.paymentStatus}`);
                     } else {
-                      console.log(`         ⚠️  Verification failed: ${verifyResult.message}`);
-                      
-                      // Handle specific failure states
-                      if (verifyResult.sessionState === "open") {
-                        console.log(`            → Checkout still open, will retry next cycle`);
-                      } else if (verifyResult.sessionState === "expired") {
-                        console.log(`            → Checkout expired, user needs to create new request`);
-                      }
-                      
-                      // Re-add to stack for retry
-                      const { pushToStack } = require("../services/stackService");
-                      try {
-                        await pushToStack(venue._id.toString(), requestData);
-                        console.log(`         📥 Re-added to stack for retry`);
-                      } catch (requeueErr) {
-                        console.warn(`         ⚠️  Failed to re-queue:`, requeueErr.message);
-                      }
-                      // Skip this request now since we've re-queued it
+                      console.log(`         ⚠️  After verification, paymentStatus is still: ${freshRequest.paymentStatus}`);
                     }
-                  } catch (verifyErr) {
-                    console.warn(`         ⚠️  Verification error: ${verifyErr.message}`);
-                    console.warn(`         Treating as unconfirmed payment, will retry next cycle`);
-                    
+                  } else {
+                    console.log(`         ⚠️  Verification failed: ${verifyResult.message}`);
+                      
+                    // Handle specific failure states
+                    if (verifyResult.sessionState === "open") {
+                      console.log(`            → Checkout still open, will retry next cycle`);
+                    } else if (verifyResult.sessionState === "expired") {
+                      console.log(`            → Checkout expired, user needs to create new request`);
+                    }
+                      
                     // Re-add to stack for retry
                     const { pushToStack } = require("../services/stackService");
                     try {
@@ -497,68 +493,81 @@ async function startStackWorker() {
                     } catch (requeueErr) {
                       console.warn(`         ⚠️  Failed to re-queue:`, requeueErr.message);
                     }
+                    // Skip this request now since we've re-queued it
+                  }
+                } catch (verifyErr) {
+                  console.warn(`         ⚠️  Verification error: ${verifyErr.message}`);
+                  console.warn(`         Treating as unconfirmed payment, will retry next cycle`);
+                    
+                  // Re-add to stack for retry
+                  const { pushToStack } = require("../services/stackService");
+                  try {
+                    await pushToStack(venue._id.toString(), requestData);
+                    console.log(`         📥 Re-added to stack for retry`);
+                  } catch (requeueErr) {
+                    console.warn(`         ⚠️  Failed to re-queue:`, requeueErr.message);
                   }
                 }
-                
-                // Final check: if payment is still not confirmed, skip this request
-                if (freshRequest.paymentStatus !== "captured" && freshRequest.paymentStatus !== "paid") {
-                  console.log(`         ❌ Payment still not confirmed, skipping for now`);
-                  continue;
-                }
-                
-                // Payment is now confirmed! Continue to process
-                console.log(`         ✅ Payment confirmed after verification!`);
               }
-              console.log(`      ✅ LIVE mode: Payment confirmed (${freshRequest.paymentStatus})`);
+                
+              // Final check: if payment is still not confirmed, skip this request
+              if (freshRequest.paymentStatus !== "captured" && freshRequest.paymentStatus !== "paid") {
+                console.log(`         ❌ Payment still not confirmed, skipping for now`);
+                continue;
+              }
+                
+              // Payment is now confirmed! Continue to process
+              console.log(`         ✅ Payment confirmed after verification!`);
             }
+            console.log(`      ✅ LIVE mode: Payment confirmed (${freshRequest.paymentStatus})`);
+          }
             
-            // Execute the 3-step flow
-            const flowResult = await executeThreeStepRequestFlow(requestData.title, requestData.artist);
+          // Execute the 3-step flow
+          const flowResult = await executeThreeStepRequestFlow(requestData.title, requestData.artist);
             
-            // Update request based on result
-            if (flowResult.success) {
-              await Request.findByIdAndUpdate(requestData._id, { 
-                status: "completed",
-                flowStatus: "completed",
-                genreCheckPassed: true,
-                matchedGenre: genreValidation.matchedTag
-              });
-              console.log(`      ✅ Added to Beatport automix`);
-            } else {
-              await Request.findByIdAndUpdate(requestData._id, { 
-                status: "failed",
-                flowStatus: "failed",
-                flowError: flowResult.error
-              });
-              console.log(`      ❌ Failed: ${flowResult.error}`);
-            }
-          } catch (processErr) {
-            console.error(`      ❌ Error: ${processErr.message}`);
-            
-            // Update request with error
+          // Update request based on result
+          if (flowResult.success) {
+            await Request.findByIdAndUpdate(requestData._id, { 
+              status: "completed",
+              flowStatus: "completed",
+              genreCheckPassed: true,
+              matchedGenre: genreValidation.matchedTag
+            });
+            console.log(`      ✅ Added to Beatport automix`);
+          } else {
             await Request.findByIdAndUpdate(requestData._id, { 
               status: "failed",
               flowStatus: "failed",
-              flowError: processErr.message
-            }).catch(e => console.error("Error updating request:", e));
+              flowError: flowResult.error
+            });
+            console.log(`      ❌ Failed: ${flowResult.error}`);
           }
-          
-          // Small delay between processing songs
-          await sleep(2000);
+        } catch (processErr) {
+          console.error(`      ❌ Error: ${processErr.message}`);
+            
+          // Update request with error
+          await Request.findByIdAndUpdate(requestData._id, { 
+            status: "failed",
+            flowStatus: "failed",
+            flowError: processErr.message
+          }).catch(e => console.error("Error updating request:", e));
         }
+
+        // Small delay between venues
+        await sleep(2000);
       }
       
-      console.log(`${'='.repeat(70)}`);
+      console.log(`${"=".repeat(70)}`);
       console.log(`✅ CYCLE #${cycleCount} COMPLETE - Processed ${songsProcessedThisCycle} song(s) (Total: ${totalProcessed})`);
-      console.log(`⏳ Waiting 30 seconds for next cycle...`);
-      console.log(`${'='.repeat(70)}\n`);
+      console.log(`⏳ Waiting ${processInterval / 1000} seconds for next cycle...`);
+      console.log(`${"=".repeat(70)}\n`);
       
-      // Wait 30 seconds before next cycle
+      // Wait before next cycle
       await sleep(processInterval);
       
     } catch (err) {
       console.error(`❌ ERROR in cycle ${cycleCount}:`, err.message);
-      console.log(`⏳ Waiting 30 seconds before retry...\n`);
+      console.log(`⏳ Waiting ${processInterval / 1000} seconds before retry...\n`);
       await sleep(processInterval);
     }
   }
@@ -568,9 +577,9 @@ async function startStackWorker() {
 }
 
 // Initialize the worker immediately
-console.log(`\n${'='.repeat(70)}`);
+console.log(`\n${"=".repeat(70)}`);
 console.log(`🚀 Starting Song Request Stack Worker...`);
-console.log(`${'='.repeat(70)}\n`);
+console.log(`${"=".repeat(70)}\n`);
 
 startStackWorker().catch(err => {
   console.error("\n❌ Worker FATAL ERROR:", err.message);

@@ -132,7 +132,7 @@ function VenuePaymentModalContent({
         
         // Call backend to mark payment as complete
         try {
-          const completeResponse = await fetch(`${API}/api/stripe/demo/complete`, {
+          const completeResponse = await fetch(`${API}/stripe/demo/complete`, {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ 

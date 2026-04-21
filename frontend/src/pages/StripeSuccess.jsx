@@ -27,7 +27,7 @@ export default function StripeSuccess() {
         console.log(`🔐 Verifying Stripe session: ${sessionId}`);
 
         // Call backend to verify the checkout session
-        const response = await fetch(`${API}/api/stripe/verify-checkout?sessionId=${sessionId}`);
+        const response = await fetch(`${API}/stripe/verify-checkout?sessionId=${sessionId}`);
         const data = await response.json();
 
         console.log("Verification response:", data);

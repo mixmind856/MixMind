@@ -44,7 +44,7 @@ export default function DJAccessManagement({ venueId, venueName }) {
       console.log(`📡 Fetching DJ access requests for venue: ${venueId}`);
 
       const response = await fetch(
-        `${import.meta.env.VITE_API_URL}/api/dj/venue/${venueId}/access-requests`,
+        `${import.meta.env.VITE_API_URL}/dj/venue/${venueId}/access-requests`,
         {
           headers: {
             "Content-Type": "application/json",
@@ -92,7 +92,7 @@ export default function DJAccessManagement({ venueId, venueName }) {
       console.log(`📤 Approving DJ access: ${accessRequestId}`);
       
       const response = await fetch(
-        `${import.meta.env.VITE_API_URL}/api/dj/venue/${accessRequestId}/approve`,
+        `${import.meta.env.VITE_API_URL}/dj/venue/${accessRequestId}/approve`,
         {
           method: "POST",
           headers: {
@@ -130,7 +130,7 @@ export default function DJAccessManagement({ venueId, venueName }) {
       console.log(`📤 Rejecting DJ access: ${accessRequestId}`);
       
       const response = await fetch(
-        `${import.meta.env.VITE_API_URL}/api/dj/venue/${accessRequestId}/reject`,
+        `${import.meta.env.VITE_API_URL}/dj/venue/${accessRequestId}/reject`,
         {
           method: "POST",
           headers: {
@@ -177,7 +177,7 @@ export default function DJAccessManagement({ venueId, venueName }) {
       console.log(`📤 Revoking DJ access: ${accessRequestId}`);
       
       const response = await fetch(
-        `${import.meta.env.VITE_API_URL}/api/dj/venue/${accessRequestId}/revoke`,
+        `${import.meta.env.VITE_API_URL}/dj/venue/${accessRequestId}/revoke`,
         {
           method: "POST",
           headers: {

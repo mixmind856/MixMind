@@ -68,7 +68,7 @@ export default function DJAuth() {
           };
 
       const response = await fetch(
-        `${import.meta.env.VITE_API_URL}/api/dj${endpoint}`,
+        `${import.meta.env.VITE_API_URL}/dj${endpoint}`,
         {
           method: "POST",
           headers: { "Content-Type": "application/json" },

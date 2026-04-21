@@ -20,7 +20,7 @@ export default function AdminDashboard() {
     setError(null);
     try {
       const res = await axios.get(
-        `${API}/api/admin/requests?status=${filter}`,
+        `${API}/admin/requests?status=${filter}`,
         {
           headers: { "x-admin-key": ADMIN_KEY }
         }
@@ -44,7 +44,7 @@ export default function AdminDashboard() {
   async function approve(id) {
     try {
       await axios.post(
-        `${API}/api/admin/requests/${id}/approve`,
+        `${API}/admin/requests/${id}/approve`,
         {},
         { headers: { "x-admin-key": ADMIN_KEY } }
       );
@@ -57,7 +57,7 @@ export default function AdminDashboard() {
   async function reject(id) {
     try {
       await axios.post(
-        `${API}/api/admin/requests/${id}/reject`,
+        `${API}/admin/requests/${id}/reject`,
         {},
         { headers: { "x-admin-key": ADMIN_KEY } }
       );
@@ -71,7 +71,7 @@ export default function AdminDashboard() {
   useEffect(() => {
     async function fetchLiveStatus() {
       try {
-        const res = await axios.get(`${API}/api/admin/live-playlist/status`, {
+        const res = await axios.get(`${API}/admin/live-playlist/status`, {
           headers: { "x-admin-key": ADMIN_KEY }
         });
         setLiveEnabled(res.data.enabled);
@@ -86,8 +86,8 @@ export default function AdminDashboard() {
     setLiveLoading(true);
     try {
       const url = liveEnabled
-        ? `${API}/api/admin/live-playlist/stop`
-        : `${API}/api/admin/live-playlist/start`;
+        ? `${API}/admin/live-playlist/stop`
+        : `${API}/admin/live-playlist/start`;
 
       const res = await axios.post(url, {}, {
         headers: { "x-admin-key": ADMIN_KEY }

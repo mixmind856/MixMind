@@ -45,7 +45,7 @@ export default function VenuePublicRequest() {
       
       // Fetch venue details
       const venueRes = await fetch(
-        `${import.meta.env.VITE_API_URL}/api/venue/public/${venueId}`
+        `${import.meta.env.VITE_API_URL}/venue/public/${venueId}`
       );
 
       if (!venueRes.ok) {
@@ -68,7 +68,7 @@ export default function VenuePublicRequest() {
       if (venueData.isActive) {
         // Fetch recent approved requests for this venue (public view)
         const requestsRes = await fetch(
-          `${import.meta.env.VITE_API_URL}/api/requests/venue/${venueId}/public`
+          `${import.meta.env.VITE_API_URL}/requests/venue/${venueId}/public`
         );
 
         if (requestsRes.ok) {
@@ -102,7 +102,7 @@ export default function VenuePublicRequest() {
 
     try {
       const res = await fetch(
-        `${import.meta.env.VITE_API_URL}/api/coupons/validate`,
+        `${import.meta.env.VITE_API_URL}/coupons/validate`,
         {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -149,7 +149,7 @@ export default function VenuePublicRequest() {
     try {
       // Step 1: Create the request
       const response = await fetch(
-        `${import.meta.env.VITE_API_URL}/api/requests/create`,
+        `${import.meta.env.VITE_API_URL}/requests/create`,
         {
           method: "POST",
           headers: { "Content-Type": "application/json" },

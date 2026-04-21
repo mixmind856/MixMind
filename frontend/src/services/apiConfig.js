@@ -3,7 +3,7 @@
  * Centralized API base URL and default settings
  */
 
-const API_BASE_URL = "https://api-production-be9c0.up.railway.app/api";
+const API_BASE_URL = import.meta.env.VITE_API_URL;
 const ADMIN_KEY = import.meta.env.VITE_ADMIN_KEY || "";
 
 const API_CONFIG = {

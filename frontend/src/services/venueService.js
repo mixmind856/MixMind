@@ -10,7 +10,7 @@ import { API_CONFIG } from "./apiConfig";
  */
 export async function getActiveVenues() {
   try {
-    const response = await fetch(`${API_CONFIG.BASE_URL}/api/venue/active-venues`);
+    const response = await fetch(`${API_CONFIG.BASE_URL}/venue/active-venues`);
     if (!response.ok) throw new Error("Failed to fetch venues");
     return await response.json();
   } catch (error) {
@@ -24,7 +24,7 @@ export async function getActiveVenues() {
  */
 export async function getVenueById(venueId) {
   try {
-    const response = await fetch(`${API_CONFIG.BASE_URL}/api/venue/${venueId}`);
+    const response = await fetch(`${API_CONFIG.BASE_URL}/venue/${venueId}`);
     if (!response.ok) throw new Error("Failed to fetch venue");
     return await response.json();
   } catch (error) {
@@ -39,7 +39,7 @@ export async function getVenueById(venueId) {
 export async function toggleVenueStatus(venueId, adminKey) {
   try {
     const response = await fetch(
-      `${API_CONFIG.BASE_URL}/api/venue/${venueId}/toggle-status`,
+      `${API_CONFIG.BASE_URL}/venue/${venueId}/toggle-status`,
       {
         method: "PUT",
         headers: {
@@ -62,7 +62,7 @@ export async function toggleVenueStatus(venueId, adminKey) {
 export async function updateVenueProfile(venueId, updates, venueToken) {
   try {
     const response = await fetch(
-      `${API_CONFIG.BASE_URL}/api/venue/${venueId}/profile`,
+      `${API_CONFIG.BASE_URL}/venue/${venueId}/profile`,
       {
         method: "PUT",
         headers: {

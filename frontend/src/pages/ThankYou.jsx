@@ -20,7 +20,7 @@ export default function ThankYou() {
     const fetchVenueData = async () => {
       try {
         if (x) {
-          const response = await fetch(`${import.meta.env.VITE_API_URL}/api/venue/public/${x}`);
+          const response = await fetch(`${import.meta.env.VITE_API_URL}/venue/public/${x}`);
           if (response.ok) {
             const venueData = await response.json();
             setDjModeEnabled(venueData.djMode || false);
@@ -52,7 +52,7 @@ export default function ThankYou() {
 
         // Fetch all requests for this user
         const response = await fetch(
-          `${import.meta.env.VITE_API_URL}/api/requests/user/${encodeURIComponent(email)}`
+          `${import.meta.env.VITE_API_URL}/requests/user/${encodeURIComponent(email)}`
         );
 
         if (response.ok) {
