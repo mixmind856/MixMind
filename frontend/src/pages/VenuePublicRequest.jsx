@@ -8,19 +8,17 @@ export default function VenuePublicRequest() {
   const { venueId } = useParams();
   const [venue, setVenue] = useState(null);
   const [isVenueActive, setIsVenueActive] = useState(true);
-  
-  // Demo mode - prefill with test data
-  const DEMO_MODE = true;
-  
+
   const [formData, setFormData] = useState({
-    songTitle: DEMO_MODE ? "Blinding Lights" : "",
-    artistName: DEMO_MODE ? "The Weeknd" : "",
-    userName: DEMO_MODE ? "Alex Johnson" : "",
-    email: DEMO_MODE ? "alex@example.com" : "",
-    phone: DEMO_MODE ? "07911123456" : "",
+    songTitle: "",
+    artistName: "",
+    userName: "",
+    email: "",
+    phone: "",
     countryCode: "+44",
-    price: 2.99  // Will be updated based on DJ mode
+    price: 1.69 // Will be updated based on DJ mode
   });
+
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState("");
@@ -34,6 +32,8 @@ export default function VenuePublicRequest() {
   const [couponData, setCouponData] = useState(null);
   const [couponValidating, setCouponValidating] = useState(false);
   const [couponError, setCouponError] = useState("");
+  const [showPriorityChoice, setShowPriorityChoice] = useState(false);
+  const [priorityRequest, setPriorityRequest] = useState(false);
 
   useEffect(() => {
     fetchVenueData();
@@ -42,8 +42,7 @@ export default function VenuePublicRequest() {
   const fetchVenueData = async () => {
     try {
       setLoading(true);
-      
-      // Fetch venue details
+
       const venueRes = await fetch(
         `${import.meta.env.VITE_API_URL}/venue/public/${venueId}`
       );
@@ -56,24 +55,21 @@ export default function VenuePublicRequest() {
       setVenue(venueData);
       setIsVenueActive(venueData.isActive || false);
 
-      // ===== SET PRICE BASED ON DJ MODE =====
-      // DJ Mode ON: £9 | DJ Mode OFF: £3
-      const dynamicPrice = venueData.djMode ? 8.99 : 2.99;
-      setFormData(prev => ({
+      // Keep your current pricing logic here
+      const dynamicPrice = venueData.djMode ? 5.99 : 1.69;
+      setFormData((prev) => ({
         ...prev,
         price: dynamicPrice
       }));
 
-      // Only fetch requests if venue is active
       if (venueData.isActive) {
-        // Fetch recent approved requests for this venue (public view)
         const requestsRes = await fetch(
           `${import.meta.env.VITE_API_URL}/requests/venue/${venueId}/public`
         );
 
         if (requestsRes.ok) {
           const requestsData = await requestsRes.json();
-          setRecentRequests(requestsData.slice(0, 10)); // Show last 10
+          setRecentRequests(requestsData.slice(0, 10));
         }
       }
     } catch (err) {
@@ -85,7 +81,7 @@ export default function VenuePublicRequest() {
 
   const handleChange = (e) => {
     const { name, value } = e.target;
-    setFormData(prev => ({
+    setFormData((prev) => ({
       ...prev,
       [name]: value
     }));
@@ -140,14 +136,12 @@ export default function VenuePublicRequest() {
     setCouponError("");
   };
 
-  const handleSubmit = async (e) => {
-    e.preventDefault();
+  const submitRequest = async () => {
     setSubmitting(true);
     setError("");
     setSuccess(false);
 
     try {
-      // Step 1: Create the request
       const response = await fetch(
         `${import.meta.env.VITE_API_URL}/requests/create`,
         {
@@ -162,42 +156,79 @@ export default function VenuePublicRequest() {
             countryCode: formData.countryCode,
             price: couponData ? couponData.finalPrice : parseFloat(formData.price),
             couponCode: couponData?.couponCode || null,
-            venueId: venueId
+            venueId: venueId,
+            priorityRequest: priorityRequest,
+            priorityType: priorityRequest ? "play_next" : "normal"
           })
         }
       );
 
       if (!response.ok) {
         const errorData = await response.json();
-        throw new Error(errorData.error || "Failed to submit request");
+
+        if (errorData?.venueCanAccept && Array.isArray(errorData.venueCanAccept)) {
+          throw new Error(
+            `This venue currently accepts: ${errorData.venueCanAccept.join(", ")}`
+          );
+        }
+
+        throw new Error(errorData.message || errorData.error || "Failed to submit request");
       }
 
       const responseData = await response.json();
       const { requestId, checkoutUrl: url, checkoutSessionId: sessionId } = responseData;
-      
+
+      if (formData.email) {
+        localStorage.setItem("userEmail", formData.email);
+      }
+
       console.log("✅ Song request created");
       console.log(`   Request ID: ${requestId}`);
       console.log(`   Checkout URL: ${url}`);
       console.log(`   Session ID: ${sessionId}`);
-      
-      // Step 2: Show payment modal with request details
+
       setPendingRequestId(requestId);
       setCheckoutUrl(url);
       setCheckoutSessionId(sessionId);
       setShowPaymentModal(true);
-      
-      console.log("🔔 Payment modal opened with checkout data");
 
+      console.log("🔔 Payment modal opened with checkout data");
     } catch (err) {
       setError(err.message || "An error occurred");
       setSubmitting(false);
     }
   };
 
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+
+    if (venue?.djMode) {
+      setShowPriorityChoice(true);
+      return;
+    }
+
+    await submitRequest();
+  };
+
+  const handlePriorityChoice = async (isPriority) => {
+    setPriorityRequest(isPriority);
+    setShowPriorityChoice(false);
+
+    const basePrice = venue?.djMode ? 5.99 : 1.69;
+    const priorityFee = venue?.djMode && isPriority ? 2.99 : 0;
+
+    setFormData((prev) => ({
+      ...prev,
+      price: basePrice + priorityFee
+    }));
+
+    await submitRequest();
+  };
+
   const handlePaymentSuccess = async () => {
-    // Payment authorized successfully - reset form but keep modal open to show thank you page
-    // The modal handles closing when user clicks "Done" or "Request Another Song"
+    // Keep your current pricing reset logic here
     const resetPrice = venue && venue.djMode ? 9 : 3;
+
     setFormData({
       songTitle: "",
       artistName: "",
@@ -207,13 +238,14 @@ export default function VenuePublicRequest() {
       countryCode: "+44",
       price: resetPrice
     });
+
     setCouponCode("");
     setCouponData(null);
     setCouponError("");
+    setPriorityRequest(false);
     setPendingRequestId(null);
     setSubmitting(false);
 
-    // Refresh recent requests after a short delay
     setTimeout(async () => {
       await fetchVenueData();
     }, 2000);
@@ -240,7 +272,6 @@ export default function VenuePublicRequest() {
     );
   }
 
-  // Venue offline check
   if (!isVenueActive) {
     return (
       <div className="min-h-screen bg-gradient-to-b from-[#140822] to-[#0a0712] flex items-center justify-center px-4">
@@ -266,30 +297,44 @@ export default function VenuePublicRequest() {
 
   return (
     <div className="min-h-screen bg-[#07070B] text-white px-6 py-16">
-      {/* Main Content */}
       <div className="max-w-md mx-auto">
-        {/* Header */}
-        <div className="inline-flex items-center justify-center w-18 h-18 rounded-lg mb-4 glow-purple md:ml-45 ml-40" 
-                       style={{ background: "linear-gradient(135deg, #A855F7, #7C3AED)" }}>
-                   <img src={logo} alt="MixMind Logo" className="w-17 h-17" />
-                  </div>
-        <div className="text-center mb-12">
-          <h1 className="text-4xl font-bold mb-3" style={{ color: 'var(--text-primary)' }}>Request Your Song</h1>
-          <p className="text-sm" style={{ color: 'rgba(255,255,255,0.72)' }}>Enter your details and we'll handle the rest</p>
+        <div
+          className="inline-flex items-center justify-center w-18 h-18 rounded-lg mb-4 glow-purple md:ml-45 ml-40"
+          style={{ background: "linear-gradient(135deg, #A855F7, #7C3AED)" }}
+        >
+          <img src={logo} alt="MixMind Logo" className="w-17 h-17" />
         </div>
 
-        {/* Form Card */}
-        <div className="rounded-2xl p-8" style={{ background: 'linear-gradient(135deg, rgba(18,18,34,0.92) 0%, rgba(18,18,34,0.55) 100%)', border: '1px solid rgba(255,255,255,0.08)' }}>
+        <div className="text-center mb-12">
+          <h1 className="text-4xl font-bold mb-3" style={{ color: "var(--text-primary)" }}>
+            Request Your Song
+          </h1>
+          <p className="text-sm" style={{ color: "rgba(255,255,255,0.72)" }}>
+            Enter your details and we'll handle the rest
+          </p>
+        </div>
+
+        <div
+          className="rounded-2xl p-8"
+          style={{
+            background: "linear-gradient(135deg, rgba(18,18,34,0.92) 0%, rgba(18,18,34,0.55) 100%)",
+            border: "1px solid rgba(255,255,255,0.08)"
+          }}
+        >
           {error && (
-            <div className="mb-6 p-4 rounded-xl" style={{ background: 'rgba(239,68,68,0.1)', border: '1px solid rgba(239,68,68,0.2)' }}>
+            <div
+              className="mb-6 p-4 rounded-xl"
+              style={{ background: "rgba(239,68,68,0.1)", border: "1px solid rgba(239,68,68,0.2)" }}
+            >
               <p className="text-red-300 text-sm">{error}</p>
             </div>
           )}
 
           <form onSubmit={handleSubmit} className="space-y-4">
-            {/* Song Title */}
             <div>
-              <label className="block text-xs font-600 mb-2" style={{ color: 'rgba(255,255,255,0.72)' }}>Song Title</label>
+              <label className="block text-xs font-600 mb-2" style={{ color: "rgba(255,255,255,0.72)" }}>
+                Song Title
+              </label>
               <input
                 type="text"
                 name="songTitle"
@@ -299,25 +344,26 @@ export default function VenuePublicRequest() {
                 placeholder="Enter song title"
                 className="w-full px-4 py-3 rounded-xl text-white placeholder-gray-500 focus:outline-none transition-all"
                 style={{
-                  background: 'rgba(168,85,247,0.1)',
-                  border: '1px solid rgba(255,255,255,0.08)',
-                  color: '#FFFFFF'
+                  background: "rgba(168,85,247,0.1)",
+                  border: "1px solid rgba(255,255,255,0.08)",
+                  color: "#FFFFFF"
                 }}
                 onFocus={(e) => {
-                  e.target.style.borderColor = '#A855F7';
-                  e.target.style.boxShadow = '0 0 20px rgba(168,85,247,0.3)';
+                  e.target.style.borderColor = "#A855F7";
+                  e.target.style.boxShadow = "0 0 20px rgba(168,85,247,0.3)";
                 }}
                 onBlur={(e) => {
-                  e.target.style.borderColor = 'rgba(255,255,255,0.08)';
-                  e.target.style.boxShadow = 'none';
+                  e.target.style.borderColor = "rgba(255,255,255,0.08)";
+                  e.target.style.boxShadow = "none";
                 }}
                 disabled={submitting}
               />
             </div>
 
-            {/* Artist Name */}
             <div>
-              <label className="block text-xs font-600 mb-2" style={{ color: 'rgba(255,255,255,0.72)' }}>Artist Name</label>
+              <label className="block text-xs font-600 mb-2" style={{ color: "rgba(255,255,255,0.72)" }}>
+                Artist Name
+              </label>
               <input
                 type="text"
                 name="artistName"
@@ -327,25 +373,26 @@ export default function VenuePublicRequest() {
                 placeholder="Enter artist name"
                 className="w-full px-4 py-3 rounded-xl text-white placeholder-gray-500 focus:outline-none transition-all"
                 style={{
-                  background: 'rgba(168,85,247,0.1)',
-                  border: '1px solid rgba(255,255,255,0.08)',
-                  color: '#FFFFFF'
+                  background: "rgba(168,85,247,0.1)",
+                  border: "1px solid rgba(255,255,255,0.08)",
+                  color: "#FFFFFF"
                 }}
                 onFocus={(e) => {
-                  e.target.style.borderColor = '#A855F7';
-                  e.target.style.boxShadow = '0 0 20px rgba(168,85,247,0.3)';
+                  e.target.style.borderColor = "#A855F7";
+                  e.target.style.boxShadow = "0 0 20px rgba(168,85,247,0.3)";
                 }}
                 onBlur={(e) => {
-                  e.target.style.borderColor = 'rgba(255,255,255,0.08)';
-                  e.target.style.boxShadow = 'none';
+                  e.target.style.borderColor = "rgba(255,255,255,0.08)";
+                  e.target.style.boxShadow = "none";
                 }}
                 disabled={submitting}
               />
             </div>
 
-            {/* Your Name */}
             <div>
-              <label className="block text-xs font-600 mb-2" style={{ color: 'rgba(255,255,255,0.72)' }}>Your Name</label>
+              <label className="block text-xs font-600 mb-2" style={{ color: "rgba(255,255,255,0.72)" }}>
+                Your Name
+              </label>
               <input
                 type="text"
                 name="userName"
@@ -355,25 +402,26 @@ export default function VenuePublicRequest() {
                 placeholder="Enter your name"
                 className="w-full px-4 py-3 rounded-xl text-white placeholder-gray-500 focus:outline-none transition-all"
                 style={{
-                  background: 'rgba(168,85,247,0.1)',
-                  border: '1px solid rgba(255,255,255,0.08)',
-                  color: '#FFFFFF'
+                  background: "rgba(168,85,247,0.1)",
+                  border: "1px solid rgba(255,255,255,0.08)",
+                  color: "#FFFFFF"
                 }}
                 onFocus={(e) => {
-                  e.target.style.borderColor = '#A855F7';
-                  e.target.style.boxShadow = '0 0 20px rgba(168,85,247,0.3)';
+                  e.target.style.borderColor = "#A855F7";
+                  e.target.style.boxShadow = "0 0 20px rgba(168,85,247,0.3)";
                 }}
                 onBlur={(e) => {
-                  e.target.style.borderColor = 'rgba(255,255,255,0.08)';
-                  e.target.style.boxShadow = 'none';
+                  e.target.style.borderColor = "rgba(255,255,255,0.08)";
+                  e.target.style.boxShadow = "none";
                 }}
                 disabled={submitting}
               />
             </div>
 
-            {/* Phone Number */}
             <div>
-              <label className="block text-xs font-600 mb-2" style={{ color: 'rgba(255,255,255,0.72)' }}>Phone Number</label>
+              <label className="block text-xs font-600 mb-2" style={{ color: "rgba(255,255,255,0.72)" }}>
+                Phone Number
+              </label>
               <input
                 type="tel"
                 name="phone"
@@ -383,25 +431,26 @@ export default function VenuePublicRequest() {
                 placeholder="Enter phone number"
                 className="w-full px-4 py-3 rounded-xl text-white placeholder-gray-500 focus:outline-none transition-all"
                 style={{
-                  background: 'rgba(168,85,247,0.1)',
-                  border: '1px solid rgba(255,255,255,0.08)',
-                  color: '#FFFFFF'
+                  background: "rgba(168,85,247,0.1)",
+                  border: "1px solid rgba(255,255,255,0.08)",
+                  color: "#FFFFFF"
                 }}
                 onFocus={(e) => {
-                  e.target.style.borderColor = '#A855F7';
-                  e.target.style.boxShadow = '0 0 20px rgba(168,85,247,0.3)';
+                  e.target.style.borderColor = "#A855F7";
+                  e.target.style.boxShadow = "0 0 20px rgba(168,85,247,0.3)";
                 }}
                 onBlur={(e) => {
-                  e.target.style.borderColor = 'rgba(255,255,255,0.08)';
-                  e.target.style.boxShadow = 'none';
+                  e.target.style.borderColor = "rgba(255,255,255,0.08)";
+                  e.target.style.boxShadow = "none";
                 }}
                 disabled={submitting}
               />
             </div>
 
-            {/* Email Address */}
             <div>
-              <label className="block text-xs font-600 mb-2" style={{ color: 'rgba(255,255,255,0.72)' }}>Email Address</label>
+              <label className="block text-xs font-600 mb-2" style={{ color: "rgba(255,255,255,0.72)" }}>
+                Email Address
+              </label>
               <input
                 type="email"
                 name="email"
@@ -411,48 +460,66 @@ export default function VenuePublicRequest() {
                 placeholder="Enter email address"
                 className="w-full px-4 py-3 rounded-xl text-white placeholder-gray-500 focus:outline-none transition-all"
                 style={{
-                  background: 'rgba(168,85,247,0.1)',
-                  border: '1px solid rgba(255,255,255,0.08)',
-                  color: '#FFFFFF'
+                  background: "rgba(168,85,247,0.1)",
+                  border: "1px solid rgba(255,255,255,0.08)",
+                  color: "#FFFFFF"
                 }}
                 onFocus={(e) => {
-                  e.target.style.borderColor = '#A855F7';
-                  e.target.style.boxShadow = '0 0 20px rgba(168,85,247,0.3)';
+                  e.target.style.borderColor = "#A855F7";
+                  e.target.style.boxShadow = "0 0 20px rgba(168,85,247,0.3)";
                 }}
                 onBlur={(e) => {
-                  e.target.style.borderColor = 'rgba(255,255,255,0.08)';
-                  e.target.style.boxShadow = 'none';
+                  e.target.style.borderColor = "rgba(255,255,255,0.08)";
+                  e.target.style.boxShadow = "none";
                 }}
                 disabled={submitting}
               />
             </div>
 
-            {/* Price Display with Coupon */}
-            <div className="mt-6 p-4 rounded-xl" style={{ background: 'rgba(34,227,161,0.1)', border: '1px solid rgba(34,227,161,0.2)' }}>
+            <div
+              className="mt-6 p-4 rounded-xl"
+              style={{ background: "rgba(34,227,161,0.1)", border: "1px solid rgba(34,227,161,0.2)" }}
+            >
               <div className="flex justify-between items-center mb-2">
-                <p className="text-xs" style={{ color: 'rgba(255,255,255,0.72)' }}>Base Price</p>
-                <p className="text-sm font-semibold" style={{ color: 'rgba(255,255,255,0.72)' }}>£{formData.price.toFixed(2)}</p>
+                <p className="text-xs" style={{ color: "rgba(255,255,255,0.72)" }}>Base Price</p>
+                <p className="text-sm font-semibold" style={{ color: "rgba(255,255,255,0.72)" }}>
+                  £{formData.price.toFixed(2)}
+                </p>
               </div>
+
               {couponData && (
                 <>
-                  <div className="h-px" style={{ background: 'rgba(34,227,161,0.3)', margin: '8px 0' }}></div>
+                  <div
+                    className="h-px"
+                    style={{ background: "rgba(34,227,161,0.3)", margin: "8px 0" }}
+                  ></div>
                   <div className="flex justify-between items-center mb-2">
-                    <p className="text-xs font-medium" style={{ color: '#22E3A1' }}>✨ Discount</p>
-                    <p className="text-sm font-semibold" style={{ color: '#22E3A1' }}>-£{couponData.discount.toFixed(2)}</p>
+                    <p className="text-xs font-medium" style={{ color: "#22E3A1" }}>✨ Discount</p>
+                    <p className="text-sm font-semibold" style={{ color: "#22E3A1" }}>
+                      -£{couponData.discount.toFixed(2)}
+                    </p>
                   </div>
                 </>
               )}
-              <div className="flex justify-between items-center pt-2" style={{ borderTop: '1px solid rgba(34,227,161,0.3)' }}>
-                <p className="text-xs font-bold" style={{ color: 'rgba(255,255,255,0.72)' }}>Total to Pay</p>
-                <p className="font-bold text-xl" style={{ color: '#22E3A1' }}>£{(couponData ? couponData.finalPrice : formData.price).toFixed(2)}</p>
+
+              <div
+                className="flex justify-between items-center pt-2"
+                style={{ borderTop: "1px solid rgba(34,227,161,0.3)" }}
+              >
+                <p className="text-xs font-bold" style={{ color: "rgba(255,255,255,0.72)" }}>
+                  Total to Pay
+                </p>
+                <p className="font-bold text-xl" style={{ color: "#22E3A1" }}>
+                  £{(couponData ? couponData.finalPrice : formData.price).toFixed(2)}
+                </p>
               </div>
             </div>
 
-            {/* Coupon Input */}
             <div className="mt-6">
-              <label className="flex items-center gap-2 text-xs font-600 mb-2" style={{ color: 'rgba(255,255,255,0.72)' }}>
+              <label className="flex items-center gap-2 text-xs font-600 mb-2" style={{ color: "rgba(255,255,255,0.72)" }}>
                 <Gift size={14} /> Have a Coupon? (Optional)
               </label>
+
               <div className="flex gap-2">
                 <input
                   type="text"
@@ -462,23 +529,26 @@ export default function VenuePublicRequest() {
                   placeholder="Enter coupon code"
                   className="flex-1 px-4 py-3 rounded-xl text-white placeholder-gray-500 focus:outline-none transition-all"
                   style={{
-                    background: 'rgba(168,85,247,0.1)',
-                    border: couponData ? '1px solid rgba(34,227,161,0.3)' : '1px solid rgba(255,255,255,0.08)',
-                    color: '#FFFFFF'
+                    background: "rgba(168,85,247,0.1)",
+                    border: couponData
+                      ? "1px solid rgba(34,227,161,0.3)"
+                      : "1px solid rgba(255,255,255,0.08)",
+                    color: "#FFFFFF"
                   }}
                   onFocus={(e) => {
                     if (!couponData) {
-                      e.target.style.borderColor = '#A855F7';
-                      e.target.style.boxShadow = '0 0 20px rgba(168,85,247,0.3)';
+                      e.target.style.borderColor = "#A855F7";
+                      e.target.style.boxShadow = "0 0 20px rgba(168,85,247,0.3)";
                     }
                   }}
                   onBlur={(e) => {
                     if (!couponData) {
-                      e.target.style.borderColor = 'rgba(255,255,255,0.08)';
-                      e.target.style.boxShadow = 'none';
+                      e.target.style.borderColor = "rgba(255,255,255,0.08)";
+                      e.target.style.boxShadow = "none";
                     }
                   }}
                 />
+
                 {!couponData && (
                   <button
                     type="button"
@@ -486,58 +556,64 @@ export default function VenuePublicRequest() {
                     disabled={couponValidating || !couponCode.trim()}
                     className="px-4 py-3 rounded-xl font-medium transition-all"
                     style={{
-                      background: couponValidating || !couponCode.trim() ? 'rgba(168,85,247,0.3)' : 'linear-gradient(135deg, #22E3A1 0%, #10B981 100%)',
-                      color: '#FFFFFF',
+                      background:
+                        couponValidating || !couponCode.trim()
+                          ? "rgba(168,85,247,0.3)"
+                          : "linear-gradient(135deg, #22E3A1 0%, #10B981 100%)",
+                      color: "#FFFFFF",
                       opacity: couponValidating || !couponCode.trim() ? 0.5 : 1
                     }}
                   >
                     {couponValidating ? "Checking..." : "Apply"}
                   </button>
                 )}
+
                 {couponData && (
                   <button
                     type="button"
                     onClick={handleRemoveCoupon}
                     className="px-4 py-3 rounded-xl font-medium transition-all"
                     style={{
-                      background: 'rgba(168,85,247,0.2)',
-                      color: '#A855F7',
-                      border: '1px solid rgba(168,85,247,0.3)'
+                      background: "rgba(168,85,247,0.2)",
+                      color: "#A855F7",
+                      border: "1px solid rgba(168,85,247,0.3)"
                     }}
                   >
                     ✕ Remove
                   </button>
                 )}
               </div>
+
               {couponError && (
                 <p className="text-red-300 text-xs mt-2">❌ {couponError}</p>
               )}
+
               {couponData && (
-                <p className="text-xs mt-2 flex items-center gap-1" style={{ color: '#22E3A1' }}>
+                <p className="text-xs mt-2 flex items-center gap-1" style={{ color: "#22E3A1" }}>
                   <Check size={14} /> Coupon applied! Save £{couponData.discount.toFixed(2)}
                 </p>
               )}
             </div>
 
-            {/* CTA Button */}
             <button
               type="submit"
               disabled={submitting}
               className="w-full text-white font-bold py-4 rounded-2xl text-lg mt-6 flex items-center justify-center gap-2 transition-all transform hover:scale-105 disabled:opacity-50"
               style={{
-                background: 'linear-gradient(135deg, #A855F7 0%, #7C3AED 100%)',
-                boxShadow: '0 8px 50px rgba(168,85,247,0.6)'
-              }}>
+                background: "linear-gradient(135deg, #A855F7 0%, #7C3AED 100%)",
+                boxShadow: "0 8px 50px rgba(168,85,247,0.6)"
+              }}
+            >
               {submitting ? "Processing..." : <>Request Song <span>→</span></>}
             </button>
           </form>
 
-          {/* Footer note */}
-          <p className="text-xs text-center mt-6" style={{ color: 'rgba(255,255,255,0.4)' }}>Amount will be charged only after your request is accepted</p>
+          <p className="text-xs text-center mt-6" style={{ color: "rgba(255,255,255,0.4)" }}>
+            Amount will be charged only after your request is accepted
+          </p>
         </div>
       </div>
 
-      {/* Payment Modal */}
       <VenuePaymentModalWrapper
         isOpen={showPaymentModal}
         onClose={() => {
@@ -554,6 +630,55 @@ export default function VenuePublicRequest() {
         checkoutSessionId={checkoutSessionId}
         onPaymentSuccess={handlePaymentSuccess}
       />
+
+      {showPriorityChoice && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 px-4">
+          <div
+            className="w-full max-w-md rounded-2xl p-6"
+            style={{ background: "#121222", border: "1px solid rgba(255,255,255,0.12)" }}
+          >
+            <h3 className="text-xl font-bold mb-2">Choose request type</h3>
+            <p className="text-sm mb-6" style={{ color: "rgba(255,255,255,0.72)" }}>
+              Standard DJ request is £5.99. Want to boost your request?
+            </p>
+
+            <div className="space-y-3">
+              <button
+                type="button"
+                onClick={() => handlePriorityChoice(false)}
+                className="w-full rounded-xl p-4 text-left"
+                style={{ background: "rgba(168,85,247,0.12)", border: "1px solid rgba(168,85,247,0.3)" }}
+              >
+                <div className="font-semibold">Normal request</div>
+                <div className="text-sm" style={{ color: "rgba(255,255,255,0.72)" }}>
+                  £5.99
+                </div>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => handlePriorityChoice(true)}
+                className="w-full rounded-xl p-4 text-left"
+                style={{ background: "rgba(34,227,161,0.12)", border: "1px solid rgba(34,227,161,0.35)" }}
+              >
+                <div className="font-semibold">Request to play my song next</div>
+                <div className="text-sm" style={{ color: "rgba(255,255,255,0.72)" }}>
+                  £8.98 total (includes +£2.99 priority)
+                </div>
+              </button>
+            </div>
+
+            <button
+              type="button"
+              onClick={() => setShowPriorityChoice(false)}
+              className="mt-4 text-sm underline"
+              style={{ color: "rgba(255,255,255,0.72)" }}
+            >
+              Cancel
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
