@@ -8,7 +8,7 @@ export default function ThankYou() {
   const x = useParams().venueId;
   const [djModeEnabled, setDjModeEnabled] = useState(false);
   const [loading, setLoading] = useState(true);
-  const [songData, setSongData] = useState({ title: "Electric Dreams", artist: "Luna Waves" });
+  const [songData, setSongData] = useState({ title: "", artist: "" });
   const [userEmail, setUserEmail] = useState("");
   const [userLevel, setUserLevel] = useState(1);
   const [levelProgress, setLevelProgress] = useState(0);
@@ -36,6 +36,42 @@ export default function ThankYou() {
 
     fetchVenueData();
   }, [x]);
+
+  useEffect(() => {
+    const fetchRequestSongData = async () => {
+      try {
+        const requestId = localStorage.getItem("lastRequestId");
+        const fallbackTitle = localStorage.getItem("lastSongTitle");
+        const fallbackArtist = localStorage.getItem("lastArtistName");
+
+        if (fallbackTitle || fallbackArtist) {
+          setSongData({
+            title: fallbackTitle || "",
+            artist: fallbackArtist || ""
+          });
+        }
+
+        if (!requestId) return;
+
+        const response = await fetch(
+          `${import.meta.env.VITE_API_URL}/requests/${requestId}`
+        );
+
+        if (!response.ok) return;
+
+        const requestData = await response.json();
+
+        setSongData({
+          title: requestData.songTitle || requestData.title || fallbackTitle || "",
+          artist: requestData.artistName || requestData.artist || fallbackArtist || ""
+        });
+      } catch (err) {
+        console.error("Failed to fetch request song data:", err);
+      }
+    };
+
+    fetchRequestSongData();
+  }, []);
 
   // Fetch user requests and calculate level
   useEffect(() => {
@@ -748,11 +784,15 @@ for (let i = 0; i < confettiCount; i++) {
           <div className="space-y-3 p-4 rounded-xl mb-6 celebration-slide" style={{ background: 'rgba(168,85,247,0.08)', border: '1px solid rgba(168,85,247,0.2)', animationDelay: '0.4s', position: 'relative', overflow: 'hidden' }}>
             <div>
               <p className="text-xs font-600" style={{ color: 'rgba(255,255,255,0.5)' }}>Song Title</p>
-              <p className="text-sm font-600" style={{ color: '#FFFFFF' }}>{songData.title}</p>
+              <p className="text-sm font-600" style={{ color: '#FFFFFF' }}>
+  {songData.title || "Your requested song"}
+</p>
             </div>
             <div>
               <p className="text-xs font-600" style={{ color: 'rgba(255,255,255,0.5)' }}>Artist Name</p>
-              <p className="text-sm font-600" style={{ color: '#FFFFFF' }}>{songData.artist}</p>
+              <p className="text-sm font-600" style={{ color: '#FFFFFF' }}>
+  {songData.artist || "Artist"}
+</p>
             </div>
           </div>
 

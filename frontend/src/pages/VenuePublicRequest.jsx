@@ -184,13 +184,17 @@ const [acceptedGenres, setAcceptedGenres] = useState([]);
       }
 
       const responseData = await response.json();
-      const { requestId, checkoutUrl: url, checkoutSessionId: sessionId } = responseData;
+const { requestId, checkoutUrl: url, checkoutSessionId: sessionId } = responseData;
 
-      if (formData.email) {
-        localStorage.setItem("userEmail", formData.email);
-      }
+if (formData.email) {
+  localStorage.setItem("userEmail", formData.email);
+}
 
-      console.log("✅ Song request created");
+localStorage.setItem("lastRequestId", requestId);
+localStorage.setItem("lastSongTitle", formData.songTitle);
+localStorage.setItem("lastArtistName", formData.artistName);
+
+console.log("✅ Song request created");
       console.log(`   Request ID: ${requestId}`);
       console.log(`   Checkout URL: ${url}`);
       console.log(`   Session ID: ${sessionId}`);
@@ -236,7 +240,7 @@ const [acceptedGenres, setAcceptedGenres] = useState([]);
 
   const handlePaymentSuccess = async () => {
     // Keep your current pricing reset logic here
-    const resetPrice = venue && venue.djMode ? 9 : 3;
+    const resetPrice = venue && venue.djMode ? 5.99 : 1.69;
 
     setFormData({
       songTitle: "",
