@@ -142,20 +142,22 @@ if (venueId && venue) {
     }
 
     const requestData = {
-      userId: user._id,
-      title: songName,
-      songTitle: songName,
-      artist: artistName_,
-      artistName: artistName_,
-      userName: userName_,
-      phone: phone,
-      countryCode: countryCode,
-      price: finalPrice,
-      status: initialStatus,
-      sourcePlaylistId: process.env.SOURCE_PLAYLIST_ID,
-      appliedCoupon: appliedCoupon,
-      couponDiscountAmount: couponDiscountAmount
-    };
+  userId: user._id,
+  title: songName,
+  songTitle: songName,
+  artist: artistName_,
+  artistName: artistName_,
+  userName: userName_,
+  phone: phone,
+  countryCode: countryCode,
+  price: finalPrice,
+  status: initialStatus,
+  sourcePlaylistId: process.env.SOURCE_PLAYLIST_ID,
+  appliedCoupon: appliedCoupon,
+  couponDiscountAmount: couponDiscountAmount,
+  priorityRequest: isPriority,
+  priorityType: isPriority ? "play_next" : "normal"
+};
 
     // Add venueId if provided
     if (venueId) {

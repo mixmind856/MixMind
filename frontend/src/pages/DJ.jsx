@@ -120,10 +120,23 @@ export default function DJ() {
       ]);
       
       if (requestsRes.ok) {
-        const requestsData = await requestsRes.json();
-        console.log(`✅ DJ Panel received ${requestsData.length} requests`, requestsData);
-        setRequests(requestsData);
-      } else if (requestsRes.status === 401) {
+  const requestsData = await requestsRes.json();
+
+  console.log(`✅ DJ Panel received ${requestsData.length} requests`, requestsData);
+
+  requestsData.forEach((request) => {
+    console.log("REQUEST DEBUG:", {
+      id: request._id,
+      title: request.title || request.songTitle,
+      priorityRequest: request.priorityRequest,
+      priorityType: request.priorityType,
+      price: request.price,
+      status: request.status
+    });
+  });
+
+  setRequests(requestsData);
+} else if (requestsRes.status === 401) {
         console.error(`❌ Unauthorized - DJ token expired`);
         setError("DJ session expired. Please login again.");
         handleLogout();
@@ -344,7 +357,7 @@ export default function DJ() {
       {/* Main Content */}
       <section className="dj-main">
         <div className="requests-container">
-          <h2 className="section-title">🎵 Pending Requests</h2>
+          <h2 className="section-title">🎵 Pending Requests Debug Test</h2>
           
           {loading ? (
             <div className="loading-state">
@@ -363,9 +376,29 @@ export default function DJ() {
                 <div key={request._id} className="request-card">
                   <div className="request-header">
                     <div className="request-info">
-                      <h3 className="song-title">{request.title || request.songTitle}</h3>
-                      <p className="artist-name">{request.artist || request.artistName}</p>
-                    </div>
+  <div style={{ display: "flex", alignItems: "center", gap: "8px", flexWrap: "wrap" }}>
+    <h3 className="song-title">{request.title || request.songTitle}</h3>
+
+    {request.priorityRequest && (
+      <span
+        style={{
+          background: "rgba(34,227,161,0.18)",
+          color: "#22E3A1",
+          border: "1px solid rgba(34,227,161,0.35)",
+          fontSize: "11px",
+          fontWeight: "700",
+          padding: "4px 8px",
+          borderRadius: "999px",
+          letterSpacing: "0.4px"
+        }}
+      >
+        PRIORITY
+      </span>
+    )}
+  </div>
+
+  <p className="artist-name">{request.artist || request.artistName}</p>
+</div>
                     <div className="request-requester">
                       <span className="user-name">{request.userName}</span>
                       <span className="user-email">{request.userId?.email}</span>
@@ -373,23 +406,32 @@ export default function DJ() {
                   </div>
                   
                   <div className="request-details">
-                    <div className="detail-item">
-                      <span className="detail-label">Price:</span>
-                      <span className="detail-value">${request.price}</span>
-                    </div>
-                    <div className="detail-item">
-                      <span className="detail-label">Status:</span>
-                      <span className={`status-badge status-${request.status}`}>
-                        {request.status}
-                      </span>
-                    </div>
-                    <div className="detail-item">
-                      <span className="detail-label">Requested:</span>
-                      <span className="detail-value">
-                        {new Date(request.createdAt).toLocaleDateString()} {new Date(request.createdAt).toLocaleTimeString()}
-                      </span>
-                    </div>
-                  </div>
+  <div className="detail-item">
+    <span className="detail-label">Price:</span>
+    <span className="detail-value">£{request.price}</span>
+  </div>
+
+  <div className="detail-item">
+    <span className="detail-label">Type:</span>
+    <span className="detail-value">
+      {request.priorityRequest ? "Priority" : "Normal"}
+    </span>
+  </div>
+
+  <div className="detail-item">
+    <span className="detail-label">Status:</span>
+    <span className={`status-badge status-${request.status}`}>
+      {request.status}
+    </span>
+  </div>
+
+  <div className="detail-item">
+    <span className="detail-label">Requested:</span>
+    <span className="detail-value">
+      {new Date(request.createdAt).toLocaleDateString()} {new Date(request.createdAt).toLocaleTimeString()}
+    </span>
+  </div>
+</div>
                   
                   <div className="request-actions">
                     <button

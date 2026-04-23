@@ -65,8 +65,22 @@ export default function DJApprovedDashboard() {
       }
 
       const requestsData = await response.json();
-      console.log("✅ DJ Dashboard loaded requests:", requestsData);
-      setRequests(Array.isArray(requestsData) ? requestsData : []);
+console.log("✅ DJ Dashboard loaded requests:", requestsData);
+
+if (Array.isArray(requestsData)) {
+  requestsData.forEach((request) => {
+    console.log("REQUEST DEBUG:", {
+      id: request._id,
+      title: request.title,
+      priorityRequest: request.priorityRequest,
+      priorityType: request.priorityType,
+      price: request.price,
+      status: request.status
+    });
+  });
+}
+
+setRequests(Array.isArray(requestsData) ? requestsData : []);
       
       // Set venue name if available from first request
       if (requestsData.length > 0 && requestsData[0].venueId?.name) {
@@ -277,56 +291,84 @@ export default function DJApprovedDashboard() {
             <h2 className="text-2xl font-bold mb-4">
               Pending Requests ({requests.length})
             </h2>
-            {requests.map(request => (
+            {[...requests]
+  .sort((a, b) => (b.priorityRequest ? 1 : 0) - (a.priorityRequest ? 1 : 0))
+  .map(request => (
               <div key={request._id} className="request-card">
                 <div className="flex justify-between items-start mb-3">
-                  <div className="flex-1">
-                    <h3 className="text-xl font-bold">{request.title}</h3>
-                    <p style={{ color: "rgba(255,255,255,0.72)" }}>
-                      {request.artist}
-                    </p>
-                    {request.userId?.name && (
-                      <p style={{ color: "rgba(255,255,255,0.6)", fontSize: "14px" }}>
-                        Requested by: {request.userId.name}
-                      </p>
-                    )}
-                  </div>
-                  <div className="flex gap-2">
-                    <button
-                      className="btn-primary"
-                      onClick={() => handleAccept(request._id, request.title)}
-                      disabled={processingId === request._id}
-                    >
-                      {processingId === request._id ? (
-                        <>
-                          <Loader size={16} className="animate-spin" />
-                          Loading...
-                        </>
-                      ) : (
-                        <>
-                          <Check size={16} />
-                          Accept
-                        </>
-                      )}
-                    </button>
-                    <button
-                      className="btn-danger"
-                      onClick={() => handleReject(request._id, request.title)}
-                      disabled={processingId === request._id}
-                    >
-                      {processingId === request._id ? (
-                        <>
-                          <Loader size={16} className="animate-spin" />
-                        </>
-                      ) : (
-                        <>
-                          <X size={16} />
-                          Reject
-                        </>
-                      )}
-                    </button>
-                  </div>
-                </div>
+  <div className="flex-1">
+    <div className="flex items-center gap-2 flex-wrap">
+      <h3 className="text-xl font-bold">{request.title}</h3>
+
+      {request.priorityRequest && (
+        <span
+          style={{
+            background: "rgba(34,227,161,0.18)",
+            color: "#22E3A1",
+            border: "1px solid rgba(34,227,161,0.35)",
+            fontSize: "11px",
+            fontWeight: "700",
+            padding: "4px 8px",
+            borderRadius: "999px",
+            letterSpacing: "0.4px"
+          }}
+        >
+          🔥 PRIORITY
+        </span>
+      )}
+    </div>
+
+    <p style={{ color: "rgba(255,255,255,0.72)" }}>
+      {request.artist}
+    </p>
+
+    {request.userId?.name && (
+      <p style={{ color: "rgba(255,255,255,0.6)", fontSize: "14px" }}>
+        Requested by: {request.userId.name}
+      </p>
+    )}
+
+    <p style={{ color: "rgba(255,255,255,0.72)", fontSize: "14px", marginTop: "6px" }}>
+      Price: £{request.price} • Type: {request.priorityRequest ? "Priority" : "Normal"}
+    </p>
+  </div>
+
+  <div className="flex gap-2">
+    <button
+      className="btn-primary"
+      onClick={() => handleAccept(request._id, request.title)}
+      disabled={processingId === request._id}
+    >
+      {processingId === request._id ? (
+        <>
+          <Loader size={16} className="animate-spin" />
+          Loading...
+        </>
+      ) : (
+        <>
+          <Check size={16} />
+          Accept
+        </>
+      )}
+    </button>
+    <button
+      className="btn-danger"
+      onClick={() => handleReject(request._id, request.title)}
+      disabled={processingId === request._id}
+    >
+      {processingId === request._id ? (
+        <>
+          <Loader size={16} className="animate-spin" />
+        </>
+      ) : (
+        <>
+          <X size={16} />
+          Reject
+        </>
+      )}
+    </button>
+  </div>
+</div>
               </div>
             ))}
           </div>
