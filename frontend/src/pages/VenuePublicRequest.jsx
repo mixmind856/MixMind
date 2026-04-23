@@ -632,53 +632,140 @@ export default function VenuePublicRequest() {
       />
 
       {showPriorityChoice && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 px-4">
-          <div
-            className="w-full max-w-md rounded-2xl p-6"
-            style={{ background: "#121222", border: "1px solid rgba(255,255,255,0.12)" }}
-          >
-            <h3 className="text-xl font-bold mb-2">Choose request type</h3>
-            <p className="text-sm mb-6" style={{ color: "rgba(255,255,255,0.72)" }}>
-              Standard DJ request is £5.99. Want to boost your request?
-            </p>
+  <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm px-4">
+    <div
+      className="w-full max-w-md rounded-[24px] px-5 py-5"
+      style={{
+        background:
+          "radial-gradient(circle at top, rgba(45,16,74,0.35) 0%, rgba(10,10,24,0.96) 40%, rgba(5,6,14,0.98) 100%)",
+        border: "1px solid rgba(214,170,255,0.22)",
+        boxShadow:
+          "0 0 0 1px rgba(214,170,255,0.05), 0 20px 60px rgba(0,0,0,0.55), 0 0 30px rgba(168,85,247,0.08)"
+      }}
+    >
+      {/* HEADER */}
+      <div className="text-center mb-5">
+        <h3 className="text-2xl font-bold mb-1 text-white">
+          Choose your spot ✨
+        </h3>
 
-            <div className="space-y-3">
-              <button
-                type="button"
-                onClick={() => handlePriorityChoice(false)}
-                className="w-full rounded-xl p-4 text-left"
-                style={{ background: "rgba(168,85,247,0.12)", border: "1px solid rgba(168,85,247,0.3)" }}
-              >
-                <div className="font-semibold">Normal request</div>
-                <div className="text-sm" style={{ color: "rgba(255,255,255,0.72)" }}>
-                  £5.99
-                </div>
-              </button>
+        <p className="text-sm" style={{ color: "rgba(196,181,253,0.72)" }}>
+          Pick how soon you want it herd.
+        </p>
+      </div>
 
-              <button
-                type="button"
-                onClick={() => handlePriorityChoice(true)}
-                className="w-full rounded-xl p-4 text-left"
-                style={{ background: "rgba(34,227,161,0.12)", border: "1px solid rgba(34,227,161,0.35)" }}
-              >
-                <div className="font-semibold">Request to play my song next</div>
-                <div className="text-sm" style={{ color: "rgba(255,255,255,0.72)" }}>
-                  £8.98 total (includes +£2.99 priority)
-                </div>
-              </button>
+      {/* CARDS */}
+      <div className="space-y-4">
+
+        {/* NORMAL */}
+        <button
+          type="button"
+          onClick={() => handlePriorityChoice(false)}
+          className="w-full rounded-2xl px-4 py-4 text-left transition-all"
+          style={{
+            background:
+              "linear-gradient(180deg, rgba(24,10,40,0.9) 0%, rgba(11,8,26,0.98) 100%)",
+            border: "1px solid rgba(168,85,247,0.4)"
+          }}
+        >
+          <div className="flex items-center gap-4">
+            <div
+              className="w-12 h-12 rounded-full flex items-center justify-center shrink-0"
+              style={{
+                background: "rgba(168,85,247,0.12)",
+                border: "1px solid rgba(168,85,247,0.35)"
+              }}
+            >
+              <span className="text-xl">🎧</span>
             </div>
 
-            <button
-              type="button"
-              onClick={() => setShowPriorityChoice(false)}
-              className="mt-4 text-sm underline"
-              style={{ color: "rgba(255,255,255,0.72)" }}
-            >
-              Cancel
-            </button>
+            <div>
+              <div className="text-lg font-semibold text-white">
+                Lock My Spot 🎵
+              </div>
+
+              <div className="text-xl font-bold text-white mt-1">
+                £5.99
+              </div>
+
+              <div className="text-sm mt-1 text-gray-400">
+                👉 Your turn is coming
+              </div>
+            </div>
           </div>
-        </div>
-      )}
+        </button>
+
+        {/* PRIORITY */}
+        <button
+          type="button"
+          onClick={() => handlePriorityChoice(true)}
+          className="w-full rounded-2xl px-4 py-4 text-left relative transition-all"
+          style={{
+            background:
+              "linear-gradient(180deg, rgba(3,33,28,0.95) 0%, rgba(2,19,17,0.98) 100%)",
+            border: "1px solid rgba(34,227,161,0.6)",
+            boxShadow:
+              "0 0 20px rgba(34,227,161,0.18)"
+          }}
+        >
+          {/* BADGE */}
+          <div
+            className="absolute -top-2 right-3 px-2 py-1 rounded-full text-xs font-semibold flex items-center gap-1"
+            style={{
+              background: "#3BF2B5",
+              color: "#08110E"
+            }}
+          >
+            <span style={{ color: "#FFD700" }}>⭐</span>
+            MOST POPULAR
+          </div>
+
+          <div className="flex items-start gap-4">
+            <div
+              className="w-12 h-12 rounded-full flex items-center justify-center shrink-0"
+              style={{
+                background: "rgba(34,227,161,0.12)",
+                border: "1px solid rgba(34,227,161,0.35)"
+              }}
+            >
+              <span className="text-xl">🔥</span>
+            </div>
+
+            <div className="flex-1">
+              <div className="text-lg font-semibold text-white">
+                🔥 Priority Placement 🔥
+              </div>
+
+              <div className="mt-2">
+                <div className="text-sm font-semibold text-green-300">
+                  Only <span className="text-2xl font-bold">£2.99</span> more
+                </div>
+
+                <div className="text-lg font-semibold text-white mt-1">
+                  £8.98 total
+                </div>
+
+                <div className="text-sm text-gray-400 mt-1">
+                  👉 Be heard sooner
+                </div>
+              </div>
+            </div>
+          </div>
+        </button>
+      </div>
+
+      {/* CANCEL */}
+      <button
+        type="button"
+        onClick={() => setShowPriorityChoice(false)}
+        className="w-full mt-5 text-sm font-medium"
+        style={{ color: "rgba(210,190,255,0.6)" }}
+      >
+        Cancel
+      </button>
+    </div>
+  </div>
+)}
     </div>
   );
 }
