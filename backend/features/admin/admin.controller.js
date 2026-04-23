@@ -229,54 +229,86 @@ async function getVenueRevenue(req, res) {
 
     // Get detailed payment breakdown
     const payments = await Payment.find({ venueId })
-      .populate("requestId", "songTitle artist price status")
-      .sort({ capturedAt: -1 });
+  .populate("requestId", "songTitle title artist artistName price status")
+  .sort({ capturedAt: -1, createdAt: -1 });
 
-    const capturedPayments = payments.filter(p => p.status === "captured");
-    const authorizedPayments = payments.filter(p => p.status === "authorized");
-    const failedPayments = payments.filter(p => p.status === "failed");
+// Only count revenue if payment is captured AND linked request is actually accepted/completed/queued
+const capturedPayments = payments.filter(
+  p =>
+    p.status === "captured" &&
+    p.requestId &&
+    ["queued", "completed", "processing", "approved"].includes(p.requestId.status)
+);
 
-    const revenueBreakdown = {
-      totalRevenue: venue.totalRevenue,
-      capturedPayments: venue.totalCapturedPayments,
-      totalAuthorizedAmount: venue.totalAuthorizedAmount,
-      lastRevenueUpdateAt: venue.lastRevenueUpdateAt,
+// Pending money should only count if request is still waiting / pending
+const authorizedPayments = payments.filter(
+  p =>
+    p.status === "authorized" &&
+    p.requestId &&
+    ["pending_dj_approval", "authorized", "created"].includes(p.requestId.status)
+);
+
+// Failed/rejected bucket should include cancelled too
+const failedPayments = payments.filter(
+  p =>
+    (p.status === "failed" || p.status === "cancelled") &&
+    p.requestId
+);
+
+const totalRevenue = capturedPayments.reduce(
+  (sum, p) => sum + (p.capturedAmount || p.amount || 0),
+  0
+);
+
+const totalAuthorizedAmount = authorizedPayments.reduce(
+  (sum, p) => sum + (p.amount || 0),
+  0
+);
+
+const revenueBreakdown = {
+  totalRevenue,
+  capturedPayments: capturedPayments.length,
+  totalAuthorizedAmount,
+  lastRevenueUpdateAt:
+    payments.length > 0
+      ? payments[0].updatedAt || payments[0].capturedAt || payments[0].createdAt
+      : venue.lastRevenueUpdateAt,
       
       // Detailed breakdown
       payments: {
-        captured: {
-          count: capturedPayments.length,
-          amount: capturedPayments.reduce((sum, p) => sum + (p.capturedAmount || 0), 0),
-          details: capturedPayments.map(p => ({
-            id: p._id,
-            amount: p.capturedAmount,
-            song: p.requestId?.songTitle,
-            artist: p.requestId?.artist,
-            capturedAt: p.capturedAt
-          }))
-        },
-        authorized: {
-          count: authorizedPayments.length,
-          amount: authorizedPayments.reduce((sum, p) => sum + (p.amount || 0), 0),
-          details: authorizedPayments.map(p => ({
-            id: p._id,
-            amount: p.amount,
-            song: p.requestId?.songTitle,
-            artist: p.requestId?.artist,
-            authorizedAt: p.authorizedAt
-          }))
-        },
-        failed: {
-          count: failedPayments.length,
-          details: failedPayments.map(p => ({
-            id: p._id,
-            amount: p.amount,
-            song: p.requestId?.songTitle,
-            artist: p.requestId?.artist,
-            cancelledAt: p.cancelledAt
-          }))
-        }
-      }
+  captured: {
+    count: capturedPayments.length,
+    amount: totalRevenue,
+    details: capturedPayments.map(p => ({
+      id: p._id,
+      amount: p.capturedAmount || p.amount || 0,
+      song: p.requestId?.songTitle || p.requestId?.title || "Unknown Song",
+      artist: p.requestId?.artist || p.requestId?.artistName || "Unknown Artist",
+      capturedAt: p.capturedAt
+    }))
+  },
+  authorized: {
+    count: authorizedPayments.length,
+    amount: totalAuthorizedAmount,
+    details: authorizedPayments.map(p => ({
+      id: p._id,
+      amount: p.amount || 0,
+      song: p.requestId?.songTitle || p.requestId?.title || "Unknown Song",
+      artist: p.requestId?.artist || p.requestId?.artistName || "Unknown Artist",
+      authorizedAt: p.authorizedAt || p.createdAt
+    }))
+  },
+  failed: {
+    count: failedPayments.length,
+    details: failedPayments.map(p => ({
+      id: p._id,
+      amount: p.amount || 0,
+      song: p.requestId?.songTitle || p.requestId?.title || "Unknown Song",
+      artist: p.requestId?.artist || p.requestId?.artistName || "Unknown Artist",
+      cancelledAt: p.cancelledAt || p.updatedAt
+    }))
+  }
+}
     };
 
     console.log(`✅ Revenue data: Total=$${venue.totalRevenue}, Captured=${venue.totalCapturedPayments}`);

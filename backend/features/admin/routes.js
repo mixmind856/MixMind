@@ -17,7 +17,7 @@ const {
   getRevenueBreakdown,
   getSongRequestDetails,
   getTopVenues
-} = require("../api/admin/admin.controller");
+} = require("../admin/admin.controller");
 require("dotenv").config();
 const router = express.Router();
 

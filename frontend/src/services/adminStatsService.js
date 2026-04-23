@@ -9,7 +9,7 @@ export const getDashboardSummary = async () => {
       throw new Error("Admin key not configured. Please check your .env file.");
     }
 
-    const response = await fetch(`${API_BASE_URL}/api/admin/dashboard/summary`, {
+    const response = await fetch(`${API_BASE_URL}/admin/dashboard/summary`, {
       method: "GET",
       headers: {
         "Content-Type": "application/json",
@@ -33,7 +33,7 @@ export const getDashboardSummary = async () => {
  */
 export const getAllVenuesStats = async () => {
   try {
-    const response = await fetch(`${API_BASE_URL}/api/admin/venues/stats`, {
+    const response = await fetch(`${API_BASE_URL}/admin/venues/stats`, {
       method: "GET",
       headers: {
         "Content-Type": "application/json",
@@ -57,7 +57,7 @@ export const getAllVenuesStats = async () => {
  */
 export const getRevenueBreakdown = async () => {
   try {
-    const response = await fetch(`${API_BASE_URL}/api/admin/revenue/breakdown`, {
+    const response = await fetch(`${API_BASE_URL}/admin/revenue/breakdown`, {
       method: "GET",
       headers: {
         "Content-Type": "application/json",
@@ -81,7 +81,7 @@ export const getRevenueBreakdown = async () => {
  */
 export const getSongRequestDetails = async () => {
   try {
-    const response = await fetch(`${API_BASE_URL}/api/admin/requests/details/all`, {
+    const response = await fetch(`${API_BASE_URL}/admin/requests/details/all`, {
       method: "GET",
       headers: {
         "Content-Type": "application/json",
