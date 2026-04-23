@@ -26,13 +26,36 @@ const app = express();
 const PORT = process.env.PORT || 4000;
 
 // -------------------- CORS --------------------
+const allowedOrigins = [
+  process.env.CLIENT_URL,
+  "https://www.mixmind.co.uk",
+  "https://mixmind.co.uk",
+  "https://mix-mind-msh6.vercel.app",
+  "http://localhost:3000",
+  "http://localhost:5173"
+].filter(Boolean);
+
+console.log("🌐 Allowed CORS origins:", allowedOrigins);
+
 app.use(
   cors({
-    origin: process.env.CLIENT_URL, // e.g., "http://localhost:3000"
+    origin: function (origin, callback) {
+      if (!origin) return callback(null, true);
+
+      if (allowedOrigins.includes(origin)) {
+        return callback(null, true);
+      }
+
+      return callback(new Error(`CORS blocked for origin: ${origin}`));
+    },
     methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
-    allowedHeaders: ["Content-Type", "x-admin-key", "Authorization"]
+    allowedHeaders: ["Content-Type", "x-admin-key", "Authorization"],
+    credentials: true
   })
 );
+
+// Important for preflight requests
+app.options(/.*/, cors());
 
 // -------------------- BODY PARSERS --------------------
 // Normal JSON parser for all routes except Stripe webhook
