@@ -476,41 +476,49 @@ const handleCancelConfirm = () => {
           justifyContent: "flex-end"
         }}
       >
-        {/* CANCEL BUTTON */}
-        <button
-          onClick={handleCancelConfirm}
-          style={{
-            padding: "8px 14px",
-            borderRadius: "8px",
-            background: "transparent",
-            border: "1px solid rgba(255,255,255,0.2)",
-            color: "white",
-            cursor: "pointer"
-          }}
-        >
-          {confirmAction === "accept" ? "Cancel" : "😕 Not Now"}
-        </button>
+        {/* LEFT BUTTON */}
+<button
+  onClick={
+    confirmAction === "accept"
+      ? handleCancelConfirm
+      : handleConfirmAction
+  }
+  style={{
+    padding: "8px 14px",
+    borderRadius: "8px",
+    background: "transparent",
+    border: "1px solid rgba(255,255,255,0.2)",
+    color: "white",
+    cursor: "pointer"
+  }}
+>
+  {confirmAction === "accept" ? "Cancel" : "😕 Not Now"}
+</button>
 
-        {/* CONFIRM BUTTON */}
-        <button
-          onClick={handleConfirmAction}
-          style={{
-            padding: "8px 14px",
-            borderRadius: "8px",
-            background:
-              confirmAction === "accept"
-                ? "linear-gradient(135deg, #A855F7, #7C3AED)"
-                : "#22E3A1",
-            color: confirmAction === "accept" ? "white" : "black",
-            fontWeight: "600",
-            border: "none",
-            cursor: "pointer"
-          }}
-        >
-          {confirmAction === "accept"
-            ? "✅ Add to set"
-            : "🔥 I’ll play it"}
-        </button>
+        {/* RIGHT BUTTON */}
+<button
+  onClick={
+    confirmAction === "accept"
+      ? handleConfirmAction
+      : handleCancelConfirm
+  }
+  style={{
+    padding: "8px 14px",
+    borderRadius: "8px",
+    background:
+      confirmAction === "accept"
+        ? "linear-gradient(135deg, #A855F7, #7C3AED)"
+        : "#22E3A1",
+    color: confirmAction === "accept" ? "white" : "black",
+    fontWeight: "600",
+    border: "none",
+    cursor: "pointer"
+  }}
+>
+  {confirmAction === "accept"
+    ? "✅ Add to set"
+    : "🔥 I’ll play it"}
+</button>
       </div>
     </div>
   </div>
