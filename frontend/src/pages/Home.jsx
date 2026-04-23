@@ -37,9 +37,18 @@ export default function Home() {
           </nav>
 
           {/* Desktop CTA */}
-          <div className="hidden md:block">
-            <PrimaryButton>Get Started</PrimaryButton>
-          </div>
+<div className="hidden md:flex items-center gap-3">
+  <PrimaryButton onClick={() => navigate("/venue/login")}>
+    Venue Login
+  </PrimaryButton>
+
+  <button
+    onClick={() => navigate("/venue/signup")}
+    className="text-sm text-white/80 hover:text-white underline underline-offset-4 transition"
+  >
+    Venue Sign Up
+  </button>
+</div>
 
           {/* Mobile Menu Toggle */}
           <button
@@ -67,9 +76,27 @@ export default function Home() {
               Admin Dashboard
             </button>
 
-            <PrimaryButton className="w-full mt-4">
-              Get Started
-            </PrimaryButton>
+            <div className="mt-4 flex flex-col gap-3">
+  <PrimaryButton
+    className="w-full"
+    onClick={() => {
+      navigate("/venue/login");
+      setOpen(false);
+    }}
+  >
+    Venue Login
+  </PrimaryButton>
+
+  <button
+    onClick={() => {
+      navigate("/venue/signup");
+      setOpen(false);
+    }}
+    className="text-sm text-white/80 hover:text-white underline underline-offset-4 transition text-left"
+  >
+    Venue Sign Up
+  </button>
+</div>
           </div>
         )}
       </header>
@@ -141,9 +168,11 @@ export default function Home() {
 
 /* ================= COMPONENTS ================= */
 
-function PrimaryButton({ children, className = "" }) {
+function PrimaryButton({ children, className = "", onClick, type = "button" }) {
   return (
     <button
+      type={type}
+      onClick={onClick}
       className={`bg-purple-600 hover:bg-purple-700 transition rounded-full px-6 py-2 font-medium ${className}`}
     >
       {children}
