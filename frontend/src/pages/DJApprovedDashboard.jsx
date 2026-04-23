@@ -17,6 +17,9 @@ export default function DJApprovedDashboard() {
   const [error, setError] = useState("");
   const [venueName, setVenueName] = useState("");
   const [processingId, setProcessingId] = useState(null);
+  const [confirmModalOpen, setConfirmModalOpen] = useState(false);
+const [confirmAction, setConfirmAction] = useState(null);
+const [selectedRequest, setSelectedRequest] = useState(null);
 
   const djToken = localStorage.getItem("djToken");
   const djName = localStorage.getItem("djName");
@@ -168,6 +171,27 @@ setRequests(Array.isArray(requestsData) ? requestsData : []);
     localStorage.removeItem("djName");
     navigate("/dj/auth");
   };
+
+  const handleConfirmAction = async () => {
+  if (!selectedRequest || !confirmAction) return;
+
+  setConfirmModalOpen(false);
+
+  if (confirmAction === "accept") {
+    await handleAccept(selectedRequest._id, selectedRequest.title);
+  } else {
+    await handleReject(selectedRequest._id, selectedRequest.title);
+  }
+
+  setSelectedRequest(null);
+  setConfirmAction(null);
+};
+
+const handleCancelConfirm = () => {
+  setConfirmModalOpen(false);
+  setSelectedRequest(null);
+  setConfirmAction(null);
+};
 
   return (
     <div className="min-h-screen bg-[#07070B] text-white p-4 md:p-8">
@@ -345,8 +369,12 @@ setRequests(Array.isArray(requestsData) ? requestsData : []);
 
   <div className="flex gap-2">
     <button
-      className="btn-primary"
-      onClick={() => handleAccept(request._id, request.title)}
+  className="btn-primary"
+  onClick={() => {
+    setSelectedRequest(request);
+    setConfirmAction("accept");
+    setConfirmModalOpen(true);
+  }}
       disabled={processingId === request._id}
     >
       {processingId === request._id ? (
@@ -362,8 +390,12 @@ setRequests(Array.isArray(requestsData) ? requestsData : []);
       )}
     </button>
     <button
-      className="btn-danger"
-      onClick={() => handleReject(request._id, request.title)}
+  className="btn-danger"
+  onClick={() => {
+    setSelectedRequest(request);
+    setConfirmAction("reject");
+    setConfirmModalOpen(true);
+  }}
       disabled={processingId === request._id}
     >
       {processingId === request._id ? (
@@ -382,8 +414,56 @@ setRequests(Array.isArray(requestsData) ? requestsData : []);
               </div>
             ))}
           </div>
-        )}
+                )}
       </div>
+
+      {confirmModalOpen && selectedRequest && (
+        <div
+          style={{
+            position: "fixed",
+            inset: 0,
+            background: "rgba(0,0,0,0.6)",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            zIndex: 1000
+          }}
+        >
+          <div
+            style={{
+              background: "#121222",
+              padding: "20px",
+              borderRadius: "16px",
+              width: "100%",
+              maxWidth: "420px"
+            }}
+          >
+            <h3>
+              {confirmAction === "accept"
+                ? "Accept this request?"
+                : "Reject this request?"}
+            </h3>
+
+            <p style={{ marginTop: "10px", color: "rgba(255,255,255,0.75)" }}>
+              {selectedRequest.title} by {selectedRequest.artist}
+            </p>
+
+            <div
+              style={{
+                marginTop: "16px",
+                display: "flex",
+                gap: "10px",
+                justifyContent: "flex-end"
+              }}
+            >
+              <button onClick={handleCancelConfirm}>Cancel</button>
+              <button onClick={handleConfirmAction}>
+                {confirmAction === "accept" ? "Accept" : "Reject"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

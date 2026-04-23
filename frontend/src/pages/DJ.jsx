@@ -435,7 +435,11 @@ export default function DJ() {
                   
                   <div className="request-actions">
                     <button
-                      onClick={() => handleAcceptRequest(request._id)}
+                      onClick={() => {
+  setSelectedRequest(request);
+  setConfirmAction("accept");
+  setConfirmModalOpen(true);
+}}
                       disabled={processingId === request._id}
                       className="btn-accept"
                     >
@@ -452,7 +456,11 @@ export default function DJ() {
                           className="reject-input"
                         />
                         <button
-                          onClick={() => handleRejectRequest(request._id)}
+                          onClick={() => {
+  setSelectedRequest(request);
+  setConfirmAction("reject");
+  setConfirmModalOpen(true);
+}}
                           disabled={processingId === request._id}
                           className="btn-confirm-reject"
                         >
