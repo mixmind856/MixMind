@@ -12,6 +12,7 @@ export default function ThankYou() {
   const [userEmail, setUserEmail] = useState("");
   const [userLevel, setUserLevel] = useState(1);
   const [levelProgress, setLevelProgress] = useState(0);
+  const [animatedProgress, setAnimatedProgress] = useState(0);
   const [totalRequests, setTotalRequests] = useState(0);
   const [showTooltip, setShowTooltip] = useState(false);
 
@@ -63,14 +64,13 @@ export default function ThankYou() {
           setTotalRequests(count);
 
           // Calculate level: 1 level per 2 requests
-          // Resets every ~1000 requests (500 levels)
-          const levelInCycle = count % 1000;
-          const currentLevel = Math.floor(levelInCycle / 2) + 1;
-          const progressInLevel = (levelInCycle % 2) * 50; // 0% or 50%
+const requestsPerLevel = 2;
+const currentLevel = Math.floor(count / requestsPerLevel) + 1;
+const progressInLevel = ((count % requestsPerLevel) / requestsPerLevel) * 100;
 
-          console.log(`🎯 Calculation: levelInCycle=${levelInCycle}, level=${currentLevel}, progress=${progressInLevel}%`);
-          setUserLevel(currentLevel);
-          setLevelProgress(progressInLevel);
+console.log(`🎯 Calculation: count=${count}, level=${currentLevel}, progress=${progressInLevel}%`);
+setUserLevel(currentLevel);
+setLevelProgress(progressInLevel);
         } else {
           console.error("❌ Failed to fetch requests:", response.status);
         }
@@ -95,29 +95,29 @@ export default function ThankYou() {
       const container = document.getElementById('confetti-container');
       if (!container) return;
       
-      const confettiCount = 50;
-      for (let i = 0; i < confettiCount; i++) {
-        const confetti = document.createElement('div');
-        confetti.className = 'confetti';
-        
-        const x = Math.random() * 200 - 100;
-        const y = Math.random() * 300 - 150;
-        
-        confetti.style.setProperty('--tx', x + 'px');
-        confetti.style.setProperty('--ty', y + 'px');
-        confetti.style.left = '50%';
-        confetti.style.top = '30%';
-        confetti.style.width = Math.random() * 8 + 4 + 'px';
-        confetti.style.height = confetti.style.width;
-        confetti.style.borderRadius = '50%';
-        confetti.style.backgroundColor = ['#A855F7', '#22E3A1', '#7C3AED'][Math.floor(Math.random() * 3)];
-        confetti.style.position = 'fixed';
-        confetti.style.pointerEvents = 'none';
-        confetti.style.animation = 'burst 2s ease-out forwards';
-        
-        container.appendChild(confetti);
-        setTimeout(() => confetti.remove(), 2000);
-      }
+      const confettiCount = 120;
+for (let i = 0; i < confettiCount; i++) {
+  const confetti = document.createElement('div');
+  confetti.className = 'confetti';
+  
+  const x = Math.random() * 520 - 260;
+  const y = Math.random() * 520 - 260;
+  
+  confetti.style.setProperty('--tx', x + 'px');
+  confetti.style.setProperty('--ty', y + 'px');
+  confetti.style.left = '50%';
+  confetti.style.top = '28%';
+  confetti.style.width = Math.random() * 12 + 6 + 'px';
+  confetti.style.height = confetti.style.width;
+  confetti.style.borderRadius = Math.random() > 0.5 ? '50%' : '2px';
+  confetti.style.backgroundColor = ['#A855F7', '#22E3A1', '#7C3AED', '#C084FC', '#FDE047'][Math.floor(Math.random() * 5)];
+  confetti.style.position = 'fixed';
+  confetti.style.pointerEvents = 'none';
+  confetti.style.animation = 'burst 2.6s cubic-bezier(0.34,1.56,0.64,1) forwards';
+  
+  container.appendChild(confetti);
+  setTimeout(() => confetti.remove(), 2600);
+}
     };
 
     if (!loading) {
@@ -127,6 +127,16 @@ export default function ThankYou() {
       }, 300);
     }
   }, [loading]);
+
+  useEffect(() => {
+    setAnimatedProgress(0);
+
+    const timer = setTimeout(() => {
+      setAnimatedProgress(levelProgress);
+    }, 300);
+
+    return () => clearTimeout(timer);
+  }, [levelProgress]);
 
   if (loading) {
     return (
@@ -170,15 +180,18 @@ export default function ThankYou() {
           }
         }
         @keyframes burst {
-          0% {
-            transform: translate(0, 0) scale(1);
-            opacity: 1;
-          }
-          100% {
-            transform: translate(var(--tx), var(--ty)) rotate(360deg) scale(0);
-            opacity: 0;
-          }
-        }
+  0% {
+    transform: translate(0, 0) scale(1) rotate(0deg);
+    opacity: 1;
+  }
+  20% {
+    opacity: 1;
+  }
+  100% {
+    transform: translate(var(--tx), var(--ty)) rotate(720deg) scale(0.4);
+    opacity: 0;
+  }
+}
         @keyframes pulse-achievement {
           0%, 100% { transform: scale(1); }
           50% { transform: scale(1.1); }
@@ -364,15 +377,18 @@ export default function ThankYou() {
 
     /* Confetti burst animation */
     @keyframes burst {
-      0% {
-        transform: translate(0, 0) scale(1);
-        opacity: 1;
-      }
-      100% {
-        transform: translate(var(--tx), var(--ty)) rotate(360deg) scale(0);
-        opacity: 0;
-      }
-    }
+  0% {
+    transform: translate(0, 0) scale(1) rotate(0deg);
+    opacity: 1;
+  }
+  20% {
+    opacity: 1;
+  }
+  100% {
+    transform: translate(var(--tx), var(--ty)) rotate(720deg) scale(0.4);
+    opacity: 0;
+  }
+}
 
     .confetti {
       position: fixed;
@@ -707,12 +723,25 @@ export default function ThankYou() {
                 </div>
               </div>
             </div>
-            <div className="w-full h-2 rounded-full" style={{ background: 'rgba(168,85,247,0.2)', overflow: 'hidden' }}>
-              <div className="h-full" style={{ background: 'linear-gradient(90deg, #A855F7, #22E3A1)', width: `${levelProgress}%`, transition: 'width 0.6s cubic-bezier(0.34,1.56,0.64,1)', '--progress': `${levelProgress}%` }}></div>
-            </div>
-            <p className="text-xs mt-2" style={{ color: 'rgba(255,255,255,0.4)' }}>
-              {2 - (totalRequests % 2)} more {totalRequests % 2 === 0 ? "request" : "requests"} to next free request
-            </p>
+            <div
+  className="w-full h-2.5 rounded-full"
+  style={{ background: 'rgba(168,85,247,0.2)', overflow: 'hidden' }}
+>
+  <div
+  className="h-full"
+  style={{
+    background: 'linear-gradient(90deg, #A855F7 0%, #C084FC 45%, #22E3A1 100%)',
+    width: `${animatedProgress}%`,
+    transition: 'width 1.2s cubic-bezier(0.34,1.56,0.64,1)',
+    boxShadow: '0 0 16px rgba(168,85,247,0.45), 0 0 22px rgba(34,227,161,0.25)'
+  }}
+></div>
+</div>
+<p className="text-xs mt-2" style={{ color: 'rgba(255,255,255,0.4)' }}>
+  {levelProgress === 100
+    ? "Level up! Welcome to Level 2 🎉"
+    : `${2 - (totalRequests % 2)} more ${totalRequests % 2 === 0 ? "request" : "requests"} to next free request`}
+</p>
           </div>
 
           {/* Song Details */}
@@ -727,21 +756,33 @@ export default function ThankYou() {
             </div>
           </div>
 
-          {/* Estimated Play Time */}
-          {/* Estimated Play Time */}
-          <div className="mb-6 celebration-slide" style={{ animationDelay: '0.5s' }}>
-            <div className="p-4 rounded-xl glow-pulse" style={{ 
-              background: 'rgba(34,227,161,0.08)', 
-              border: '1px solid rgba(34,227,161,0.4)',
-              boxShadow: '0 0 20px rgba(34,227,161,0.3)' /* Base static glow */
-            }}>
-              <p className="text-xs" style={{ color: 'rgba(255,255,255,0.7)' }}>Estimated Play Time</p>
-              <p className="font-bold text-lg" style={{ color: '#22E3A1', fontFamily: 'Space Grotesk, sans-serif' }}>5–10 minutes</p>
-            </div>
-          </div>
+          {/* Estimated Play Time / DJ Mode Status */}
+<div className="mb-6 celebration-slide" style={{ animationDelay: '0.5s' }}>
+  <div className="p-4 rounded-xl glow-pulse" style={{ 
+    background: 'rgba(34,227,161,0.08)', 
+    border: '1px solid rgba(34,227,161,0.4)',
+    boxShadow: '0 0 20px rgba(34,227,161,0.3)'
+  }}>
+    <p className="text-xs" style={{ color: 'rgba(255,255,255,0.7)' }}>
+      {djModeEnabled ? "Get ready" : "Estimated Play Time"}
+    </p>
+    <p className="font-bold text-lg" style={{ color: '#22E3A1', fontFamily: 'Space Grotesk, sans-serif' }}>
+      {djModeEnabled ? "DJ is loading your song" : "5–10 minutes"}
+    </p>
+  </div>
+</div>
 
           {/* Confirmation Text */}
-          <p className="text-xs text-center mb-6 px-2 celebration-slide" style={{ color: 'rgba(255,255,255,0.5)', animationDelay: '0.6s' }}>Check your email for confirmation if your song has been approved</p>
+          <p
+  className="text-xs text-center mb-6 px-2 celebration-slide font-medium"
+  style={{
+    color: '#FDE047',
+    textShadow: '0 0 10px rgba(253,224,71,0.22)',
+    animationDelay: '0.6s'
+  }}
+>
+  Check your email for confirmation if your song has been approved
+</p>
 
           {/* Request Another Song Button */}
           <button
@@ -760,12 +801,12 @@ export default function ThankYou() {
           <div className="mt-6 pt-6 text-center celebration-slide" style={{ borderTop: '1px solid rgba(255,255,255,0.1)', animationDelay: '0.8s' }}>
             <p className="text-xs mb-2" style={{ color: 'rgba(255,255,255,0.72)' }}>Need help?</p>
             <a
-              href="mailto:hello@yourcompany.com"
+              href="mailto:admin@mixmind.co.uk"
               className="text-sm font-600"
               style={{ color: '#A855F7', textDecoration: 'none', transition: 'all 0.2s' }}
               onMouseOver={(e) => e.target.style.opacity = '0.8'}
               onMouseOut={(e) => e.target.style.opacity = '1'}>
-              hello@yourcompany.com
+              admin@mixmind.co.uk
             </a>
           </div>
         </div>

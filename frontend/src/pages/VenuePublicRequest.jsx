@@ -646,7 +646,7 @@ export default function VenuePublicRequest() {
       {/* HEADER */}
       <div className="text-center mb-5">
         <h3 className="text-2xl font-bold mb-1 text-white">
-          Choose your spot ✨
+          Move Up In the Queue? ✨
         </h3>
 
         <p className="text-sm" style={{ color: "rgba(196,181,253,0.72)" }}>
