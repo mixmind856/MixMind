@@ -511,6 +511,19 @@ for (let i = 0; i < confettiCount; i++) {
           animation: glowPulse 2s ease-in-out infinite;
         }
 
+@keyframes greenGlowPulse {
+  0%, 100% {
+    box-shadow: 0 0 12px rgba(34,227,161,0.25);
+  }
+  50% {
+    box-shadow: 0 0 30px rgba(34,227,161,0.6);
+  }
+}
+
+.glow-run-night {
+  animation: greenGlowPulse 2s ease-in-out infinite;
+}
+
     /* Streak counter animation */
     @keyframes counterPop {
       0% { transform: scale(0.5); opacity: 0; }
@@ -731,10 +744,22 @@ for (let i = 0; i < confettiCount; i++) {
 
           {/* Bonus Badges */}
           <div className="space-y-2 mb-6" style={{ animation: 'slideUpCelebration 1s cubic-bezier(0.34,1.56,0.64,1) 0.2s both' }}>
-            <div className="entrance-stagger flex items-center gap-3 p-3 rounded-xl achievement-pulse" style={{ background: 'rgba(34,227,161,0.08)', border: '1px solid rgba(34,227,161,0.2)', animationDelay: '0.2s' }}>
-              <Zap size={18} style={{ color: '#22E3A1' }} />
-              <span className="text-xs font-600" style={{ color: '#22E3A1' }}>Run the night - Drop another song 💃</span>
-            </div>
+            <div
+  className="entrance-stagger flex items-center gap-3 p-3 rounded-xl achievement-pulse glow-run-night"
+  onClick={() => navigate(`/venue-request/${x}`)}
+  style={{
+    background: 'rgba(34,227,161,0.1)',
+    border: '1px solid rgba(34,227,161,0.35)',
+    animationDelay: '0.2s',
+    boxShadow: '0 0 20px rgba(34,227,161,0.25)',
+    cursor: 'pointer'
+  }}
+>
+  <Zap size={18} style={{ color: '#22E3A1' }} />
+  <span className="text-xs font-600" style={{ color: '#22E3A1' }}>
+    Run the night – Drop another song 💃
+  </span>
+</div>
             <div className="entrance-stagger flex items-center gap-3 p-3 rounded-xl achievement-pulse" style={{ background: 'rgba(168,85,247,0.08)', border: '1px solid rgba(168,85,247,0.2)', animationDelay: '0.3s' }}>
               <Award size={18} style={{ color: '#A855F7' }} />
               <span className="text-xs font-600" style={{ color: '#A855F7' }}>+10 XP Earned</span>
