@@ -8,14 +8,18 @@ export default function VenuePublicRequest() {
   const { venueId } = useParams();
   const [venue, setVenue] = useState(null);
   const [isVenueActive, setIsVenueActive] = useState(true);
+  
+  // Demo mode - prefill with test data
+  const DEMO_MODE = import.meta.env.VITE_DEMO_MODE === "true";
+  
   const [formData, setFormData] = useState({
-  songTitle: "",
-  artistName: "",
-  userName: "",
-  email: "",
-  phone: "",
-  countryCode: "+44",
-  price: 1.69  // Will be updated based on DJ mode
+    songTitle: DEMO_MODE ? "Blinding Lights" : "",
+    artistName: DEMO_MODE ? "The Weeknd" : "",
+    userName: DEMO_MODE ? "Alex Johnson" : "",
+    email: DEMO_MODE ? "alex@example.com" : "",
+    phone: DEMO_MODE ? "07911123456" : "",
+    countryCode: "+44",
+    price: 2.99  // Will be updated based on DJ mode
   });
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
@@ -30,8 +34,6 @@ export default function VenuePublicRequest() {
   const [couponData, setCouponData] = useState(null);
   const [couponValidating, setCouponValidating] = useState(false);
   const [couponError, setCouponError] = useState("");
-  const [showPriorityChoice, setShowPriorityChoice] = useState(false);
-  const [priorityRequest, setPriorityRequest] = useState(false);
 
   useEffect(() => {
     fetchVenueData();
@@ -55,8 +57,8 @@ export default function VenuePublicRequest() {
       setIsVenueActive(venueData.isActive || false);
 
       // ===== SET PRICE BASED ON DJ MODE =====
-      // DJ Mode ON: £5.99 | DJ Mode OFF: £`1.69
-      const dynamicPrice = venueData.djMode ? 5.99 : 1.69;
+      // DJ Mode ON: £9 | DJ Mode OFF: £3
+      const dynamicPrice = venueData.djMode ? 8.99 : 2.99;
       setFormData(prev => ({
         ...prev,
         price: dynamicPrice
@@ -138,80 +140,71 @@ export default function VenuePublicRequest() {
     setCouponError("");
   };
 
-  const submitRequest = async () => {
-  setSubmitting(true);
-  setError("");
-  setSuccess(false);
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    setSubmitting(true);
+    setError("");
+    setSuccess(false);
 
-  try {
-    const response = await fetch(
-      `${import.meta.env.VITE_API_URL}/requests/create`,
-      {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          name: formData.userName,
-          email: formData.email,
-          title: formData.songTitle,
-          artist: formData.artistName,
-          phone: formData.phone,
-          countryCode: formData.countryCode,
-          price: couponData ? couponData.finalPrice : parseFloat(formData.price),
-          couponCode: couponData?.couponCode || null,
-          venueId: venueId,
-          priorityRequest: priorityRequest,
-          priorityType: priorityRequest ? "play_next" : "normal"
-        })
+    try {
+      // Step 1: Create the request
+      const response = await fetch(
+        `${import.meta.env.VITE_API_URL}/requests/create`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            name: formData.userName,
+            email: formData.email,
+            title: formData.songTitle,
+            artist: formData.artistName,
+            phone: formData.phone,
+            countryCode: formData.countryCode,
+            price: couponData ? couponData.finalPrice : parseFloat(formData.price),
+            couponCode: couponData?.couponCode || null,
+            venueId: venueId
+          })
+        }
+      );
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || "Failed to submit request");
       }
-    );
 
-    if (!response.ok) {
-      const errorData = await response.json();
-      if (errorData?.venueCanAccept && Array.isArray(errorData.venueCanAccept)) {
-        throw new Error(`This venue currently accepts: ${errorData.venueCanAccept.join(", ")}`);
-      }
-      throw new Error(errorData.message || errorData.error || "Failed to submit request");
+     const responseData = await response.json();
+const { requestId, checkoutUrl: url, checkoutSessionId: sessionId } = responseData;
+
+if (formData.email) {
+  localStorage.setItem("userEmail", formData.email);
+  console.log("✅ Saved userEmail to localStorage:", formData.email);
+} else {
+  console.log("❌ No email in formData to save");
+}
+
+console.log("✅ Song request created");
+console.log(`   Request ID: ${requestId}`);
+console.log(`   Checkout URL: ${url}`);
+console.log(`   Session ID: ${sessionId}`);
+      
+      // Step 2: Show payment modal with request details
+      setPendingRequestId(requestId);
+      setCheckoutUrl(url);
+      setCheckoutSessionId(sessionId);
+      setShowPaymentModal(true);
+      
+      console.log("🔔 Payment modal opened with checkout data");
+
+    } catch (err) {
+      setError(err.message || "An error occurred");
+      setSubmitting(false);
     }
-
-    const responseData = await response.json();
-    const { requestId, checkoutUrl: url, checkoutSessionId: sessionId } = responseData;
-
-    if (formData.email) {
-      localStorage.setItem("userEmail", formData.email);
-    }
-
-    console.log("✅ Song request created");
-    console.log(`   Request ID: ${requestId}`);
-    console.log(`   Checkout URL: ${url}`);
-    console.log(`   Session ID: ${sessionId}`);
-
-    setPendingRequestId(requestId);
-    setCheckoutUrl(url);
-    setCheckoutSessionId(sessionId);
-    setShowPaymentModal(true);
-
-    console.log("🔔 Payment modal opened with checkout data");
-  } catch (err) {
-    setError(err.message || "An error occurred");
-    setSubmitting(false);
-  }
-};
-
-const handleSubmit = async (e) => {
-  e.preventDefault();
-
-  if (venue?.djMode) {
-    setShowPriorityChoice(true);
-    return;
-  }
-
-  await submitRequest();
-};
+  };
 
   const handlePaymentSuccess = async () => {
     // Payment authorized successfully - reset form but keep modal open to show thank you page
     // The modal handles closing when user clicks "Done" or "Request Another Song"
-    const resetPrice = venue && venue.djMode ? 5.99 : 2.99;
+    const resetPrice = venue && venue.djMode ? 9 : 3;
     setFormData({
       songTitle: "",
       artistName: "",
@@ -224,7 +217,6 @@ const handleSubmit = async (e) => {
     setCouponCode("");
     setCouponData(null);
     setCouponError("");
-    setPriorityRequest(false);
     setPendingRequestId(null);
     setSubmitting(false);
 
@@ -568,54 +560,7 @@ const handleSubmit = async (e) => {
         checkoutUrl={checkoutUrl}
         checkoutSessionId={checkoutSessionId}
         onPaymentSuccess={handlePaymentSuccess}
-        {showPriorityChoice && (
-  <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 px-4">
-    <div
-      className="w-full max-w-md rounded-2xl p-6"
-      style={{ background: "#121222", border: "1px solid rgba(255,255,255,0.12)" }}
-    >
-      <h3 className="text-xl font-bold mb-2">Choose request type</h3>
-      <p className="text-sm mb-6" style={{ color: "rgba(255,255,255,0.72)" }}>
-        Standard DJ request is £5.99. Want to boost your request?
-      </p>
-
-      <div className="space-y-3">
-        <button
-          type="button"
-          onClick={() => handlePriorityChoice(false)}
-          className="w-full rounded-xl p-4 text-left"
-          style={{ background: "rgba(168,85,247,0.12)", border: "1px solid rgba(168,85,247,0.3)" }}
-        >
-          <div className="font-semibold">Normal request</div>
-          <div className="text-sm" style={{ color: "rgba(255,255,255,0.72)" }}>
-            £5.99
-          </div>
-        </button>
-
-        <button
-          type="button"
-          onClick={() => handlePriorityChoice(true)}
-          className="w-full rounded-xl p-4 text-left"
-          style={{ background: "rgba(34,227,161,0.12)", border: "1px solid rgba(34,227,161,0.35)" }}
-        >
-          <div className="font-semibold">Request to play my song next</div>
-          <div className="text-sm" style={{ color: "rgba(255,255,255,0.72)" }}>
-            £8.98 total (includes +£2.99 priority)
-          </div>
-        </button>
-      </div>
-
-      <button
-        type="button"
-        onClick={() => setShowPriorityChoice(false)}
-        className="mt-4 text-sm underline"
-        style={{ color: "rgba(255,255,255,0.72)" }}
-      >
-        Cancel
-      </button>
-    </div>
-  </div>
-)}
+      />
     </div>
   );
 }
