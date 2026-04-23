@@ -34,6 +34,7 @@ export default function VenuePublicRequest() {
   const [couponError, setCouponError] = useState("");
   const [showPriorityChoice, setShowPriorityChoice] = useState(false);
   const [priorityRequest, setPriorityRequest] = useState(false);
+  const [priorityChoiceLoading, setPriorityChoiceLoading] = useState(null);
 
   useEffect(() => {
     fetchVenueData();
@@ -211,8 +212,8 @@ export default function VenuePublicRequest() {
   };
 
   const handlePriorityChoice = async (isPriority) => {
+    setPriorityChoiceLoading(isPriority ? "priority" : "normal");
     setPriorityRequest(isPriority);
-    setShowPriorityChoice(false);
 
     const basePrice = venue?.djMode ? 5.99 : 1.69;
     const priorityFee = venue?.djMode && isPriority ? 2.99 : 0;
@@ -222,7 +223,11 @@ export default function VenuePublicRequest() {
       price: basePrice + priorityFee
     }));
 
+    await new Promise((resolve) => setTimeout(resolve, 350));
+
+    setShowPriorityChoice(false);
     await submitRequest();
+    setPriorityChoiceLoading(null);
   };
 
   const handlePaymentSuccess = async () => {
@@ -634,36 +639,90 @@ export default function VenuePublicRequest() {
       {showPriorityChoice && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 px-4">
           <div
-            className="w-full max-w-md rounded-2xl p-6"
-            style={{ background: "#121222", border: "1px solid rgba(255,255,255,0.12)" }}
+            className="w-full max-w-md rounded-3xl p-6"
+            style={{
+              background: "linear-gradient(180deg, rgba(18,18,34,0.98) 0%, rgba(10,10,18,0.98) 100%)",
+              border: "1px solid rgba(255,255,255,0.1)",
+              boxShadow: "0 20px 80px rgba(0,0,0,0.45)"
+            }}
           >
-            <h3 className="text-xl font-bold mb-2">Choose request type</h3>
-            <p className="text-sm mb-6" style={{ color: "rgba(255,255,255,0.72)" }}>
-              Standard DJ request is £5.99. Want to boost your request?
+            <h3 className="text-2xl font-bold mb-2 text-center">Choose your spot in the queue</h3>
+            <p className="text-sm mb-6 text-center" style={{ color: "rgba(255,255,255,0.72)" }}>
+              Pick the option that feels right for tonight.
             </p>
 
-            <div className="space-y-3">
+            <div className="space-y-4">
               <button
                 type="button"
                 onClick={() => handlePriorityChoice(false)}
-                className="w-full rounded-xl p-4 text-left"
-                style={{ background: "rgba(168,85,247,0.12)", border: "1px solid rgba(168,85,247,0.3)" }}
+                disabled={priorityChoiceLoading !== null}
+                className="w-full rounded-2xl p-5 text-left transition-all duration-200 disabled:opacity-70"
+                style={{
+                  background: "rgba(255,255,255,0.03)",
+                  border: "1px solid rgba(255,255,255,0.12)",
+                  transform: priorityChoiceLoading === "normal" ? "scale(0.985)" : "scale(1)"
+                }}
               >
-                <div className="font-semibold">Normal request</div>
-                <div className="text-sm" style={{ color: "rgba(255,255,255,0.72)" }}>
-                  £5.99
+                <div className="flex items-start justify-between gap-4">
+                  <div>
+                    <div className="text-lg font-semibold text-white">🎧 Lock My Spot 🎵</div>
+                    <div className="mt-1 text-sm" style={{ color: "rgba(255,255,255,0.7)" }}>
+                      👉 Your turn is coming
+                    </div>
+                  </div>
+                  <div className="text-right shrink-0">
+                    <div className="text-2xl font-bold text-white">£5.99</div>
+                  </div>
+                </div>
+
+                <div className="mt-3 min-h-[20px] text-sm font-medium" style={{ color: "#C084FC" }}>
+                  {priorityChoiceLoading === "normal" ? "🎵 You’re in, we’ll play it soon!" : ""}
                 </div>
               </button>
 
               <button
                 type="button"
                 onClick={() => handlePriorityChoice(true)}
-                className="w-full rounded-xl p-4 text-left"
-                style={{ background: "rgba(34,227,161,0.12)", border: "1px solid rgba(34,227,161,0.35)" }}
+                disabled={priorityChoiceLoading !== null}
+                className="w-full rounded-2xl p-5 text-left transition-all duration-200 disabled:opacity-70"
+                style={{
+                  background: "linear-gradient(135deg, rgba(34,227,161,0.18) 0%, rgba(16,185,129,0.12) 100%)",
+                  border: "1px solid rgba(34,227,161,0.42)",
+                  boxShadow: "0 0 26px rgba(34,227,161,0.24)",
+                  transform: priorityChoiceLoading === "priority" ? "scale(0.99)" : "scale(1.02)"
+                }}
               >
-                <div className="font-semibold">Request to play my song next</div>
-                <div className="text-sm" style={{ color: "rgba(255,255,255,0.72)" }}>
-                  £8.98 total (includes +£2.99 priority)
+                <div className="flex items-start justify-between gap-4">
+                  <div>
+                    <div
+                      className="inline-flex items-center rounded-full px-3 py-1 text-xs font-semibold mb-3"
+                      style={{
+                        background: "rgba(34,227,161,0.16)",
+                        border: "1px solid rgba(34,227,161,0.3)",
+                        color: "#6EE7B7"
+                      }}
+                    >
+                      🔥 Most Popular
+                    </div>
+
+                    <div className="text-lg font-semibold text-white">🔥 Priority Placement 🔥</div>
+                    <div className="mt-1 text-sm" style={{ color: "rgba(255,255,255,0.82)" }}>
+                      👉 Be heard sooner
+                    </div>
+                    <div className="mt-3 text-2xl font-extrabold" style={{ color: "#6EE7B7" }}>
+                      Only £2.99 more
+                    </div>
+                  </div>
+
+                  <div className="text-right shrink-0 pt-10">
+                    <div className="text-sm font-medium" style={{ color: "rgba(255,255,255,0.65)" }}>
+                      £8.98 total
+                    </div>
+                  </div>
+                </div>
+
+                <div className="mt-3 min-h-[20px] text-sm font-medium" style={{ color: "#6EE7B7" }}>
+                  {priorityChoiceLoading === "priority" ? "🔥 Nice, moving you up the queue!" : ""}
                 </div>
               </button>
             </div>
@@ -671,7 +730,8 @@ export default function VenuePublicRequest() {
             <button
               type="button"
               onClick={() => setShowPriorityChoice(false)}
-              className="mt-4 text-sm underline"
+              disabled={priorityChoiceLoading !== null}
+              className="mt-5 w-full text-sm underline disabled:opacity-50"
               style={{ color: "rgba(255,255,255,0.72)" }}
             >
               Cancel
