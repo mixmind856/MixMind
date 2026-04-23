@@ -697,7 +697,7 @@ for (let i = 0; i < confettiCount; i++) {
           <div className="space-y-2 mb-6" style={{ animation: 'slideUpCelebration 1s cubic-bezier(0.34,1.56,0.64,1) 0.2s both' }}>
             <div className="entrance-stagger flex items-center gap-3 p-3 rounded-xl achievement-pulse" style={{ background: 'rgba(34,227,161,0.08)', border: '1px solid rgba(34,227,161,0.2)', animationDelay: '0.2s' }}>
               <Zap size={18} style={{ color: '#22E3A1' }} />
-              <span className="text-xs font-600" style={{ color: '#22E3A1' }}>Request 1 song to unlock 1 free request 🎁</span>
+              <span className="text-xs font-600" style={{ color: '#22E3A1' }}>Run the night - Drop another song 💃</span>
             </div>
             <div className="entrance-stagger flex items-center gap-3 p-3 rounded-xl achievement-pulse" style={{ background: 'rgba(168,85,247,0.08)', border: '1px solid rgba(168,85,247,0.2)', animationDelay: '0.3s' }}>
               <Award size={18} style={{ color: '#A855F7' }} />
@@ -719,7 +719,7 @@ for (let i = 0; i < confettiCount; i++) {
                   <Info size={18} style={{ color: '#22E3A1' }} />
                 </div>
                 <div className="tooltip-content">
-                  Free request every 2 requests!
+                  Requests 3 songs to receive gift in mail! 🤫
                 </div>
               </div>
             </div>
@@ -767,7 +767,7 @@ for (let i = 0; i < confettiCount; i++) {
       {djModeEnabled ? "Get ready" : "Estimated Play Time"}
     </p>
     <p className="font-bold text-lg" style={{ color: '#22E3A1', fontFamily: 'Space Grotesk, sans-serif' }}>
-      {djModeEnabled ? "DJ is loading your song" : "5–10 minutes"}
+      {djModeEnabled ? "DJ is getting your track ready...🎧" : "5–10 minutes"}
     </p>
   </div>
 </div>
@@ -781,7 +781,7 @@ for (let i = 0; i < confettiCount; i++) {
     animationDelay: '0.6s'
   }}
 >
-  Check your email for confirmation if your song has been approved
+  Check your email for confirmation if your song has been approved 📩
 </p>
 
           {/* Request Another Song Button */}
