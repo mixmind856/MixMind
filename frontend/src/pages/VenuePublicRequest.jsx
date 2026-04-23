@@ -679,12 +679,12 @@ const [acceptedGenres, setAcceptedGenres] = useState([]);
     <div
       className="w-full max-w-md rounded-[24px] px-5 py-5"
       style={{
-        background:
-          "radial-gradient(circle at top, rgba(45,16,74,0.35) 0%, rgba(10,10,24,0.96) 40%, rgba(5,6,14,0.98) 100%)",
-        border: "1px solid rgba(214,170,255,0.22)",
-        boxShadow:
-          "0 0 0 1px rgba(214,170,255,0.05), 0 20px 60px rgba(0,0,0,0.55), 0 0 30px rgba(168,85,247,0.08)"
-      }}
+  background:
+    "radial-gradient(circle at top, rgba(45,16,74,0.35) 0%, rgba(10,10,24,0.96) 40%, rgba(5,6,14,0.98) 100%)",
+  border: "1px solid rgba(214,170,255,0.28)",
+  boxShadow:
+    "0 0 0 1px rgba(214,170,255,0.08), 0 20px 60px rgba(0,0,0,0.55), 0 0 45px rgba(168,85,247,0.16)"
+}}
     >
       {/* HEADER */}
       <div className="text-center mb-5">
@@ -706,18 +706,21 @@ const [acceptedGenres, setAcceptedGenres] = useState([]);
           onClick={() => handlePriorityChoice(false)}
           className="w-full rounded-2xl px-4 py-4 text-left transition-all"
           style={{
-            background:
-              "linear-gradient(180deg, rgba(24,10,40,0.9) 0%, rgba(11,8,26,0.98) 100%)",
-            border: "1px solid rgba(168,85,247,0.4)"
-          }}
+  background:
+    "linear-gradient(180deg, rgba(24,10,40,0.9) 0%, rgba(11,8,26,0.98) 100%)",
+  border: "1px solid rgba(168,85,247,0.65)",
+  boxShadow:
+    "0 0 0 1px rgba(168,85,247,0.12), 0 0 28px rgba(168,85,247,0.26), inset 0 0 18px rgba(168,85,247,0.06)"
+}}
         >
           <div className="flex items-center gap-4">
             <div
               className="w-12 h-12 rounded-full flex items-center justify-center shrink-0"
               style={{
-                background: "rgba(168,85,247,0.12)",
-                border: "1px solid rgba(168,85,247,0.35)"
-              }}
+  background: "rgba(168,85,247,0.12)",
+  border: "1px solid rgba(168,85,247,0.4)",
+  boxShadow: "0 0 18px rgba(168,85,247,0.18)"
+}}
             >
               <span className="text-xl">🎧</span>
             </div>
@@ -744,12 +747,12 @@ const [acceptedGenres, setAcceptedGenres] = useState([]);
           onClick={() => handlePriorityChoice(true)}
           className="w-full rounded-2xl px-4 py-4 text-left relative transition-all"
           style={{
-            background:
-              "linear-gradient(180deg, rgba(3,33,28,0.95) 0%, rgba(2,19,17,0.98) 100%)",
-            border: "1px solid rgba(34,227,161,0.6)",
-            boxShadow:
-              "0 0 20px rgba(34,227,161,0.18)"
-          }}
+  background:
+    "linear-gradient(180deg, rgba(3,33,28,0.95) 0%, rgba(2,19,17,0.98) 100%)",
+  border: "1px solid rgba(34,227,161,0.8)",
+  boxShadow:
+    "0 0 0 1px rgba(34,227,161,0.14), 0 0 34px rgba(34,227,161,0.32), inset 0 0 18px rgba(34,227,161,0.06)"
+}}
         >
           {/* BADGE */}
           <div
@@ -767,9 +770,10 @@ const [acceptedGenres, setAcceptedGenres] = useState([]);
             <div
               className="w-12 h-12 rounded-full flex items-center justify-center shrink-0"
               style={{
-                background: "rgba(34,227,161,0.12)",
-                border: "1px solid rgba(34,227,161,0.35)"
-              }}
+  background: "rgba(34,227,161,0.12)",
+  border: "1px solid rgba(34,227,161,0.4)",
+  boxShadow: "0 0 18px rgba(34,227,161,0.2)"
+}}
             >
               <span className="text-xl">🔥</span>
             </div>
@@ -785,7 +789,7 @@ const [acceptedGenres, setAcceptedGenres] = useState([]);
                 </div>
 
                 <div className="text-lg font-semibold text-white mt-1">
-                  £8.98 total
+                  £8.99 total
                 </div>
 
                 <div className="text-sm text-gray-400 mt-1">
