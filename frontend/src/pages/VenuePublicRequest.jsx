@@ -774,9 +774,10 @@ console.log("✅ Song request created");
             <div
               className="w-12 h-12 rounded-full flex items-center justify-center shrink-0"
               style={{
-  background: "rgba(34,227,161,0.12)",
-  border: "1px solid rgba(34,227,161,0.4)",
-  boxShadow: "0 0 18px rgba(34,227,161,0.2)"
+  background: 'rgba(34,227,161,0.12)',
+  border: '1px solid rgba(34,227,161,0.45)',
+  animationDelay: '0.2s',
+  boxShadow: '0 0 34px rgba(34,227,161,0.42), 0 0 70px rgba(34,227,161,0.18)'
 }}
             >
               <span className="text-xl">🔥</span>

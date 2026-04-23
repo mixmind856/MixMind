@@ -513,15 +513,15 @@ for (let i = 0; i < confettiCount; i++) {
 
 @keyframes greenGlowPulse {
   0%, 100% {
-    box-shadow: 0 0 12px rgba(34,227,161,0.25);
+    box-shadow: 0 0 20px rgba(34,227,161,0.35), 0 0 40px rgba(34,227,161,0.14);
   }
   50% {
-    box-shadow: 0 0 30px rgba(34,227,161,0.6);
+    box-shadow: 0 0 42px rgba(34,227,161,0.72), 0 0 90px rgba(34,227,161,0.24);
   }
 }
 
 .glow-run-night {
-  animation: greenGlowPulse 2s ease-in-out infinite;
+  animation: greenGlowPulse 1.8s ease-in-out infinite;
 }
 
     /* Streak counter animation */
