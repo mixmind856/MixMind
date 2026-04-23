@@ -20,7 +20,7 @@ export default function Success() {
 
     async function poll() {
       try {
-        const res = await axios.get(`${API}/api/requests/${requestId}`);
+        const res = await axios.get(`${API}/requests/${requestId}`);
         const r = res.data;
         if (cancelled) return;
 

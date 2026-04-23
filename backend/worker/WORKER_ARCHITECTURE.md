@@ -297,7 +297,7 @@ process.on("SIGTERM", async () => {
 ### Adding Jobs to Queue from Controllers
 
 ```javascript
-// api/admin/admin.controller.js
+// admin/admin.controller.js
 const beatsourceQueue = require("../../queues/beatsourceQueue");
 
 // When admin approves a request, add job to queue

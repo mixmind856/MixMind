@@ -3,8 +3,8 @@
  * Centralized API base URL and default settings
  */
 
-const API_BASE_URL = import.meta.env.VITE_API_URL;
-const ADMIN_KEY = import.meta.env.VITE_ADMIN_KEY || "";
+export const API_BASE_URL = import.meta.env.VITE_API_URL;
+export const ADMIN_KEY = import.meta.env.VITE_ADMIN_KEY;
 
 const API_CONFIG = {
   API_BASE_URL,
@@ -27,7 +27,7 @@ const API_CONFIG = {
     CREATE_PAYMENT_INTENT: "/stripe/create-payment-intent",
     PAYMENT_INTENTS: "/stripe/payment-intents"
   },
-  TIMEOUT: 10000, // 10 seconds
+  TIMEOUT: 10000,
   RETRY_ATTEMPTS: 3
 };
 
@@ -54,8 +54,6 @@ const HEADERS = {
 };
 
 export {
-  API_BASE_URL,
-  ADMIN_KEY,
   API_CONFIG,
   HTTP_METHODS,
   HEADERS

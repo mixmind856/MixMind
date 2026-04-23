@@ -50,7 +50,7 @@ function RequestForm() {
     setCouponError(null);
 
     try {
-      const res = await fetch(`${API}/api/coupons/validate`, {
+      const res = await fetch(`${API}/coupons/validate`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -100,7 +100,7 @@ function RequestForm() {
         price: couponData ? couponData.finalPrice : form.price
       };
 
-      const reqRes = await fetch(`${API}/api/requests`, {
+      const reqRes = await fetch(`${API}/requests`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(requestBody)
@@ -131,7 +131,7 @@ function RequestForm() {
       setLoading(true);
       
       /* Save payment to backend */
-      const payRes = await fetch(`${API}/api/payments/confirm`, {
+      const payRes = await fetch(`${API}/payments/confirm`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ 

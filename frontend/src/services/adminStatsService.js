@@ -9,7 +9,10 @@ export const getDashboardSummary = async () => {
       throw new Error("Admin key not configured. Please check your .env file.");
     }
 
-    const response = await fetch(`${API_BASE_URL}/admin/dashboard/summary`, {
+    console.log("API_BASE_URL:", API_BASE_URL);
+console.log("SUMMARY URL:", `${API_BASE_URL}/admin/dashboard/summary`);
+
+const response = await fetch(`${API_BASE_URL}/admin/dashboard/summary`, {
       method: "GET",
       headers: {
         "Content-Type": "application/json",
