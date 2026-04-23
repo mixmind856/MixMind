@@ -182,15 +182,19 @@ async function getPendingRequests(req, res) {
     // Fetch ONLY pending requests (not yet approved or rejected by DJ)
     // Check: status is pending_dj_approval AND both djApprovedAt and djRejectedAt are null
     const requests = await Request.find({
-      venueId: venueId,
-      status: "pending_dj_approval",
-      djApprovedAt: { $eq: null },
-      djRejectedAt: { $eq: null }
-    })
-      .populate("userId", "name email")
-      .sort({ createdAt: -1 });
+  venueId: venueId,
+  status: "pending_dj_approval",
+  paymentStatus: "authorized",
+  djApprovedAt: { $eq: null },
+  djRejectedAt: { $eq: null }
+})
+  .populate("userId", "name email")
+  .sort({ createdAt: -1 });
 
     console.log(`✅ Found ${requests.length} pending DJ approval requests`);
+requests.forEach(r => {
+  console.log(`   - ${r.title} | status=${r.status} | paymentStatus=${r.paymentStatus}`);
+});
     
     if (requests.length > 0) {
       requests.forEach(r => {
