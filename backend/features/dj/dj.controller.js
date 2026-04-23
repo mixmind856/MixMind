@@ -550,12 +550,14 @@ async function getDJStats(req, res) {
     const requests = await Request.find({ venueId });
 
     const stats = {
-      total: requests.length,
-      pending: requests.filter(r => r.status === "pending_dj_approval").length,
-      accepted: requests.filter(r => r.status === "completed").length,
-      rejected: requests.filter(r => r.status === "rejected").length,
-      totalRevenue: requests.reduce((sum, r) => sum + (r.price || 0), 0)
-    };
+  totalRequests: requests.length,
+  pending: requests.filter(r => r.status === "pending_dj_approval").length,
+  completed: requests.filter(r => ["queued", "completed"].includes(r.status)).length,
+  rejected: requests.filter(r => r.status === "rejected").length,
+  totalRevenue: requests
+    .filter(r => ["queued", "completed"].includes(r.status))
+    .reduce((sum, r) => sum + (r.price || 0), 0)
+};
 
     res.json(stats);
   } catch (err) {
