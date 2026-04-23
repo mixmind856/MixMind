@@ -34,8 +34,6 @@ export default function VenuePublicRequest() {
   const [couponError, setCouponError] = useState("");
   const [showPriorityChoice, setShowPriorityChoice] = useState(false);
   const [priorityRequest, setPriorityRequest] = useState(false);
-  const [selectedOption, setSelectedOption] = useState("normal");
-const [feedback, setFeedback] = useState("");
 
   useEffect(() => {
     fetchVenueData();
@@ -633,112 +631,54 @@ const [feedback, setFeedback] = useState("");
         onPaymentSuccess={handlePaymentSuccess}
       />
 
-      {showPricingPopup && (
-  <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm">
-    
-    <div className="bg-[#0f172a] w-[90%] max-w-md rounded-2xl p-6 shadow-2xl border border-gray-800">
-      
-      {/* Header */}
-      <div className="text-center mb-5">
-        <p className="text-xs text-gray-400 mb-1">✨ Pick your vibe tonight</p>
-        <h2 className="text-xl font-bold text-white">
-          🎶 Choose your spot
-        </h2>
-        <p className="text-sm text-gray-400 mt-1">
-          Your song, your moment — pick how soon you want it heard.
-        </p>
-      </div>
+      {showPriorityChoice && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 px-4">
+          <div
+            className="w-full max-w-md rounded-2xl p-6"
+            style={{ background: "#121222", border: "1px solid rgba(255,255,255,0.12)" }}
+          >
+            <h3 className="text-xl font-bold mb-2">Choose request type</h3>
+            <p className="text-sm mb-6" style={{ color: "rgba(255,255,255,0.72)" }}>
+              Standard DJ request is £5.99. Want to boost your request?
+            </p>
 
-      {/* OPTIONS */}
-      <div className="flex flex-col gap-4">
-        
-        {/* NORMAL OPTION */}
-        <div
-          onClick={() => {
-            setSelectedOption("normal");
-            setFeedback("🎵 You’re in, we’ll play it soon!");
-          }}
-          className={`p-4 rounded-xl border cursor-pointer transition ${
-            selectedOption === "normal"
-              ? "border-gray-400 bg-gray-800"
-              : "border-gray-700"
-          }`}
-        >
-          <div className="text-white font-semibold text-base">
-            🎧 Lock My Spot 🎵
+            <div className="space-y-3">
+              <button
+                type="button"
+                onClick={() => handlePriorityChoice(false)}
+                className="w-full rounded-xl p-4 text-left"
+                style={{ background: "rgba(168,85,247,0.12)", border: "1px solid rgba(168,85,247,0.3)" }}
+              >
+                <div className="font-semibold">Normal request</div>
+                <div className="text-sm" style={{ color: "rgba(255,255,255,0.72)" }}>
+                  £5.99
+                </div>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => handlePriorityChoice(true)}
+                className="w-full rounded-xl p-4 text-left"
+                style={{ background: "rgba(34,227,161,0.12)", border: "1px solid rgba(34,227,161,0.35)" }}
+              >
+                <div className="font-semibold">Request to play my song next</div>
+                <div className="text-sm" style={{ color: "rgba(255,255,255,0.72)" }}>
+                  £8.98 total (includes +£2.99 priority)
+                </div>
+              </button>
+            </div>
+
+            <button
+              type="button"
+              onClick={() => setShowPriorityChoice(false)}
+              className="mt-4 text-sm underline"
+              style={{ color: "rgba(255,255,255,0.72)" }}
+            >
+              Cancel
+            </button>
           </div>
-
-          <div className="text-lg font-bold text-white mt-1">
-            £5.99
-          </div>
-
-          <div className="text-sm text-gray-400 mt-1">
-            👉 Your turn is coming
-          </div>
-        </div>
-
-        {/* PRIORITY OPTION */}
-        <div
-          onClick={() => {
-            setSelectedOption("priority");
-            setFeedback("🔥 Nice, moving you up the queue!");
-          }}
-          className={`p-5 rounded-xl border cursor-pointer transition relative ${
-            selectedOption === "priority"
-              ? "border-green-400 bg-green-500/10 shadow-lg shadow-green-500/20 scale-[1.02]"
-              : "border-gray-700"
-          }`}
-        >
-          {/* MOST POPULAR */}
-          <div className="absolute -top-2 right-3 text-xs bg-green-500 text-black px-2 py-1 rounded-full font-semibold">
-            🔥 Most Popular
-          </div>
-
-          <div className="text-white font-semibold text-base">
-            🔥 Priority Placement 🔥
-          </div>
-
-          <div className="mt-2 flex flex-col items-center">
-            <span className="text-lg font-semibold text-green-400">
-              Only £2.99 more
-            </span>
-
-            <span className="text-base font-semibold text-gray-200 mt-1">
-              £8.98 total
-            </span>
-          </div>
-
-          <div className="text-sm text-gray-400 mt-2 text-center">
-            👉 Be heard sooner
-          </div>
-        </div>
-      </div>
-
-      {/* FEEDBACK */}
-      {feedback && (
-        <div className="text-center text-sm text-gray-300 mt-4">
-          {feedback}
         </div>
       )}
-
-      {/* CONTINUE */}
-      <button
-        onClick={handleSubmit}
-        className="w-full mt-5 bg-green-500 hover:bg-green-400 text-black font-bold py-3 rounded-xl transition"
-      >
-        Continue
-      </button>
-
-      {/* CANCEL */}
-      <button
-        onClick={() => setShowPricingPopup(false)}
-        className="w-full mt-3 text-sm text-gray-500 hover:text-white transition"
-      >
-        Cancel
-      </button>
-    </div>
-  </div>
-)}
     </div>
   );
 }
