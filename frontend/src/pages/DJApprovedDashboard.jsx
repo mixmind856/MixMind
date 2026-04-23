@@ -96,60 +96,70 @@ setRequests(Array.isArray(requestsData) ? requestsData : []);
   };
 
   const handleAccept = async (requestId, requestTitle) => {
-    setProcessingId(requestId);
-    try {
-      const response = await fetch(
-        `${import.meta.env.VITE_API_URL}/dj/requests/${requestId}/accept`,
-        {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${djToken}`
-          }
+  setProcessingId(requestId);
+  setError("");
+
+  const previousRequests = requests;
+  setRequests(prev => prev.filter(r => r._id !== requestId));
+
+  try {
+    const response = await fetch(
+      `${import.meta.env.VITE_API_URL}/dj/requests/${requestId}/accept`,
+      {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${djToken}`
         }
-      );
-
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.error || "Failed to accept request");
       }
+    );
 
-      console.log(`✅ Request accepted: ${requestTitle}`);
-      setRequests(prev => prev.filter(r => r._id !== requestId));
-    } catch (err) {
-      setError(err.message);
-    } finally {
-      setProcessingId(null);
+    if (!response.ok) {
+      const errorData = await response.json();
+      throw new Error(errorData.error || "Failed to accept request");
     }
-  };
+
+    console.log(`✅ Request accepted: ${requestTitle}`);
+  } catch (err) {
+    setRequests(previousRequests);
+    setError(err.message);
+  } finally {
+    setProcessingId(null);
+  }
+};
 
   const handleReject = async (requestId, requestTitle) => {
-    setProcessingId(requestId);
-    try {
-      const response = await fetch(
-        `${import.meta.env.VITE_API_URL}/dj/requests/${requestId}/reject`,
-        {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${djToken}`
-          }
+  setProcessingId(requestId);
+  setError("");
+
+  const previousRequests = requests;
+  setRequests(prev => prev.filter(r => r._id !== requestId));
+
+  try {
+    const response = await fetch(
+      `${import.meta.env.VITE_API_URL}/dj/requests/${requestId}/reject`,
+      {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${djToken}`
         }
-      );
-
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.error || "Failed to reject request");
       }
+    );
 
-      console.log(`✅ Request rejected: ${requestTitle}`);
-      setRequests(prev => prev.filter(r => r._id !== requestId));
-    } catch (err) {
-      setError(err.message);
-    } finally {
-      setProcessingId(null);
+    if (!response.ok) {
+      const errorData = await response.json();
+      throw new Error(errorData.error || "Failed to reject request");
     }
-  };
+
+    console.log(`✅ Request rejected: ${requestTitle}`);
+  } catch (err) {
+    setRequests(previousRequests);
+    setError(err.message);
+  } finally {
+    setProcessingId(null);
+  }
+};
 
   const handleLogout = () => {
     localStorage.removeItem("djToken");
