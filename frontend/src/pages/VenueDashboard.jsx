@@ -55,11 +55,11 @@ export default function VenueDashboard() {
     "SOUL"
   ]);
   const [stats, setStats] = useState({
-    total: 267,
-    pending: 18,
-    completed: 231,
-    rejected: 18,
-    revenue: 812.45
+    total: 0,
+    pending: 0,
+    completed: 0,
+    rejected: 0,
+    revenue: 0
   });
   const [refreshing, setRefreshing] = useState(false);
 
@@ -121,7 +121,7 @@ export default function VenueDashboard() {
 
       // Fetch venue requests
       const requestsRes = await fetch(
-        `${import.meta.env.VITE_API_URL}/requests/venue/${venueData._id}`,
+        `${import.meta.env.VITE_API_URL}/api/requests/venue/${venueData._id}`,
         { headers: { Authorization: `Bearer ${token}` } }
       );
 
@@ -136,11 +136,11 @@ export default function VenueDashboard() {
         const COMPLETED_STATUSES = ["completed", "paid"];
         const REJECTED_STATUSES = ["rejected", "failed"];
         
-        const total = 184;
-        const pending = 23;
-        const completed = 146;
-        const rejected = 15;
-        const revenue = 547.8;
+        const total = requestsData.length;
+        const pending = requestsData.filter(r => PENDING_STATUSES.includes(r.status)).length;
+        const completed = requestsData.filter(r => COMPLETED_STATUSES.includes(r.status)).length;
+        const rejected = requestsData.filter(r => REJECTED_STATUSES.includes(r.status)).length;
+        const revenue = requestsData.reduce((sum, r) => sum + (r.price || 0), 0);
 
         // Debug logs
         console.log("📊 Total requests from API:", total);
@@ -526,7 +526,7 @@ export default function VenueDashboard() {
 
     const interval = setInterval(() => {
       fetchVenueData(token);
-    }, 1800000); // Refresh every 30 minutes
+    }, 10000); // Refresh every 10 seconds
 
     return () => clearInterval(interval);
   }, []);

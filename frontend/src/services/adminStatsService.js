@@ -106,7 +106,7 @@ export const getSongRequestDetails = async () => {
 export const getTopVenues = async (limit = 10) => {
   try {
     const response = await fetch(
-      `${API_BASE_URL}/api/admin/venues/top?limit=${limit}`,
+      `${API_BASE_URL}/admin/venues/top?limit=${limit}`,
       {
         method: "GET",
         headers: {

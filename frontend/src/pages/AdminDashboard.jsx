@@ -77,7 +77,7 @@ const AdminDashboard = () => {
     <div className="admin-dashboard">
       <div className="dashboard-header">
         <div className="header-content">
-          <h1>Admin Dashboard</h1>
+          <h1>Realllllllllllllllllllllllllllll 2</h1>
           <p className="subtitle">Complete Platform Overview & Analytics</p>
         </div>
         <button onClick={fetchDashboardData} className="refresh-button">
