@@ -40,14 +40,18 @@ async function verifyCheckoutSession(checkoutSessionId) {
 
     // Check if this is DJ mode (manual capture) or LIVE mode (immediate capture)
     const Venue = require("../../../models/Venue");
-    const venue = request.venueId ? await Venue.findById(request.venueId) : null;
-    const isDJMode = venue?.djMode;
-    
-    console.log(`📍 Mode: ${isDJMode ? "DJ MODE 🎧 (manual capture)" : "LIVE MODE 🎵 (immediate capture)"}`);
-    console.log(`   Request.venueId: ${request.venueId || "UNDEFINED"}`);
-    console.log(`   Request.venueId type: ${typeof request.venueId}`);
-    console.log(`   Request.venueId string: ${request.venueId?.toString() || "null/undefined"}`);
-    console.log(`   Venue found: ${venue ? venue.name : "NOT FOUND"}`);
+const venue = request.venueId ? await Venue.findById(request.venueId) : null;
+
+// IMPORTANT: determine mode from request itself, not current venue toggle
+const isDJMode = request.status === "pending_dj_approval";
+
+console.log(`📍 Mode: ${isDJMode ? "DJ MODE 🎧 (manual capture)" : "LIVE MODE 🎵 (immediate capture)"}`);
+console.log(`   Request status: ${request.status}`);
+console.log(`   Request.venueId: ${request.venueId || "UNDEFINED"}`);
+console.log(`   Request.venueId type: ${typeof request.venueId}`);
+console.log(`   Request.venueId string: ${request.venueId?.toString() || "null/undefined"}`);
+console.log(`   Venue found: ${venue ? venue.name : "NOT FOUND"}`);
+console.log(`   Venue.djMode current toggle: ${venue?.djMode}`);
 
     // For DJ mode with manual capture, check PaymentIntent status
     let isPaymentReady = false;
@@ -58,17 +62,17 @@ async function verifyCheckoutSession(checkoutSessionId) {
       console.log(`   PaymentIntent Status: ${intent.status}`);
       
       // Payment is ready if it's in "requires_capture" state (authorized, waiting for capture)
-      if (intent.status === "requires_capture") {
-        console.log(`✅ Payment AUTHORIZED (funds held, waiting for DJ approval)`);
-        isPaymentReady = true;
-      } else {
-        console.warn(`⚠️  PaymentIntent status is "${intent.status}", expected "requires_capture" for DJ mode`);
-        return {
-          success: false,
-          status: intent.status,
-          message: "Payment not yet authorized"
-        };
-      }
+      if (["requires_capture", "succeeded", "processing"].includes(intent.status)) {
+  console.log(`✅ Payment AUTHORIZED/READY for DJ mode: ${intent.status}`);
+  isPaymentReady = true;
+} else {
+  console.warn(`⚠️  PaymentIntent status is "${intent.status}", not ready for DJ mode`);
+  return {
+    success: false,
+    status: intent.status,
+    message: "Payment not yet authorized"
+  };
+}
     } else if (!isDJMode) {
       // For LIVE mode, payment must be fully paid
       if (session.payment_status === "paid") {
