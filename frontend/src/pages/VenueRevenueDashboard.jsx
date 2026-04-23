@@ -3,7 +3,7 @@ import { DollarSign, CheckCircle, Clock, AlertCircle, TrendingUp, Music } from "
 import "../styles/VenueRevenueDashboard.css";
 
 export default function VenueRevenueDashboard() {
-  const [venueId, setVenueId] = useState(null);
+  const [venueId, setVenueId] = useState("");
   const [revenue, setRevenue] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -33,7 +33,7 @@ export default function VenueRevenueDashboard() {
         console.log(`📊 Fetching revenue for venue: ${venueId}`);
         
         const response = await fetch(
-          `http://localhost:3000/admin/revenue/venue/${venueId}`,
+          `${import.meta.env.VITE_API_URL}/admin/revenue/venue/${venueId}`,
           {
             headers: {
               "x-admin-key": adminKey,
@@ -150,7 +150,7 @@ export default function VenueRevenueDashboard() {
             setShowKeyInput(true);
           }}
         >
-          🚪 Change Account
+           Change Account
         </button>
       </div>
 
