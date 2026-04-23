@@ -121,7 +121,7 @@ export default function VenueDashboard() {
 
       // Fetch venue requests
       const requestsRes = await fetch(
-        `${import.meta.env.VITE_API_URL}/api/requests/venue/${venueData._id}`,
+        `${import.meta.env.VITE_API_URL}/requests/venue/${venueData._id}`,
         { headers: { Authorization: `Bearer ${token}` } }
       );
 
