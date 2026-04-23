@@ -418,52 +418,103 @@ const handleCancelConfirm = () => {
       </div>
 
       {confirmModalOpen && selectedRequest && (
-        <div
+  <div
+    style={{
+      position: "fixed",
+      inset: 0,
+      background: "rgba(0,0,0,0.7)",
+      display: "flex",
+      alignItems: "center",
+      justifyContent: "center",
+      zIndex: 1000
+    }}
+  >
+    <div
+      style={{
+        background: "#121222",
+        padding: "24px",
+        borderRadius: "16px",
+        width: "100%",
+        maxWidth: "380px",
+        border: "1px solid rgba(255,255,255,0.08)"
+      }}
+    >
+      {/* TITLE */}
+      <h3 style={{ fontSize: "20px", fontWeight: "700" }}>
+        {confirmAction === "accept"
+          ? "Add this to your set?"
+          : "Are you sure?"}
+      </h3>
+
+      {/* SUBTEXT */}
+      <p
+        style={{
+          marginTop: "6px",
+          color: "rgba(255,255,255,0.6)",
+          fontSize: "14px"
+        }}
+      >
+        {confirmAction === "accept"
+          ? "Keeps the crowd engaged 🎶"
+          : "You might skip a good vibe"}
+      </p>
+
+      {/* SONG INFO */}
+      <div style={{ marginTop: "14px" }}>
+        <p style={{ fontWeight: "600" }}>{selectedRequest.title}</p>
+        <p style={{ color: "rgba(255,255,255,0.6)", fontSize: "14px" }}>
+          {selectedRequest.artist}
+        </p>
+      </div>
+
+      {/* BUTTONS */}
+      <div
+        style={{
+          marginTop: "20px",
+          display: "flex",
+          gap: "10px",
+          justifyContent: "flex-end"
+        }}
+      >
+        {/* CANCEL BUTTON */}
+        <button
+          onClick={handleCancelConfirm}
           style={{
-            position: "fixed",
-            inset: 0,
-            background: "rgba(0,0,0,0.6)",
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            zIndex: 1000
+            padding: "8px 14px",
+            borderRadius: "8px",
+            background: "transparent",
+            border: "1px solid rgba(255,255,255,0.2)",
+            color: "white",
+            cursor: "pointer"
           }}
         >
-          <div
-            style={{
-              background: "#121222",
-              padding: "20px",
-              borderRadius: "16px",
-              width: "100%",
-              maxWidth: "420px"
-            }}
-          >
-            <h3>
-              {confirmAction === "accept"
-                ? "Accept this request?"
-                : "Reject this request?"}
-            </h3>
+          {confirmAction === "accept" ? "Cancel" : "😕 Not Now"}
+        </button>
 
-            <p style={{ marginTop: "10px", color: "rgba(255,255,255,0.75)" }}>
-              {selectedRequest.title} by {selectedRequest.artist}
-            </p>
-
-            <div
-              style={{
-                marginTop: "16px",
-                display: "flex",
-                gap: "10px",
-                justifyContent: "flex-end"
-              }}
-            >
-              <button onClick={handleCancelConfirm}>Cancel</button>
-              <button onClick={handleConfirmAction}>
-                {confirmAction === "accept" ? "Accept" : "Reject"}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+        {/* CONFIRM BUTTON */}
+        <button
+          onClick={handleConfirmAction}
+          style={{
+            padding: "8px 14px",
+            borderRadius: "8px",
+            background:
+              confirmAction === "accept"
+                ? "linear-gradient(135deg, #A855F7, #7C3AED)"
+                : "#22E3A1",
+            color: confirmAction === "accept" ? "white" : "black",
+            fontWeight: "600",
+            border: "none",
+            cursor: "pointer"
+          }}
+        >
+          {confirmAction === "accept"
+            ? "✅ Add to set"
+            : "🔥 I’ll play it"}
+        </button>
+      </div>
+    </div>
+  </div>
+)}
     </div>
   );
 }
