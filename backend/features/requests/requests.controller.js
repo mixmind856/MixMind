@@ -98,18 +98,25 @@ async function createRequest(req, res) {
     console.log(`   📍 Status: "${initialStatus}"`);
     console.log(`   📝 Reason: ${routingReason}\n`);
 
-    // ===== CALCULATE DYNAMIC PRICING BASED ON DJ MODE =====
-    // DJ Mode ON: £9 | DJ Mode OFF: £3
-    let finalPrice = price || 0;
-    let appliedCoupon = null;
-    let couponDiscountAmount = 0;
-    
-    if (venueId && venue) {
-      finalPrice = djModeEnabled ? 9 : 3;
-      console.log(`💷 PRICING CALCULATION:`);
-      console.log(`   DJ Mode: ${djModeEnabled ? "ON" : "OFF"}`);
-      console.log(`   Initial Price: £${finalPrice}`);
-    }
+    // ===== CALCULATE PRICING BASED ON REQUEST TYPE =====
+const isPriority = req.body.priorityRequest === true || req.body.priorityRequest === "true";
+
+let finalPrice = Number(price) || 0;
+let appliedCoupon = null;
+let couponDiscountAmount = 0;
+
+if (venueId && venue) {
+  if (djModeEnabled) {
+    finalPrice = isPriority ? 8.99 : 5.99;
+  } else {
+    finalPrice = isPriority ? 2.99 : 1.69;
+  }
+
+  console.log(`💷 PRICING CALCULATION:`);
+  console.log(`   DJ Mode: ${djModeEnabled ? "ON" : "OFF"}`);
+  console.log(`   Priority Request: ${isPriority ? "YES" : "NO"}`);
+  console.log(`   Final Price: £${finalPrice}`);
+}
 
     // ===== APPLY COUPON CODE IF PROVIDED =====
     if (couponCode) {

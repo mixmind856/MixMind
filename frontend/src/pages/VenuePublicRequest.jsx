@@ -32,8 +32,9 @@ export default function VenuePublicRequest() {
   const [couponData, setCouponData] = useState(null);
   const [couponValidating, setCouponValidating] = useState(false);
   const [couponError, setCouponError] = useState("");
-  const [showPriorityChoice, setShowPriorityChoice] = useState(false);
-  const [priorityRequest, setPriorityRequest] = useState(false);
+const [showPriorityChoice, setShowPriorityChoice] = useState(false);
+const [priorityRequest, setPriorityRequest] = useState(false);
+const [acceptedGenres, setAcceptedGenres] = useState([]);
 
   useEffect(() => {
     fetchVenueData();
@@ -80,12 +81,20 @@ export default function VenuePublicRequest() {
   };
 
   const handleChange = (e) => {
-    const { name, value } = e.target;
-    setFormData((prev) => ({
-      ...prev,
-      [name]: value
-    }));
-  };
+  const { name, value } = e.target;
+  setFormData((prev) => ({
+    ...prev,
+    [name]: value
+  }));
+
+  if (acceptedGenres.length > 0) {
+    setAcceptedGenres([]);
+  }
+
+  if (error) {
+    setError("");
+  }
+};
 
   const handleValidateCoupon = async () => {
     if (!couponCode.trim()) {
@@ -136,41 +145,40 @@ export default function VenuePublicRequest() {
     setCouponError("");
   };
 
-  const submitRequest = async () => {
-    setSubmitting(true);
-    setError("");
-    setSuccess(false);
+  const submitRequest = async (selectedPriority = priorityRequest, selectedPrice = formData.price) => {
+  setSubmitting(true);
+  setError("");
+  setSuccess(false);
 
-    try {
-      const response = await fetch(
-        `${import.meta.env.VITE_API_URL}/requests/create`,
-        {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            name: formData.userName,
-            email: formData.email,
-            title: formData.songTitle,
-            artist: formData.artistName,
-            phone: formData.phone,
-            countryCode: formData.countryCode,
-            price: couponData ? couponData.finalPrice : parseFloat(formData.price),
-            couponCode: couponData?.couponCode || null,
-            venueId: venueId,
-            priorityRequest: priorityRequest,
-            priorityType: priorityRequest ? "play_next" : "normal"
-          })
-        }
-      );
+  try {
+    const response = await fetch(
+      `${import.meta.env.VITE_API_URL}/requests/create`,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name: formData.userName,
+          email: formData.email,
+          title: formData.songTitle,
+          artist: formData.artistName,
+          phone: formData.phone,
+          countryCode: formData.countryCode,
+          price: couponData ? couponData.finalPrice : parseFloat(selectedPrice),
+          couponCode: couponData?.couponCode || null,
+          venueId: venueId,
+          priorityRequest: selectedPriority,
+          priorityType: selectedPriority ? "play_next" : "normal"
+        })
+      }
+    );
 
       if (!response.ok) {
         const errorData = await response.json();
 
         if (errorData?.venueCanAccept && Array.isArray(errorData.venueCanAccept)) {
-          throw new Error(
-            `This venue currently accepts: ${errorData.venueCanAccept.join(", ")}`
-          );
-        }
+  setAcceptedGenres(errorData.venueCanAccept);
+  throw new Error("This song doesn’t match this venue’s vibe right now.");
+}
 
         throw new Error(errorData.message || errorData.error || "Failed to submit request");
       }
@@ -211,19 +219,20 @@ export default function VenuePublicRequest() {
   };
 
   const handlePriorityChoice = async (isPriority) => {
-    setPriorityRequest(isPriority);
-    setShowPriorityChoice(false);
+  setPriorityRequest(isPriority);
+  setShowPriorityChoice(false);
 
-    const basePrice = venue?.djMode ? 5.99 : 1.69;
-    const priorityFee = venue?.djMode && isPriority ? 2.99 : 0;
+  const basePrice = venue?.djMode ? 5.99 : 1.69;
+  const priorityPrice = venue?.djMode ? 8.99 : 2.99;
+  const selectedPrice = isPriority ? priorityPrice : basePrice;
 
-    setFormData((prev) => ({
-      ...prev,
-      price: basePrice + priorityFee
-    }));
+  setFormData((prev) => ({
+    ...prev,
+    price: selectedPrice
+  }));
 
-    await submitRequest();
-  };
+  await submitRequest(isPriority, selectedPrice);
+};
 
   const handlePaymentSuccess = async () => {
     // Keep your current pricing reset logic here
@@ -315,20 +324,54 @@ export default function VenuePublicRequest() {
         </div>
 
         <div
-          className="rounded-2xl p-8"
-          style={{
-            background: "linear-gradient(135deg, rgba(18,18,34,0.92) 0%, rgba(18,18,34,0.55) 100%)",
-            border: "1px solid rgba(255,255,255,0.08)"
-          }}
-        >
-          {error && (
-            <div
-              className="mb-6 p-4 rounded-xl"
-              style={{ background: "rgba(239,68,68,0.1)", border: "1px solid rgba(239,68,68,0.2)" }}
-            >
-              <p className="text-red-300 text-sm">{error}</p>
-            </div>
-          )}
+  className="rounded-2xl p-8"
+  style={{
+    background: "linear-gradient(135deg, rgba(18,18,34,0.92) 0%, rgba(18,18,34,0.55) 100%)",
+    border: "1px solid rgba(255,255,255,0.08)"
+  }}
+>
+  {acceptedGenres.length > 0 && (
+    <div
+      className="mb-6 p-4 rounded-xl"
+      style={{
+        background: "rgba(168,85,247,0.12)",
+        border: "1px solid rgba(168,85,247,0.28)"
+      }}
+    >
+      <p className="text-sm font-semibold mb-3 text-white">
+        🎧 This venue is currently accepting:
+      </p>
+
+      <div className="flex flex-wrap gap-2">
+        {acceptedGenres.map((genre, index) => (
+          <span
+            key={index}
+            className="px-3 py-1 rounded-full text-xs font-medium"
+            style={{
+              background: "rgba(168,85,247,0.18)",
+              border: "1px solid rgba(168,85,247,0.3)",
+              color: "#D8B4FE"
+            }}
+          >
+            {genre}
+          </span>
+        ))}
+      </div>
+
+      <p className="text-xs mt-3" style={{ color: "rgba(255,255,255,0.6)" }}>
+        Try another song that fits the venue vibe.
+      </p>
+    </div>
+  )}
+
+  {error && (
+    <div
+      className="mb-6 p-4 rounded-xl"
+      style={{ background: "rgba(239,68,68,0.1)", border: "1px solid rgba(239,68,68,0.2)" }}
+    >
+      <p className="text-red-300 text-sm">{error}</p>
+    </div>
+  )}
 
           <form onSubmit={handleSubmit} className="space-y-4">
             <div>

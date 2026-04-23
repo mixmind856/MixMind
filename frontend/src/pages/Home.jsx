@@ -21,6 +21,7 @@ export default function Home() {
           <h1 className="text-2xl font-bold text-purple-400">
             MixMind
           </h1>
+          
 
           {/* Desktop Nav */}
           <nav className="hidden md:flex gap-8 text-sm text-gray-300">

@@ -91,8 +91,6 @@ export default function VenueSignup() {
                 placeholder="Your Venue Name"
               />
             </div>
-
-            <div style={{ color: "red", fontSize: "24px" }}>TEST VERSION 123</div>
             
             <div>
               <label className="block text-sm font-medium text-gray-300 mb-2">Email *</label>
