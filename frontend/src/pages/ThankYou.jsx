@@ -166,12 +166,21 @@ for (let i = 0; i < confettiCount; i++) {
 
   useEffect(() => {
     setAnimatedProgress(0);
-
+    let frameOne;
+    let frameTwo;
     const timer = setTimeout(() => {
-      setAnimatedProgress(levelProgress);
-    }, 300);
+      frameOne = requestAnimationFrame(() => {
+        frameTwo = requestAnimationFrame(() => {
+          setAnimatedProgress(levelProgress);
+        });
+      });
+    }, 120);
 
-    return () => clearTimeout(timer);
+    return () => {
+      clearTimeout(timer);
+      if (frameOne) cancelAnimationFrame(frameOne);
+      if (frameTwo) cancelAnimationFrame(frameTwo);
+    };
   }, [levelProgress]);
 
   if (loading) {

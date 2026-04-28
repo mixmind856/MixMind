@@ -1,11 +1,12 @@
-import { useState, useEffect } from "react";
-import { useParams } from "react-router-dom";
+import { useState, useEffect, useRef } from "react";
+import { useNavigate, useParams } from "react-router-dom";
 import VenuePaymentModalWrapper from "../componentsRequest/VenuePaymentModal";
 import SpotifyPaymentModal from "../componentsRequest/SpotifyPaymentModal";
 import logo from "../assets/Mixmind.jpeg";
 import { Gift, Check } from "lucide-react";
 
 export default function VenuePublicRequest() {
+  const navigate = useNavigate();
   const { venueId } = useParams();
   const [venue, setVenue] = useState(null);
   const [isVenueActive, setIsVenueActive] = useState(true);
@@ -46,6 +47,7 @@ const [selectedSpotifyTrack, setSelectedSpotifyTrack] = useState(null);
 const [spotifyPrecheckLoading, setSpotifyPrecheckLoading] = useState(false);
 const [spotifyPaymentLoading, setSpotifyPaymentLoading] = useState(false);
 const [spotifyPaymentData, setSpotifyPaymentData] = useState(null);
+const suppressNextSpotifySearchRef = useRef(false);
 
   useEffect(() => {
     fetchVenueData();
@@ -100,6 +102,10 @@ const [spotifyPaymentData, setSpotifyPaymentData] = useState(null);
 
   useEffect(() => {
     if (!spotifyMode) return;
+    if (suppressNextSpotifySearchRef.current) {
+      suppressNextSpotifySearchRef.current = false;
+      return;
+    }
     const q = spotifyQuery.trim();
     if (q.length < 2) {
       setSpotifyResults([]);
@@ -148,77 +154,22 @@ const [spotifyPaymentData, setSpotifyPaymentData] = useState(null);
     return () => clearTimeout(timer);
   }, [spotifyMode, spotifyQuery, venueId]);
 
-  const handleSpotifyTrackSelect = async (track) => {
+  const handleSpotifyTrackSelect = (track) => {
     if (!spotifyMode || submitting) return;
 
     setError("");
     setSpotifyPaymentData(null);
-    setSpotifyPrecheckLoading(true);
-
-    try {
-      const precheckRes = await fetch(`${import.meta.env.VITE_API_URL}/jukebox/precheck-genre`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          venueId,
-          trackName: track.trackName,
-          artistName: track.artistName
-        })
-      });
-      const precheckData = await precheckRes.json();
-
-      if (!precheckRes.ok) {
-        throw new Error(precheckData.error || precheckData.reason || "Genre precheck failed");
-      }
-
-      if (!precheckData.allowed) {
-        setSelectedSpotifyTrack(null);
-        setAcceptedGenres(precheckData.allowedGenres || []);
-        setError(precheckData.reason || "This song doesn't fit tonight's music policy.");
-        return;
-      }
-
-      setSelectedSpotifyTrack(track);
-      setFormData((prev) => ({
-        ...prev,
-        songTitle: track.trackName,
-        artistName: track.artistName
-      }));
-      setSpotifyQuery(`${track.trackName} — ${track.artistName}`);
-      setSpotifyResults([]);
-
-      setSpotifyPaymentLoading(true);
-      console.log("SPOTIFY MODE FLOW ACTIVE");
-      console.log("Calling /api/jukebox/create-payment");
-      const paymentRes = await fetch(`${import.meta.env.VITE_API_URL}/jukebox/create-payment`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          venueId,
-          trackId: track.trackId,
-          trackName: track.trackName,
-          artistName: track.artistName,
-          albumName: track.albumName,
-          albumArtUrl: track.albumArtUrl,
-          spotifyUri: track.spotifyUri,
-          durationMs: track.durationMs,
-          requesterName: formData.userName,
-          requesterEmail: formData.email
-        })
-      });
-      const paymentData = await paymentRes.json();
-      if (!paymentRes.ok) {
-        throw new Error(paymentData.error || "Failed to start payment.");
-      }
-      setSpotifyPaymentData(paymentData);
-    } catch (err) {
-      setSelectedSpotifyTrack(null);
-      setSpotifyPaymentData(null);
-      setError(err.message || "Failed to start payment.");
-    } finally {
-      setSpotifyPrecheckLoading(false);
-      setSpotifyPaymentLoading(false);
-    }
+    setSelectedSpotifyTrack(track);
+    setFormData((prev) => ({
+      ...prev,
+      songTitle: track.trackName,
+      artistName: track.artistName
+    }));
+    suppressNextSpotifySearchRef.current = true;
+    setSpotifyQuery(`${track.trackName} - ${track.artistName}`);
+    setSpotifyResults([]);
+    setSpotifySearched(false);
+    setSpotifySearchError("");
   };
 
   const handleChange = (e) => {
@@ -361,7 +312,76 @@ console.log("✅ Song request created");
   const handleSubmit = async (e) => {
     e.preventDefault();
 
-    if (spotifyMode) return;
+    if (spotifyMode) {
+      if (!selectedSpotifyTrack) {
+        setError("Please select a Spotify track before continuing.");
+        return;
+      }
+      if (!formData.userName?.trim()) {
+        setError("Please enter your name.");
+        return;
+      }
+      if (!formData.phone?.trim()) {
+        setError("Please enter your phone number.");
+        return;
+      }
+
+      setError("");
+      setSpotifyPrecheckLoading(true);
+      setSpotifyPaymentLoading(true);
+
+      try {
+        const precheckRes = await fetch(`${import.meta.env.VITE_API_URL}/jukebox/precheck-genre`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            venueId,
+            trackName: selectedSpotifyTrack.trackName,
+            artistName: selectedSpotifyTrack.artistName
+          })
+        });
+        const precheckData = await precheckRes.json();
+        if (!precheckRes.ok) {
+          throw new Error(precheckData.error || precheckData.reason || "Genre precheck failed");
+        }
+        if (!precheckData.allowed) {
+          setAcceptedGenres(precheckData.allowedGenres || []);
+          setError(precheckData.reason || "This song doesn't fit tonight's music policy.");
+          return;
+        }
+
+        console.log("SPOTIFY MODE FLOW ACTIVE");
+        console.log("Calling /api/jukebox/create-payment");
+        const paymentRes = await fetch(`${import.meta.env.VITE_API_URL}/jukebox/create-payment`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            venueId,
+            trackId: selectedSpotifyTrack.trackId,
+            trackName: selectedSpotifyTrack.trackName,
+            artistName: selectedSpotifyTrack.artistName,
+            albumName: selectedSpotifyTrack.albumName,
+            albumArtUrl: selectedSpotifyTrack.albumArtUrl,
+            spotifyUri: selectedSpotifyTrack.spotifyUri,
+            durationMs: selectedSpotifyTrack.durationMs,
+            requesterName: formData.userName.trim(),
+            requesterEmail: formData.email?.trim() || ""
+          })
+        });
+        const paymentData = await paymentRes.json();
+        if (!paymentRes.ok) {
+          throw new Error(paymentData.error || "Failed to start payment.");
+        }
+        setSpotifyPaymentData(paymentData);
+      } catch (err) {
+        setSpotifyPaymentData(null);
+        setError(err.message || "Failed to start payment.");
+      } finally {
+        setSpotifyPrecheckLoading(false);
+        setSpotifyPaymentLoading(false);
+      }
+      return;
+    }
 
     if (venue?.djMode) {
       setShowPriorityChoice(true);
@@ -419,7 +439,16 @@ console.log("✅ Song request created");
     }, 2000);
   };
 
-  const handleSpotifyPaymentSuccess = () => {
+  const handleSpotifyPaymentSuccess = (data) => {
+    const requestId = data?.requestId || spotifyPaymentData?.requestId;
+    if (requestId) {
+      localStorage.setItem("lastRequestId", requestId);
+      localStorage.setItem("lastSongTitle", selectedSpotifyTrack?.trackName || "");
+      localStorage.setItem("lastArtistName", selectedSpotifyTrack?.artistName || "");
+      if (formData.email?.trim()) {
+        localStorage.setItem("userEmail", formData.email.trim());
+      }
+    }
     setSpotifyPaymentData(null);
     setSelectedSpotifyTrack(null);
     setSpotifyResults([]);
@@ -429,6 +458,7 @@ console.log("✅ Song request created");
       songTitle: "",
       artistName: ""
     }));
+    navigate(`/thank-you/${venueId}`);
   };
 
   const handleSpotifyGenreReject = (data) => {
@@ -499,11 +529,6 @@ console.log("✅ Song request created");
           <p className="text-sm" style={{ color: "rgba(255,255,255,0.72)" }}>
             Enter your details and we'll handle the rest
           </p>
-          {spotifyMode && (
-            <p className="text-xs mt-2" style={{ color: "#A855F7" }}>
-              Spotify Mode is ON
-            </p>
-          )}
         </div>
 
         <div
@@ -783,7 +808,7 @@ console.log("✅ Song request created");
                 name="email"
                 value={formData.email}
                 onChange={handleChange}
-                required
+                required={!spotifyMode}
                 placeholder="Enter email address"
                 className="w-full px-4 py-3 rounded-xl text-white placeholder-gray-500 focus:outline-none transition-all"
                 style={{
@@ -924,14 +949,18 @@ console.log("✅ Song request created");
 
             <button
               type="submit"
-              disabled={spotifyMode ? true : submitting}
+              disabled={spotifyMode ? spotifyPaymentLoading || spotifyPrecheckLoading : submitting}
               className="w-full text-white font-bold py-4 rounded-2xl text-lg mt-6 flex items-center justify-center gap-2 transition-all transform hover:scale-105 disabled:opacity-50"
               style={{
                 background: "linear-gradient(135deg, #A855F7 0%, #7C3AED 100%)",
                 boxShadow: "0 8px 50px rgba(168,85,247,0.6)"
               }}
             >
-              {spotifyMode ? "Select a Spotify track above" : submitting ? "Processing..." : <>Request Song <span>→</span></>}
+              {spotifyMode
+                ? spotifyPaymentLoading || spotifyPrecheckLoading
+                  ? "Processing..."
+                  : "Request Song →"
+                : submitting ? "Processing..." : <>Request Song <span>→</span></>}
             </button>
           </form>
 

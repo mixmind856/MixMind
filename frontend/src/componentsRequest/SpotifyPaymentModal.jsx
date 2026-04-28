@@ -62,7 +62,7 @@ function CheckoutForm({ requestId, amountPence, onSuccess, onError }) {
         return;
       }
 
-      onSuccess(data);
+      onSuccess({ ...data, requestId });
     } catch (err) {
       setErrorMsg(err.message || "Something went wrong");
       setProcessing(false);
@@ -80,7 +80,18 @@ function CheckoutForm({ requestId, amountPence, onSuccess, onError }) {
         </span>
       </div>
 
-      <PaymentElement />
+      <PaymentElement
+        options={{
+          paymentMethodOrder: ["apple_pay", "google_pay", "card"],
+          terms: {
+            card: "never",
+          },
+          wallets: {
+            applePay: "auto",
+            googlePay: "auto",
+          },
+        }}
+      />
 
       {errorMsg && (
         <div className="flex items-center gap-2 text-red-300 text-sm bg-red-950/40 rounded-xl p-3">
@@ -153,7 +164,13 @@ export default function SpotifyPaymentModal({
 
           <h2 className="text-lg font-bold mb-4 text-white">Complete your request</h2>
 
-          <Elements stripe={stripePromise} options={{ clientSecret, appearance: STRIPE_APPEARANCE }}>
+          <Elements
+            stripe={stripePromise}
+            options={{
+              clientSecret,
+              appearance: STRIPE_APPEARANCE,
+            }}
+          >
             <CheckoutForm
               requestId={requestId}
               amountPence={amountPence}
