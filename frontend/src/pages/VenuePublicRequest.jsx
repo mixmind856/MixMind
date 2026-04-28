@@ -313,6 +313,9 @@ console.log("✅ Song request created");
     e.preventDefault();
 
     if (spotifyMode) {
+      if (spotifyPaymentLoading || spotifyPrecheckLoading) {
+        return;
+      }
       if (!selectedSpotifyTrack) {
         setError("Please select a Spotify track before continuing.");
         return;
@@ -352,6 +355,7 @@ console.log("✅ Song request created");
 
         console.log("SPOTIFY MODE FLOW ACTIVE");
         console.log("Calling /api/jukebox/create-payment");
+        setSpotifyPaymentData(null);
         const paymentRes = await fetch(`${import.meta.env.VITE_API_URL}/jukebox/create-payment`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -459,6 +463,11 @@ console.log("✅ Song request created");
       artistName: ""
     }));
     navigate(`/thank-you/${venueId}`);
+  };
+
+  const handleSpotifyPaymentExpired = (data) => {
+    setSpotifyPaymentData(null);
+    setError(data?.message || "Payment expired, please try again");
   };
 
   const handleSpotifyGenreReject = (data) => {
@@ -995,10 +1004,10 @@ console.log("✅ Song request created");
           amountPence={spotifyPaymentData.amount}
           onClose={() => {
             setSpotifyPaymentData(null);
-            setSelectedSpotifyTrack(null);
           }}
           onSuccess={handleSpotifyPaymentSuccess}
           onGenreReject={handleSpotifyGenreReject}
+          onPaymentExpired={handleSpotifyPaymentExpired}
         />
       )}
 
