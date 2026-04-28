@@ -9,7 +9,7 @@ function getStripe() {
   return _stripe;
 }
 
-const DEFAULT_AMOUNT_PENCE = 299; // £2.99
+const DEFAULT_AMOUNT_PENCE = 169; // £1.69
 
 /**
  * Create a PaymentIntent in manual capture mode (pre-auth / hold).

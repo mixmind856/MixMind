@@ -35,7 +35,7 @@ export default function StatusModal({ state, track, data, onClose, onRetry }) {
                 transition={{ delay: 0.1, type: 'spring', stiffness: 200 }}
                 className="flex justify-center mb-4"
               >
-                <CheckCircle2 size={64} className="text-brand-green" />
+                <CheckCircle2 size={64} className="text-brand-mint" />
               </motion.div>
               <h2 className="text-2xl font-bold mb-2">Song Queued!</h2>
               <p className="text-gray-400 mb-1">
@@ -49,7 +49,7 @@ export default function StatusModal({ state, track, data, onClose, onRetry }) {
               {data?.matched?.length > 0 && (
                 <div className="flex flex-wrap gap-1.5 justify-center mb-5">
                   {data.matched.map((g) => (
-                    <span key={g} className="bg-brand-green/20 text-brand-green text-xs px-2.5 py-1 rounded-full">
+                    <span key={g} className="bg-brand-mint/20 text-brand-mint text-xs px-2.5 py-1 rounded-full">
                       {g}
                     </span>
                   ))}
@@ -91,7 +91,7 @@ export default function StatusModal({ state, track, data, onClose, onRetry }) {
                     <span className="text-gray-500 text-xs uppercase tracking-wide">Venue allows</span>
                     <div className="flex flex-wrap gap-1.5 mt-1">
                       {data.allowedGenres.map((g) => (
-                        <span key={g} className="bg-brand-green/10 text-brand-green text-xs px-2 py-0.5 rounded-full">{g}</span>
+                        <span key={g} className="bg-brand-purple/15 text-brand-purple text-xs px-2 py-0.5 rounded-full">{g}</span>
                       ))}
                     </div>
                   </div>

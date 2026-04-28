@@ -85,8 +85,8 @@ export default function VenueSetup() {
         {/* Header */}
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-full bg-brand-green flex items-center justify-center">
-              <Music2 size={18} className="text-black" />
+            <div className="w-10 h-10 rounded-full bg-gradient-to-r from-brand-purple to-brand-violet flex items-center justify-center shadow-[0_0_18px_rgba(168,85,247,0.45)]">
+              <Music2 size={18} className="text-white" />
             </div>
             <div>
               <h1 className="font-bold text-lg leading-none">Spotify DJ</h1>
@@ -102,7 +102,7 @@ export default function VenueSetup() {
 
         {/* Spotify connection status */}
         {spotifyStatus === 'connected' && (
-          <div className="flex items-center gap-2 text-brand-green text-sm bg-brand-green/10 border border-brand-green/20 rounded-xl px-4 py-3">
+          <div className="flex items-center gap-2 text-brand-mint text-sm bg-brand-mint/10 border border-brand-mint/20 rounded-xl px-4 py-3">
             <CheckCircle2 size={16} />
             Spotify account connected successfully!
           </div>
@@ -117,7 +117,7 @@ export default function VenueSetup() {
         {isLoggedIn ? (
           <>
             {/* Spotify connect */}
-            <div className="card space-y-3">
+            <div className="card glass-card space-y-3">
               <h2 className="font-semibold">1. Connect Spotify</h2>
               <p className="text-sm text-gray-400">
                 Connect the Spotify account that is actively playing at your venue.
@@ -133,7 +133,7 @@ export default function VenueSetup() {
             </div>
 
             {/* Genre setup */}
-            <div className="card space-y-3">
+            <div className="card glass-card space-y-3">
               <h2 className="font-semibold">2. Set allowed genres</h2>
               <p className="text-sm text-gray-400">
                 Song requests are genre-checked against this list.
@@ -146,7 +146,7 @@ export default function VenueSetup() {
                     onClick={() => toggleGenre(g)}
                     className={`px-3 py-1 rounded-full text-sm border transition-colors capitalize
                       ${selectedGenres.includes(g)
-                        ? 'bg-brand-green text-black border-brand-green font-medium'
+                        ? 'bg-brand-purple text-white border-brand-purple font-medium'
                         : 'border-brand-hover text-gray-400 hover:border-gray-400'
                       }`}
                   >
@@ -165,19 +165,19 @@ export default function VenueSetup() {
             </div>
 
             {/* Jukebox link */}
-            <div className="card space-y-2">
+            <div className="card glass-card space-y-2">
               <h2 className="font-semibold">3. Share jukebox link</h2>
               <p className="text-sm text-gray-400">
                 Share this URL with guests so they can request songs:
               </p>
-              <div className="bg-brand-black/50 rounded-xl px-4 py-3 font-mono text-sm text-brand-green break-all">
+              <div className="bg-brand-black/50 rounded-xl px-4 py-3 font-mono text-sm text-brand-purple break-all">
                 {window.location.origin}/jukebox/{slug}
               </div>
             </div>
           </>
         ) : (
           /* Registration form for venues not logged in */
-          <div className="card space-y-4">
+          <div className="card glass-card space-y-4">
             <h2 className="font-semibold text-lg">Register your venue</h2>
             <form onSubmit={handleRegister} className="space-y-4">
               <div>
@@ -225,7 +225,7 @@ export default function VenueSetup() {
 
             <p className="text-xs text-gray-600 text-center">
               Already registered?{' '}
-              <a href="/venue-login" className="text-brand-green hover:underline">
+              <a href="/venue-login" className="text-brand-purple hover:underline">
                 Log in
               </a>
             </p>

@@ -27,7 +27,7 @@ const jukeboxRequestSchema = new mongoose.Schema(
 
     // Payment (pre-authorisation / capture flow)
     stripePaymentIntentId: { type: String, required: true, unique: true },
-    amountPence: { type: Number, required: true, default: 299 }, // £2.99
+    amountPence: { type: Number, required: true, default: 169 }, // £1.69
     currency: { type: String, default: 'gbp' },
     paymentStatus: {
       type: String,

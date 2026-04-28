@@ -18,8 +18,8 @@ export default function TrackCard({ track, onSelect, selected }) {
       onClick={() => onSelect(track)}
       className={`flex items-center gap-3 p-3 rounded-xl cursor-pointer transition-colors
         ${selected
-          ? 'bg-brand-green/20 border border-brand-green/50'
-          : 'hover:bg-brand-hover'
+          ? 'bg-brand-purple/20 border border-brand-purple/50'
+          : 'hover:bg-brand-card/70'
         }`}
     >
       {/* Album art */}
@@ -31,20 +31,20 @@ export default function TrackCard({ track, onSelect, selected }) {
             className="w-14 h-14 rounded-lg object-cover"
           />
         ) : (
-          <div className="w-14 h-14 rounded-lg bg-brand-hover flex items-center justify-center">
+          <div className="w-14 h-14 rounded-lg bg-brand-card/70 flex items-center justify-center">
             <Music size={20} className="text-gray-500" />
           </div>
         )}
         {selected && (
-          <div className="absolute inset-0 rounded-lg bg-brand-green/30 flex items-center justify-center">
-            <div className="w-3 h-3 rounded-full bg-brand-green animate-pulse" />
+          <div className="absolute inset-0 rounded-lg bg-brand-purple/25 flex items-center justify-center">
+            <div className="w-3 h-3 rounded-full bg-brand-purple animate-pulse" />
           </div>
         )}
       </div>
 
       {/* Track info */}
       <div className="flex-1 min-w-0">
-        <p className={`font-semibold truncate ${selected ? 'text-brand-green' : 'text-white'}`}>
+        <p className={`font-semibold truncate ${selected ? 'text-brand-purple' : 'text-white'}`}>
           {track.name}
         </p>
         <p className="text-sm text-gray-400 truncate">{track.artists}</p>

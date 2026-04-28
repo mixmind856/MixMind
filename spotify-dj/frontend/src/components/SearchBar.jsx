@@ -7,8 +7,10 @@ export default function SearchBar({ onSearch, loading }) {
 
   const handleSubmit = (e) => {
     e.preventDefault();
-    if (query.trim().length < 2) return;
-    onSearch(query.trim());
+    const formData = new FormData(e.currentTarget);
+    const submitted = String(formData.get('q') || '').trim();
+    if (submitted.length < 2) return;
+    onSearch(submitted);
   };
 
   const clear = () => {
@@ -25,6 +27,7 @@ export default function SearchBar({ onSearch, loading }) {
           className="absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none"
         />
         <input
+          name="q"
           ref={inputRef}
           type="text"
           value={query}

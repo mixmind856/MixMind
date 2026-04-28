@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useCallback } from 'react';
-import { useParams } from 'react-router-dom';
+import { useNavigate, useParams } from 'react-router-dom';
 import { Music2, Wifi, WifiOff } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 
@@ -11,6 +11,7 @@ import { getVenueInfo, searchTracks, createPayment } from '../services/api';
 
 export default function Jukebox() {
   const { venueSlug } = useParams();
+  const navigate = useNavigate();
 
   const [venue, setVenue] = useState(null);
   const [venueError, setVenueError] = useState('');
@@ -18,6 +19,7 @@ export default function Jukebox() {
   const [tracks, setTracks] = useState([]);
   const [searchLoading, setSearchLoading] = useState(false);
   const [searched, setSearched] = useState(false);
+  const [searchError, setSearchError] = useState('');
 
   const [selectedTrack, setSelectedTrack] = useState(null);
 
@@ -27,13 +29,14 @@ export default function Jukebox() {
   const [paymentError, setPaymentError] = useState('');
 
   // Result modal state
-  const [resultState, setResultState] = useState(null); // 'success' | 'genre_rejected' | 'error'
+  const [resultState, setResultState] = useState(null); // 'genre_rejected' | 'error'
   const [resultData, setResultData] = useState(null);
 
   // ── Load venue ──────────────────────────────────────────
 
   useEffect(() => {
     if (!venueSlug) return;
+    localStorage.setItem('sdj_lastSlug', venueSlug);
     getVenueInfo(venueSlug)
       .then(({ data }) => setVenue(data.venue))
       .catch(() => setVenueError('Venue not found or jukebox is currently offline.'));
@@ -46,16 +49,26 @@ export default function Jukebox() {
       if (!query) {
         setTracks([]);
         setSearched(false);
+        setSearchError('');
         return;
       }
       setSearchLoading(true);
+      setSearchError('');
       setSelectedTrack(null);
       try {
         const { data } = await searchTracks(query, venueSlug);
         setTracks(data.tracks || []);
         setSearched(true);
-      } catch {
+      } catch (err) {
         setTracks([]);
+        setSearched(true);
+        const isSpotifyGateway = err?.response?.status === 502;
+        const backendMessage = err?.response?.data?.error;
+        setSearchError(
+          isSpotifyGateway
+            ? `${backendMessage || 'Spotify search failed'}. Spotify is temporarily unavailable. Please retry.`
+            : backendMessage || 'Search failed. Please try again.'
+        );
       } finally {
         setSearchLoading(false);
       }
@@ -101,8 +114,7 @@ export default function Jukebox() {
   const handlePaymentSuccess = (data) => {
     setPaymentData(null);
     setSelectedTrack(null);
-    setResultState('success');
-    setResultData(data);
+    navigate(`/jukebox-thank-you/${data.requestId || paymentData?.requestId}`);
   };
 
   const handleGenreReject = (data) => {
@@ -146,18 +158,18 @@ export default function Jukebox() {
   return (
     <div className="min-h-screen bg-gradient-to-b from-brand-black via-brand-dark to-brand-dark">
       {/* Header */}
-      <header className="sticky top-0 z-10 bg-brand-black/80 backdrop-blur-md border-b border-white/5">
+      <header className="sticky top-0 z-10 bg-brand-black/80 backdrop-blur-md border-b border-brand-border">
         <div className="max-w-lg mx-auto px-4 py-4 flex items-center justify-between">
           <div className="flex items-center gap-2.5">
-            <div className="w-8 h-8 rounded-full bg-brand-green flex items-center justify-center">
-              <Music2 size={16} className="text-black" />
+            <div className="w-8 h-8 rounded-full bg-gradient-to-r from-brand-purple to-brand-violet flex items-center justify-center shadow-[0_0_18px_rgba(168,85,247,0.45)]">
+              <Music2 size={16} className="text-white" />
             </div>
             <div>
               <h1 className="font-bold leading-none">{venue.name}</h1>
               <p className="text-xs text-gray-500 mt-0.5">Jukebox</p>
             </div>
           </div>
-          <div className="flex items-center gap-1.5 text-xs text-brand-green">
+          <div className="flex items-center gap-1.5 text-xs text-brand-mint">
             <Wifi size={13} />
             <span>Live</span>
           </div>
@@ -173,7 +185,7 @@ export default function Jukebox() {
               {venue.allowedGenres.map((g) => (
                 <span
                   key={g}
-                  className="bg-brand-green/10 border border-brand-green/20 text-brand-green text-xs px-3 py-1 rounded-full capitalize"
+                  className="tag-purple"
                 >
                   {g}
                 </span>
@@ -191,8 +203,8 @@ export default function Jukebox() {
             </p>
           </div>
           <div className="text-right flex-shrink-0 ml-4">
-            <p className="text-2xl font-bold text-brand-green">
-              £{((venue.priceOverridePence || 299) / 100).toFixed(2)}
+            <p className="text-2xl font-bold text-brand-purple">
+              £{((venue.priceOverridePence || 169) / 100).toFixed(2)}
             </p>
             <p className="text-xs text-gray-500">per request</p>
           </div>
@@ -200,10 +212,13 @@ export default function Jukebox() {
 
         {/* Search */}
         <SearchBar onSearch={handleSearch} loading={searchLoading} />
+        {searchError && (
+          <p className="text-amber-300 text-xs">{searchError}</p>
+        )}
 
         {/* Error from payment creation */}
         {paymentError && (
-          <p className="text-red-400 text-sm text-center">{paymentError}</p>
+          <p className="text-red-300 text-sm text-center">{paymentError}</p>
         )}
 
         {/* Results */}
@@ -218,10 +233,10 @@ export default function Jukebox() {
             >
               {[...Array(5)].map((_, i) => (
                 <div key={i} className="flex items-center gap-3 p-3 rounded-xl animate-pulse">
-                  <div className="w-14 h-14 rounded-lg bg-brand-hover" />
+                  <div className="w-14 h-14 rounded-lg bg-brand-card/70" />
                   <div className="flex-1 space-y-2">
-                    <div className="h-3 bg-brand-hover rounded w-3/4" />
-                    <div className="h-3 bg-brand-hover rounded w-1/2" />
+                    <div className="h-3 bg-brand-card/70 rounded w-3/4" />
+                    <div className="h-3 bg-brand-card/70 rounded w-1/2" />
                   </div>
                 </div>
               ))}
@@ -281,7 +296,7 @@ export default function Jukebox() {
         />
       )}
 
-      {/* Result modal */}
+      {/* Result modal (genre reject / error only) */}
       <StatusModal
         state={resultState}
         track={selectedTrack}
