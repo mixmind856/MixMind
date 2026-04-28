@@ -17,6 +17,8 @@ export default function VenueDashboard() {
   const [venueActive, setVenueActive] = useState(true);
   const [togglingVenueStatus, setTogglingVenueStatus] = useState(false);
   const [djMode, setDJMode] = useState(false);
+  const [spotifyMode, setSpotifyMode] = useState(false);
+  const [spotifyConnected, setSpotifyConnected] = useState(false);
   const [djPassword, setDjPassword] = useState("");
   const [showDJModal, setShowDJModal] = useState(false);
   const [settingUpDJ, setSettingUpDJ] = useState(false);
@@ -69,6 +71,15 @@ export default function VenueDashboard() {
       navigate("/venue/signin");
       return;
     }
+    const params = new URLSearchParams(window.location.search);
+    const spotifyParam = params.get("spotify");
+    if (spotifyParam === "connected") {
+      setSuccessMsg("Spotify connected successfully.");
+      window.history.replaceState({}, "", window.location.pathname);
+    } else if (spotifyParam === "error") {
+      setError("Spotify connection failed. Please try again.");
+      window.history.replaceState({}, "", window.location.pathname);
+    }
     fetchVenueData(token);
   }, [navigate]);
 
@@ -118,6 +129,8 @@ export default function VenueDashboard() {
       setLivePlaylistActive(venueData.livePlaylistActive || false);
       setVenueActive(venueData.isActive || true);
       setDJMode(venueData.djMode || false);
+      setSpotifyMode(venueData.spotifyMode || false);
+      setSpotifyConnected(!!venueData.spotifyConnected);
 
       // Fetch venue requests
       const requestsRes = await fetch(
@@ -339,6 +352,49 @@ export default function VenueDashboard() {
     }
   };
 
+  const handleToggleSpotifyMode = async () => {
+    const token = localStorage.getItem("venueToken");
+    const nextSpotifyMode = !spotifyMode;
+    setError("");
+    setSuccessMsg("");
+
+    try {
+      const response = await fetch(
+        `${import.meta.env.VITE_API_URL}/venue/spotify-mode`,
+        {
+          method: "PUT",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${token}`
+          },
+          body: JSON.stringify({ spotifyMode: nextSpotifyMode })
+        }
+      );
+
+      if (!response.ok) {
+        throw new Error("Failed to toggle Spotify mode");
+      }
+
+      const data = await response.json();
+      setSpotifyMode(!!data.spotifyMode);
+      setSuccessMsg(data.message || (nextSpotifyMode ? "Spotify mode enabled" : "Spotify mode disabled"));
+      setTimeout(() => setSuccessMsg(""), 3000);
+    } catch (err) {
+      setError(err.message || "Failed to toggle Spotify mode");
+    }
+  };
+
+  const handleConnectSpotify = () => {
+    if (!venue?._id) {
+      setError("Venue details not loaded yet.");
+      return;
+    }
+    const currentVenueId = venue._id;
+    console.log("[Connect Spotify Main Dashboard]", currentVenueId);
+    const returnTo = `${window.location.origin}/venue/dashboard`;
+    window.location.href = `${import.meta.env.VITE_API_URL}/jukebox/spotify/login?venueId=${currentVenueId}&returnTo=${encodeURIComponent(returnTo)}`;
+  };
+
   const getStatusBadgeColor = (status) => {
     switch (status) {
       case "completed":
@@ -519,14 +575,14 @@ export default function VenueDashboard() {
     }
   }, []);
 
-  // Auto-refresh stats every 10 seconds
+  // Refresh dashboard every 2 minutes
   useEffect(() => {
     const token = localStorage.getItem("venueToken");
     if (!token) return;
 
     const interval = setInterval(() => {
       fetchVenueData(token);
-    }, 10000); // Refresh every 10 seconds
+    }, 120000);
 
     return () => clearInterval(interval);
   }, []);
@@ -687,6 +743,46 @@ export default function VenueDashboard() {
                 }`}
               >
                 {djMode ? "Disable DJ Mode" : "Enable DJ Mode"}
+              </button>
+            </div>
+          </div>
+        </div>
+
+        {/* Spotify Mode Control */}
+        <div className={`bg-gradient-to-r ${spotifyMode ? 'from-violet-900/30 to-fuchsia-900/30 border-violet-500/30' : 'from-gray-900/30 to-gray-900/30 border-gray-500/30'} border rounded-xl p-8 mb-12`}>
+          <div className="flex items-center justify-between flex-wrap gap-6">
+            <div>
+              <h2 className="text-2xl font-bold mb-2">Spotify Mode</h2>
+              <p className="text-gray-400">
+                Customers search Spotify songs and pay £1.69 per approved request.
+              </p>
+              <p className={`text-sm mt-2 ${spotifyMode ? "text-violet-300" : "text-gray-500"}`}>
+                {spotifyMode ? "Spotify Mode is ON" : "Spotify Mode is OFF"}
+              </p>
+              <p className={`text-sm mt-2 ${spotifyConnected ? "text-emerald-300" : "text-amber-300"}`}>
+                {spotifyConnected ? "Spotify: Connected" : "Spotify: Not connected"}
+              </p>
+            </div>
+            <div className="flex gap-3">
+              <button
+                onClick={handleConnectSpotify}
+                className={`px-8 py-3 rounded-lg font-semibold transition-all ${
+                  spotifyConnected
+                    ? "bg-emerald-600 hover:bg-emerald-700 text-white"
+                    : "bg-amber-600 hover:bg-amber-700 text-white"
+                }`}
+              >
+                {spotifyConnected ? "Reconnect Spotify" : "Connect Spotify"}
+              </button>
+              <button
+                onClick={handleToggleSpotifyMode}
+                className={`px-8 py-3 rounded-lg font-semibold transition-all ${
+                  spotifyMode
+                    ? "bg-violet-600 hover:bg-violet-700 text-white"
+                    : "bg-gray-600 hover:bg-gray-700 text-white"
+                }`}
+              >
+                {spotifyMode ? "Turn Spotify Mode Off" : "Turn Spotify Mode On"}
               </button>
             </div>
           </div>

@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { useParams } from "react-router-dom";
 import VenuePaymentModalWrapper from "../componentsRequest/VenuePaymentModal";
+import SpotifyPaymentModal from "../componentsRequest/SpotifyPaymentModal";
 import logo from "../assets/Mixmind.jpeg";
 import { Gift, Check } from "lucide-react";
 
@@ -35,10 +36,26 @@ export default function VenuePublicRequest() {
 const [showPriorityChoice, setShowPriorityChoice] = useState(false);
 const [priorityRequest, setPriorityRequest] = useState(false);
 const [acceptedGenres, setAcceptedGenres] = useState([]);
+const [spotifyMode, setSpotifyMode] = useState(false);
+const [spotifyQuery, setSpotifyQuery] = useState("");
+const [spotifyResults, setSpotifyResults] = useState([]);
+const [spotifySearching, setSpotifySearching] = useState(false);
+const [spotifySearched, setSpotifySearched] = useState(false);
+const [spotifySearchError, setSpotifySearchError] = useState("");
+const [selectedSpotifyTrack, setSelectedSpotifyTrack] = useState(null);
+const [spotifyPrecheckLoading, setSpotifyPrecheckLoading] = useState(false);
+const [spotifyPaymentLoading, setSpotifyPaymentLoading] = useState(false);
+const [spotifyPaymentData, setSpotifyPaymentData] = useState(null);
 
   useEffect(() => {
     fetchVenueData();
   }, [venueId]);
+
+  useEffect(() => {
+    if (spotifyMode) {
+      console.log("SPOTIFY MODE FLOW ACTIVE");
+    }
+  }, [spotifyMode]);
 
   const fetchVenueData = async () => {
     try {
@@ -55,6 +72,7 @@ const [acceptedGenres, setAcceptedGenres] = useState([]);
       const venueData = await venueRes.json();
       setVenue(venueData);
       setIsVenueActive(venueData.isActive || false);
+      setSpotifyMode(!!venueData.spotifyMode);
 
       // Keep your current pricing logic here
       const dynamicPrice = venueData.djMode ? 5.99 : 1.69;
@@ -77,6 +95,129 @@ const [acceptedGenres, setAcceptedGenres] = useState([]);
       setError(err.message || "Failed to load venue");
     } finally {
       setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    if (!spotifyMode) return;
+    const q = spotifyQuery.trim();
+    if (q.length < 2) {
+      setSpotifyResults([]);
+      setSpotifySearched(false);
+      setSpotifySearchError("");
+      return;
+    }
+
+    const timer = setTimeout(async () => {
+      setSpotifySearching(true);
+      setSpotifySearchError("");
+      try {
+        const response = await fetch(
+          `${import.meta.env.VITE_API_URL}/jukebox/search?q=${encodeURIComponent(q)}&venueId=${encodeURIComponent(venueId)}`
+        );
+        const data = await response.json();
+        if (!response.ok) {
+          const isSpotifyGateway = response.status === 502;
+          const backendMessage = data?.error;
+          throw new Error(
+            isSpotifyGateway
+              ? `${backendMessage || "Spotify search failed"}. Spotify is temporarily unavailable. Please retry.`
+              : backendMessage || "Search failed. Please try again."
+          );
+        }
+        const tracks = (data.tracks || []).map((t) => ({
+          trackId: t.id,
+          trackName: t.name,
+          artistName: t.artists,
+          albumName: t.album || "",
+          albumArtUrl: t.albumArt || "",
+          spotifyUri: t.uri,
+          durationMs: t.durationMs || 0
+        }));
+        setSpotifyResults(tracks);
+        setSpotifySearched(true);
+      } catch (err) {
+        setSpotifyResults([]);
+        setSpotifySearched(true);
+        setSpotifySearchError(err.message || "Search failed. Please try again.");
+      } finally {
+        setSpotifySearching(false);
+      }
+    }, 250);
+
+    return () => clearTimeout(timer);
+  }, [spotifyMode, spotifyQuery, venueId]);
+
+  const handleSpotifyTrackSelect = async (track) => {
+    if (!spotifyMode || submitting) return;
+
+    setError("");
+    setSpotifyPaymentData(null);
+    setSpotifyPrecheckLoading(true);
+
+    try {
+      const precheckRes = await fetch(`${import.meta.env.VITE_API_URL}/jukebox/precheck-genre`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          venueId,
+          trackName: track.trackName,
+          artistName: track.artistName
+        })
+      });
+      const precheckData = await precheckRes.json();
+
+      if (!precheckRes.ok) {
+        throw new Error(precheckData.error || precheckData.reason || "Genre precheck failed");
+      }
+
+      if (!precheckData.allowed) {
+        setSelectedSpotifyTrack(null);
+        setAcceptedGenres(precheckData.allowedGenres || []);
+        setError(precheckData.reason || "This song doesn't fit tonight's music policy.");
+        return;
+      }
+
+      setSelectedSpotifyTrack(track);
+      setFormData((prev) => ({
+        ...prev,
+        songTitle: track.trackName,
+        artistName: track.artistName
+      }));
+      setSpotifyQuery(`${track.trackName} — ${track.artistName}`);
+      setSpotifyResults([]);
+
+      setSpotifyPaymentLoading(true);
+      console.log("SPOTIFY MODE FLOW ACTIVE");
+      console.log("Calling /api/jukebox/create-payment");
+      const paymentRes = await fetch(`${import.meta.env.VITE_API_URL}/jukebox/create-payment`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          venueId,
+          trackId: track.trackId,
+          trackName: track.trackName,
+          artistName: track.artistName,
+          albumName: track.albumName,
+          albumArtUrl: track.albumArtUrl,
+          spotifyUri: track.spotifyUri,
+          durationMs: track.durationMs,
+          requesterName: formData.userName,
+          requesterEmail: formData.email
+        })
+      });
+      const paymentData = await paymentRes.json();
+      if (!paymentRes.ok) {
+        throw new Error(paymentData.error || "Failed to start payment.");
+      }
+      setSpotifyPaymentData(paymentData);
+    } catch (err) {
+      setSelectedSpotifyTrack(null);
+      setSpotifyPaymentData(null);
+      setError(err.message || "Failed to start payment.");
+    } finally {
+      setSpotifyPrecheckLoading(false);
+      setSpotifyPaymentLoading(false);
     }
   };
 
@@ -146,6 +287,12 @@ const [acceptedGenres, setAcceptedGenres] = useState([]);
   };
 
   const submitRequest = async (selectedPriority = priorityRequest, selectedPrice = formData.price) => {
+  if (spotifyMode) {
+    console.warn("SPOTIFY MODE FLOW ACTIVE");
+    console.warn("Blocked legacy /requests/create in Spotify mode");
+    setError("Spotify mode uses secure Spotify payment flow only. Select a Spotify track above.");
+    return;
+  }
   setSubmitting(true);
   setError("");
   setSuccess(false);
@@ -214,6 +361,8 @@ console.log("✅ Song request created");
   const handleSubmit = async (e) => {
     e.preventDefault();
 
+    if (spotifyMode) return;
+
     if (venue?.djMode) {
       setShowPriorityChoice(true);
       return;
@@ -223,6 +372,12 @@ console.log("✅ Song request created");
   };
 
   const handlePriorityChoice = async (isPriority) => {
+  if (spotifyMode) {
+    console.warn("SPOTIFY MODE FLOW ACTIVE");
+    console.warn("Blocked DJ priority modal route in Spotify mode");
+    setShowPriorityChoice(false);
+    return;
+  }
   setPriorityRequest(isPriority);
   setShowPriorityChoice(false);
 
@@ -262,6 +417,25 @@ console.log("✅ Song request created");
     setTimeout(async () => {
       await fetchVenueData();
     }, 2000);
+  };
+
+  const handleSpotifyPaymentSuccess = () => {
+    setSpotifyPaymentData(null);
+    setSelectedSpotifyTrack(null);
+    setSpotifyResults([]);
+    setSpotifyQuery("");
+    setFormData((prev) => ({
+      ...prev,
+      songTitle: "",
+      artistName: ""
+    }));
+  };
+
+  const handleSpotifyGenreReject = (data) => {
+    setSpotifyPaymentData(null);
+    setSelectedSpotifyTrack(null);
+    setAcceptedGenres(data?.allowedGenres || []);
+    setError(data?.reason || "This song doesn't fit tonight's music policy.");
   };
 
   if (loading) {
@@ -325,6 +499,11 @@ console.log("✅ Song request created");
           <p className="text-sm" style={{ color: "rgba(255,255,255,0.72)" }}>
             Enter your details and we'll handle the rest
           </p>
+          {spotifyMode && (
+            <p className="text-xs mt-2" style={{ color: "#A855F7" }}>
+              Spotify Mode is ON
+            </p>
+          )}
         </div>
 
         <div
@@ -378,63 +557,164 @@ console.log("✅ Song request created");
   )}
 
           <form onSubmit={handleSubmit} className="space-y-4">
-            <div>
-              <label className="block text-xs font-600 mb-2" style={{ color: "rgba(255,255,255,0.72)" }}>
-                Song Title
-              </label>
-              <input
-                type="text"
-                name="songTitle"
-                value={formData.songTitle}
-                onChange={handleChange}
-                required
-                placeholder="Enter song title"
-                className="w-full px-4 py-3 rounded-xl text-white placeholder-gray-500 focus:outline-none transition-all"
-                style={{
-                  background: "rgba(168,85,247,0.1)",
-                  border: "1px solid rgba(255,255,255,0.08)",
-                  color: "#FFFFFF"
-                }}
-                onFocus={(e) => {
-                  e.target.style.borderColor = "#A855F7";
-                  e.target.style.boxShadow = "0 0 20px rgba(168,85,247,0.3)";
-                }}
-                onBlur={(e) => {
-                  e.target.style.borderColor = "rgba(255,255,255,0.08)";
-                  e.target.style.boxShadow = "none";
-                }}
-                disabled={submitting}
-              />
-            </div>
+            {spotifyMode ? (
+              <div className="space-y-3">
+                <div>
+                  <label className="block text-xs font-600 mb-2" style={{ color: "rgba(255,255,255,0.72)" }}>
+                    Search Spotify Song
+                  </label>
+                  <input
+                    type="text"
+                    value={spotifyQuery}
+                    onChange={(e) => setSpotifyQuery(e.target.value)}
+                    placeholder="Type song or artist name"
+                    className="w-full px-4 py-3 rounded-xl text-white placeholder-gray-500 focus:outline-none transition-all"
+                    style={{
+                      background: "rgba(168,85,247,0.1)",
+                      border: "1px solid rgba(255,255,255,0.08)",
+                      color: "#FFFFFF"
+                    }}
+                    disabled={submitting}
+                  />
+                </div>
 
-            <div>
-              <label className="block text-xs font-600 mb-2" style={{ color: "rgba(255,255,255,0.72)" }}>
-                Artist Name
-              </label>
-              <input
-                type="text"
-                name="artistName"
-                value={formData.artistName}
-                onChange={handleChange}
-                required
-                placeholder="Enter artist name"
-                className="w-full px-4 py-3 rounded-xl text-white placeholder-gray-500 focus:outline-none transition-all"
-                style={{
-                  background: "rgba(168,85,247,0.1)",
-                  border: "1px solid rgba(255,255,255,0.08)",
-                  color: "#FFFFFF"
-                }}
-                onFocus={(e) => {
-                  e.target.style.borderColor = "#A855F7";
-                  e.target.style.boxShadow = "0 0 20px rgba(168,85,247,0.3)";
-                }}
-                onBlur={(e) => {
-                  e.target.style.borderColor = "rgba(255,255,255,0.08)";
-                  e.target.style.boxShadow = "none";
-                }}
-                disabled={submitting}
-              />
-            </div>
+                {spotifySearching && (
+                  <p className="text-xs text-purple-300">Searching Spotify...</p>
+                )}
+                {spotifySearchError && (
+                  <div
+                    className="p-3 rounded-xl"
+                    style={{ background: "rgba(239,68,68,0.1)", border: "1px solid rgba(239,68,68,0.2)" }}
+                  >
+                    <p className="text-red-300 text-sm">{spotifySearchError}</p>
+                  </div>
+                )}
+                {spotifyPrecheckLoading && (
+                  <p className="text-xs animate-pulse" style={{ color: "#A855F7" }}>
+                    Checking if this fits the venue...
+                  </p>
+                )}
+                {spotifyPaymentLoading && (
+                  <p className="text-xs animate-pulse" style={{ color: "#A855F7" }}>
+                    Starting secure payment...
+                  </p>
+                )}
+
+                {spotifyResults.length > 0 && (
+                  <div className="max-h-72 overflow-auto rounded-xl border border-white/10 p-2 space-y-2">
+                    {spotifyResults.map((r, idx) => (
+                      <button
+                        key={`${r.trackId || r.trackName}-${idx}`}
+                        type="button"
+                        onClick={() => handleSpotifyTrackSelect(r)}
+                        className={`w-full text-left p-3 rounded-xl transition-colors border ${
+                          selectedSpotifyTrack?.trackId === r.trackId
+                            ? "bg-purple-500/20 border-purple-400/40"
+                            : "hover:bg-white/10 border-transparent"
+                        }`}
+                      >
+                        <div className="flex items-center gap-3">
+                          {r.albumArtUrl ? (
+                            <img src={r.albumArtUrl} alt={r.albumName} className="w-14 h-14 rounded-lg object-cover" />
+                          ) : (
+                            <div className="w-14 h-14 rounded-lg bg-white/10" />
+                          )}
+                          <div className="min-w-0 flex-1">
+                            <p className="text-sm text-white font-semibold truncate">{r.trackName}</p>
+                            <p className="text-xs text-gray-300 truncate">{r.artistName}</p>
+                            <p className="text-xs text-gray-500 truncate">{r.albumName}</p>
+                          </div>
+                        </div>
+                      </button>
+                    ))}
+                  </div>
+                )}
+                {spotifySearched && !spotifySearching && spotifyResults.length === 0 && !spotifySearchError && (
+                  <p className="text-center text-gray-500 py-2 text-sm">No tracks found. Try another search.</p>
+                )}
+
+                {selectedSpotifyTrack && (
+                  <div className="rounded-xl p-3" style={{ background: "rgba(168,85,247,0.12)", border: "1px solid rgba(168,85,247,0.28)" }}>
+                    <p className="text-xs text-gray-400">Selected track</p>
+                    <div className="flex items-center gap-3 mt-1">
+                      {selectedSpotifyTrack.albumArtUrl ? (
+                        <img
+                          src={selectedSpotifyTrack.albumArtUrl}
+                          alt={selectedSpotifyTrack.albumName}
+                          className="w-12 h-12 rounded-lg object-cover"
+                        />
+                      ) : (
+                        <div className="w-12 h-12 rounded-lg bg-white/10" />
+                      )}
+                      <div className="min-w-0">
+                        <p className="text-sm text-white font-semibold truncate">{selectedSpotifyTrack.trackName}</p>
+                        <p className="text-xs text-gray-300 truncate">{selectedSpotifyTrack.artistName}</p>
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </div>
+            ) : (
+              <>
+                <div>
+                  <label className="block text-xs font-600 mb-2" style={{ color: "rgba(255,255,255,0.72)" }}>
+                    Song Title
+                  </label>
+                  <input
+                    type="text"
+                    name="songTitle"
+                    value={formData.songTitle}
+                    onChange={handleChange}
+                    required
+                    placeholder="Enter song title"
+                    className="w-full px-4 py-3 rounded-xl text-white placeholder-gray-500 focus:outline-none transition-all"
+                    style={{
+                      background: "rgba(168,85,247,0.1)",
+                      border: "1px solid rgba(255,255,255,0.08)",
+                      color: "#FFFFFF"
+                    }}
+                    onFocus={(e) => {
+                      e.target.style.borderColor = "#A855F7";
+                      e.target.style.boxShadow = "0 0 20px rgba(168,85,247,0.3)";
+                    }}
+                    onBlur={(e) => {
+                      e.target.style.borderColor = "rgba(255,255,255,0.08)";
+                      e.target.style.boxShadow = "none";
+                    }}
+                    disabled={submitting}
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-600 mb-2" style={{ color: "rgba(255,255,255,0.72)" }}>
+                    Artist Name
+                  </label>
+                  <input
+                    type="text"
+                    name="artistName"
+                    value={formData.artistName}
+                    onChange={handleChange}
+                    required
+                    placeholder="Enter artist name"
+                    className="w-full px-4 py-3 rounded-xl text-white placeholder-gray-500 focus:outline-none transition-all"
+                    style={{
+                      background: "rgba(168,85,247,0.1)",
+                      border: "1px solid rgba(255,255,255,0.08)",
+                      color: "#FFFFFF"
+                    }}
+                    onFocus={(e) => {
+                      e.target.style.borderColor = "#A855F7";
+                      e.target.style.boxShadow = "0 0 20px rgba(168,85,247,0.3)";
+                    }}
+                    onBlur={(e) => {
+                      e.target.style.borderColor = "rgba(255,255,255,0.08)";
+                      e.target.style.boxShadow = "none";
+                    }}
+                    disabled={submitting}
+                  />
+                </div>
+              </>
+            )}
 
             <div>
               <label className="block text-xs font-600 mb-2" style={{ color: "rgba(255,255,255,0.72)" }}>
@@ -644,14 +924,14 @@ console.log("✅ Song request created");
 
             <button
               type="submit"
-              disabled={submitting}
+              disabled={spotifyMode ? true : submitting}
               className="w-full text-white font-bold py-4 rounded-2xl text-lg mt-6 flex items-center justify-center gap-2 transition-all transform hover:scale-105 disabled:opacity-50"
               style={{
                 background: "linear-gradient(135deg, #A855F7 0%, #7C3AED 100%)",
                 boxShadow: "0 8px 50px rgba(168,85,247,0.6)"
               }}
             >
-              {submitting ? "Processing..." : <>Request Song <span>→</span></>}
+              {spotifyMode ? "Select a Spotify track above" : submitting ? "Processing..." : <>Request Song <span>→</span></>}
             </button>
           </form>
 
@@ -677,6 +957,21 @@ console.log("✅ Song request created");
         checkoutSessionId={checkoutSessionId}
         onPaymentSuccess={handlePaymentSuccess}
       />
+
+      {spotifyMode && spotifyPaymentData && selectedSpotifyTrack && (
+        <SpotifyPaymentModal
+          track={selectedSpotifyTrack}
+          clientSecret={spotifyPaymentData.clientSecret}
+          requestId={spotifyPaymentData.requestId}
+          amountPence={spotifyPaymentData.amount}
+          onClose={() => {
+            setSpotifyPaymentData(null);
+            setSelectedSpotifyTrack(null);
+          }}
+          onSuccess={handleSpotifyPaymentSuccess}
+          onGenreReject={handleSpotifyGenreReject}
+        />
+      )}
 
       {showPriorityChoice && (
   <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm px-4">

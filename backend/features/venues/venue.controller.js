@@ -320,6 +320,38 @@ async function toggleVenueStatus(req, res) {
 }
 
 /**
+ * Toggle Spotify mode (independent of DJ/playlist mode)
+ */
+async function toggleSpotifyMode(req, res) {
+  try {
+    const venueId = req.venue.id;
+    const { spotifyMode } = req.body;
+
+    if (typeof spotifyMode !== "boolean") {
+      return res.status(400).json({ error: "spotifyMode must be boolean" });
+    }
+
+    const venue = await Venue.findByIdAndUpdate(
+      venueId,
+      { spotifyMode },
+      { new: true }
+    ).select("-password");
+
+    if (!venue) {
+      return res.status(404).json({ error: "Venue not found" });
+    }
+
+    res.json({
+      message: spotifyMode ? "Spotify mode enabled" : "Spotify mode disabled",
+      spotifyMode: venue.spotifyMode
+    });
+  } catch (err) {
+    console.error("Toggle Spotify Mode Error:", err.message);
+    res.status(500).json({ error: "Internal server error" });
+  }
+}
+
+/**
  * Get all active venues
  */
 async function getActiveVenues(req, res) {
@@ -517,6 +549,7 @@ module.exports = {
   getPublicVenue,
   toggleLivePlaylist,
   toggleVenueStatus,
+  toggleSpotifyMode,
   getActiveVenues,
   setPreferredGenres,
   getPreferredGenres,

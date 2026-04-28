@@ -69,6 +69,7 @@ app.use("/api/stripe", require("./features/payments/stripe")); // webhook route
 app.use("/api/venue", require("./features/venues")); // venue auth routes
 app.use("/api/dj", require("./features/dj")); // DJ mode routes
 app.use("/api/coupons", require("./features/coupons")); // coupon validation routes
+app.use("/api/jukebox", require("./features/jukebox")); // Spotify mode routes
 
 // ================== HEALTH CHECK ENDPOINT ==================
 // This endpoint can be called from frontend to check if backend is running
