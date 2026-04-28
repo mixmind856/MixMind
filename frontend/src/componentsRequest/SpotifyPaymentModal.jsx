@@ -27,7 +27,7 @@ function CheckoutForm({ requestId, amountPence, onSuccess, onError }) {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    if (!stripe || !elements) return;
+    if (!stripe || !elements || processing) return;
     setProcessing(true);
     setErrorMsg("");
 
@@ -38,7 +38,33 @@ function CheckoutForm({ requestId, amountPence, onSuccess, onError }) {
       });
 
       if (error) {
+        const isCanceledIntent =
+          error.code === "payment_intent_unexpected_state" ||
+          String(error.message || "").toLowerCase().includes("paymentintent status is canceled");
+
+        if (isCanceledIntent) {
+          onError({
+            type: "payment_expired",
+            message: "Payment expired, please try again",
+          });
+          return;
+        }
+
         setErrorMsg(error.message || "Payment confirmation failed");
+        setProcessing(false);
+        return;
+      }
+
+      if (!paymentIntent || paymentIntent.status !== "requires_capture") {
+        const isCanceledIntent = paymentIntent?.status === "canceled";
+        if (isCanceledIntent) {
+          onError({
+            type: "payment_expired",
+            message: "Payment expired, please try again",
+          });
+          return;
+        }
+        setErrorMsg("Payment not authorised. Please try again.");
         setProcessing(false);
         return;
       }
@@ -119,6 +145,7 @@ export default function SpotifyPaymentModal({
   onClose,
   onSuccess,
   onGenreReject,
+  onPaymentExpired,
 }) {
   if (!clientSecret) return null;
 
@@ -177,6 +204,7 @@ export default function SpotifyPaymentModal({
               onSuccess={onSuccess}
               onError={(errData) => {
                 if (errData.type === "genre") onGenreReject(errData);
+                if (errData.type === "payment_expired") onPaymentExpired?.(errData);
               }}
             />
           </Elements>
