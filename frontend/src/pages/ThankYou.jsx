@@ -12,7 +12,7 @@ export default function ThankYou() {
   const [userEmail, setUserEmail] = useState("");
   const [userLevel, setUserLevel] = useState(1);
   const [levelProgress, setLevelProgress] = useState(0);
-  const [animatedProgress, setAnimatedProgress] = useState(0);
+  const [progressFill, setProgressFill] = useState(0);
   const [totalRequests, setTotalRequests] = useState(0);
   const [showTooltip, setShowTooltip] = useState(false);
 
@@ -165,23 +165,10 @@ for (let i = 0; i < confettiCount; i++) {
   }, [loading]);
 
   useEffect(() => {
-    setAnimatedProgress(0);
-    let frameOne;
-    let frameTwo;
-    const timer = setTimeout(() => {
-      frameOne = requestAnimationFrame(() => {
-        frameTwo = requestAnimationFrame(() => {
-          setAnimatedProgress(levelProgress);
-        });
-      });
-    }, 120);
-
-    return () => {
-      clearTimeout(timer);
-      if (frameOne) cancelAnimationFrame(frameOne);
-      if (frameTwo) cancelAnimationFrame(frameTwo);
-    };
-  }, [levelProgress]);
+    setProgressFill(0);
+    const t = setTimeout(() => setProgressFill(100), 300);
+    return () => clearTimeout(t);
+  }, []);
 
   if (loading) {
     return (
@@ -801,7 +788,7 @@ for (let i = 0; i < confettiCount; i++) {
   className="h-full"
   style={{
     background: 'linear-gradient(90deg, #A855F7 0%, #C084FC 45%, #22E3A1 100%)',
-    width: `${animatedProgress}%`,
+    width: `${(levelProgress * progressFill) / 100}%`,
     transition: 'width 1.2s cubic-bezier(0.34,1.56,0.64,1)',
     boxShadow: '0 0 16px rgba(168,85,247,0.45), 0 0 22px rgba(34,227,161,0.25)'
   }}
