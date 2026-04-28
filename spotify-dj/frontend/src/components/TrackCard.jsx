@@ -16,10 +16,10 @@ export default function TrackCard({ track, onSelect, selected }) {
       initial={{ opacity: 0, y: 10 }}
       animate={{ opacity: 1, y: 0 }}
       onClick={() => onSelect(track)}
-      className={`flex items-center gap-3 p-3 rounded-xl cursor-pointer transition-colors
+      className={`flex items-center gap-3 p-3 rounded-xl cursor-pointer transition-all
         ${selected
-          ? 'bg-brand-purple/20 border border-brand-purple/50'
-          : 'hover:bg-brand-card/70'
+          ? 'bg-brand-purple/20 border border-brand-purple/50 shadow-[0_0_20px_rgba(168,85,247,0.25)]'
+          : 'hover:bg-brand-card/70 border border-transparent'
         }`}
     >
       {/* Album art */}

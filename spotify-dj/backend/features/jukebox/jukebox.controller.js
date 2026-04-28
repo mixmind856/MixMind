@@ -178,6 +178,43 @@ async function createPayment(req, res) {
   }
 }
 
+/**
+ * POST /api/jukebox/precheck-genre
+ * Body: { venueSlug, trackName, artistName }
+ */
+async function precheckGenre(req, res) {
+  const { venueSlug, trackName, artistName } = req.body;
+  if (!venueSlug || !trackName || !artistName) {
+    return res.status(400).json({ error: 'venueSlug, trackName, artistName required' });
+  }
+
+  const venue = await VenueConfig.findOne({ slug: venueSlug, active: true }, 'allowedGenres');
+  if (!venue) return res.status(404).json({ error: 'Venue not found or inactive' });
+
+  try {
+    const { match, detected } = await evaluateTrack(
+      artistName,
+      trackName,
+      venue.allowedGenres || []
+    );
+
+    return res.json({
+      allowed: !!match,
+      detectedGenres: detected || [],
+      allowedGenres: venue.allowedGenres || [],
+      reason: match
+        ? ''
+        : `This song doesn't fit tonight's music policy — try another track.`,
+    });
+  } catch (err) {
+    console.error('[precheck-genre]', err.message);
+    return res.status(500).json({
+      error: 'Genre precheck failed',
+      reason: 'Could not validate this track right now. Please try again.',
+    });
+  }
+}
+
 // ─────────────────────────────────────────────────────────────
 // Payment: confirm → genre check → capture or cancel
 // ─────────────────────────────────────────────────────────────
@@ -312,7 +349,7 @@ async function getRequestStatus(req, res) {
   if (!jukeboxReq) return res.status(404).json({ error: 'Request not found' });
 
   let queuePosition = null;
-  if (['queued', 'genre_approved'].includes(jukeboxReq.status)) {
+  if (jukeboxReq.status === 'queued') {
     try {
       queuePosition = await JukeboxRequest.countDocuments({
         venueId: jukeboxReq.venueId?._id || jukeboxReq.venueId,
@@ -401,6 +438,7 @@ module.exports = {
   searchTracks,
   getVenueInfo,
   createPayment,
+  precheckGenre,
   confirmAndProcess,
   getRequestStatus,
   registerVenue,

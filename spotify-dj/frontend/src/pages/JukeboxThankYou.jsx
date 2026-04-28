@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import { CheckCircle2, AlertTriangle, XCircle, Music2, Zap } from 'lucide-react';
+import { CheckCircle2, AlertTriangle, XCircle, Music2, Zap, Award, Flame } from 'lucide-react';
 import { getRequestStatus } from '../services/api';
 
 const SAFE_ALBUM =
@@ -53,7 +53,6 @@ export default function JukeboxThankYou() {
   const trackName = statusData?.trackName || 'Song requested';
   const artist = statusData?.artistName || 'Unknown';
   const albumArt = statusData?.albumArtUrl || SAFE_ALBUM;
-  const queuePosition = statusData?.queuePosition;
 
   const statusUi = useMemo(() => {
     if (error) {
@@ -87,7 +86,7 @@ export default function JukeboxThankYou() {
       icon: <CheckCircle2 size={24} className="text-brand-mint" />,
       chipClass: 'bg-brand-mint/10 border-brand-mint/25 text-brand-mint',
       title: 'Your song is in the queue',
-      message: 'Your request is in the queue and will play soon.',
+      message: 'The venue player has accepted your request.',
     };
   }, [error, status]);
 
@@ -97,8 +96,32 @@ export default function JukeboxThankYou() {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-b from-brand-black via-brand-dark to-brand-dark px-4 py-10">
-      <div className="max-w-lg mx-auto space-y-6 relative">
+    <div className="overflow-auto w-full min-h-screen" style={{ background: '#07070B' }}>
+      <style>{`
+        @keyframes burst {
+          0% { transform: translate(0, 0) scale(1) rotate(0deg); opacity: 1; }
+          20% { opacity: 1; }
+          100% { transform: translate(var(--tx), var(--ty)) rotate(720deg) scale(0.4); opacity: 0; }
+        }
+        @keyframes slideUpCelebration {
+          from { opacity: 0; transform: translateY(60px); }
+          to { opacity: 1; transform: translateY(0); }
+        }
+        @keyframes victory-bounce {
+          0%, 100% { transform: translateY(0) scale(1); }
+          25% { transform: translateY(-20px) scale(1.05); }
+          50% { transform: translateY(-40px) scale(1.1); }
+          75% { transform: translateY(-20px) scale(1.05); }
+        }
+        .celebration-slide {
+          animation: slideUpCelebration 0.8s cubic-bezier(0.34,1.56,0.64,1) forwards;
+          opacity: 0;
+        }
+        .victory-bounce {
+          animation: victory-bounce 1.2s cubic-bezier(0.34,1.56,0.64,1);
+        }
+      `}</style>
+      <div className="max-w-md mx-auto px-6 py-16 space-y-6 relative">
         {confetti && (
           <div className="pointer-events-none absolute inset-0 overflow-hidden">
             {[...Array(28)].map((_, i) => (
@@ -116,21 +139,57 @@ export default function JukeboxThankYou() {
           </div>
         )}
 
-        <div className="card glass-card p-6 relative overflow-hidden">
-          <div className="absolute -top-10 -right-10 w-36 h-36 rounded-full bg-brand-purple/15 blur-3xl" />
-          <div className="flex items-start justify-between gap-4 relative">
-            <div>
-              <p className="text-xs uppercase tracking-wider text-gray-500">MixMind Jukebox</p>
-              <h1 className="text-3xl font-bold mt-1">You&apos;re in the queue</h1>
-              <p className="text-sm text-gray-400 mt-1">Your song has been successfully requested</p>
-            </div>
-            <div className="w-11 h-11 rounded-full bg-gradient-to-r from-brand-purple to-brand-violet flex items-center justify-center shadow-[0_0_18px_rgba(168,85,247,0.45)]">
-              <Music2 size={18} className="text-white" />
+        <div>
+          <div
+            className="w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-6"
+            style={{
+              background: 'linear-gradient(135deg, rgba(34,227,161,0.3), rgba(34,227,161,0.1))',
+              boxShadow: '0 0 60px rgba(34,227,161,0.5)',
+            }}
+          >
+            <div
+              className="inline-flex items-center justify-center rounded-lg"
+              style={{ background: 'linear-gradient(135deg, #A855F7, #7C3AED)' }}
+            >
+              <Music2 size={36} className="text-white" />
             </div>
           </div>
         </div>
 
-        <div className="card glass-card p-6 space-y-5">
+        <div className="text-center mb-2 celebration-slide" style={{ animationDelay: '0s' }}>
+          <h1 className="text-3xl font-bold mb-2" style={{ color: '#FFFFFF', fontFamily: 'Space Grotesk, sans-serif' }}>
+            Your song is in the queue
+          </h1>
+          <p className="text-sm" style={{ color: 'rgba(255,255,255,0.72)' }}>
+            The venue player has accepted your request
+          </p>
+        </div>
+
+        <div className="space-y-2 mb-6 celebration-slide" style={{ animationDelay: '0.2s' }}>
+          <div
+            className="flex items-center gap-3 p-3 rounded-xl"
+            style={{
+              background: 'rgba(34,227,161,0.1)',
+              border: '1px solid rgba(34,227,161,0.35)',
+              boxShadow: '0 0 20px rgba(34,227,161,0.25)',
+            }}
+          >
+            <Zap size={18} style={{ color: '#22E3A1' }} />
+            <span className="text-xs font-600" style={{ color: '#22E3A1' }}>
+              Queued successfully
+            </span>
+          </div>
+          <div className="flex items-center gap-3 p-3 rounded-xl" style={{ background: 'rgba(168,85,247,0.08)', border: '1px solid rgba(168,85,247,0.2)' }}>
+            <Award size={18} style={{ color: '#A855F7' }} />
+            <span className="text-xs font-600" style={{ color: '#A855F7' }}>Spotify queue accepted</span>
+          </div>
+          <div className="flex items-center gap-3 p-3 rounded-xl" style={{ background: 'rgba(34,227,161,0.08)', border: '1px solid rgba(34,227,161,0.2)' }}>
+            <Flame size={18} style={{ color: '#22E3A1' }} />
+            <span className="text-xs font-600" style={{ color: '#22E3A1' }}>You&apos;re all set</span>
+          </div>
+        </div>
+
+        <div className="card glass-card p-6 space-y-5 celebration-slide" style={{ animationDelay: '0.3s' }}>
           {loading ? (
             <div className="flex items-center gap-3 text-gray-400">
               <div className="w-5 h-5 border-2 border-brand-purple border-t-transparent rounded-full animate-spin" />
@@ -148,16 +207,6 @@ export default function JukeboxThankYou() {
                 <p className="text-sm text-gray-400 mt-1">{statusUi.message}</p>
               </div>
 
-              <div className="rounded-xl border border-brand-mint/30 bg-brand-mint/10 p-3 flex items-center justify-between">
-                <div>
-                  <p className="text-xs text-brand-mint uppercase tracking-wide">Queue position</p>
-                  <p className="text-lg font-bold text-brand-mint">
-                    {queuePosition ? `#${queuePosition}` : 'Pending update'}
-                  </p>
-                </div>
-                <Zap size={18} className="text-brand-mint" />
-              </div>
-
               <div className="flex items-center gap-4 rounded-2xl border border-brand-border bg-brand-black/40 p-3">
                 <img
                   src={albumArt}
@@ -169,16 +218,11 @@ export default function JukeboxThankYou() {
                   className="w-16 h-16 rounded-xl object-cover bg-brand-card/60"
                 />
                 <div className="min-w-0">
+                  <p className="text-xs text-gray-500">Song Title</p>
                   <p className="font-semibold truncate">{trackName}</p>
+                  <p className="text-xs text-gray-500 mt-1">Artist Name</p>
                   <p className="text-sm text-gray-400 truncate">{artist}</p>
                 </div>
-              </div>
-
-              <div className="rounded-xl border border-brand-purple/25 bg-brand-purple/10 p-3">
-                <p className="text-xs text-brand-purple uppercase tracking-wide mb-2">Spotify status</p>
-                <select className="input py-2 text-sm" value={status} readOnly>
-                  <option value={status}>{status.replace('_', ' ')}</option>
-                </select>
               </div>
 
               <div className="flex items-end gap-1 h-8">
@@ -196,7 +240,17 @@ export default function JukeboxThankYou() {
           <button type="button" onClick={handleAnother} className="btn-primary w-full">
             Request another song
           </button>
+
+          <div className="pt-5 text-center border-t border-white/10 celebration-slide" style={{ animationDelay: '0.8s' }}>
+            <p className="text-xs text-gray-400 mb-2">Need help?</p>
+            <a href="mailto:admin@mixmind.co.uk" className="text-sm text-brand-purple hover:opacity-90">
+              admin@mixmind.co.uk
+            </a>
+          </div>
         </div>
+      </div>
+      <div className="px-6 py-6 text-center" style={{ borderTop: '1px solid rgba(255,255,255,0.1)' }}>
+        <p className="text-xs" style={{ color: 'rgba(255,255,255,0.4)' }}>© 2025 Your Company. All rights reserved.</p>
       </div>
     </div>
   );

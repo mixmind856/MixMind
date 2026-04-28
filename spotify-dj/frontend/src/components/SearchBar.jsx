@@ -20,8 +20,12 @@ export default function SearchBar({ onSearch, loading }) {
   };
 
   return (
-    <form onSubmit={handleSubmit} className="relative flex items-center gap-2">
-      <div className="relative flex-1">
+    <form onSubmit={handleSubmit} className="space-y-2">
+      <label className="block text-xs font-600 mb-2" style={{ color: 'rgba(255,255,255,0.72)' }}>
+        Find a song on Spotify
+      </label>
+      <div className="relative flex items-center gap-2">
+        <div className="relative flex-1">
         <Search
           size={18}
           className="absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none"
@@ -33,7 +37,12 @@ export default function SearchBar({ onSearch, loading }) {
           value={query}
           onChange={(e) => setQuery(e.target.value)}
           placeholder="Search for a song or artist…"
-          className="input pl-10 pr-10"
+          className="w-full px-4 py-3 pl-10 pr-10 rounded-xl text-white placeholder-gray-500 focus:outline-none transition-all"
+          style={{
+            background: 'rgba(168,85,247,0.1)',
+            border: '1px solid rgba(255,255,255,0.08)',
+            color: '#FFFFFF',
+          }}
           autoComplete="off"
           spellCheck="false"
         />
@@ -46,14 +55,21 @@ export default function SearchBar({ onSearch, loading }) {
             <X size={16} />
           </button>
         )}
+        </div>
+        <button
+          type="submit"
+          disabled={loading || query.trim().length < 2}
+          className="px-4 py-3 rounded-xl font-medium transition-all text-white"
+          style={{
+            background: loading || query.trim().length < 2
+              ? 'rgba(168,85,247,0.3)'
+              : 'linear-gradient(135deg, #A855F7 0%, #7C3AED 100%)',
+            opacity: loading || query.trim().length < 2 ? 0.6 : 1,
+          }}
+        >
+          {loading ? 'Searching…' : 'Search'}
+        </button>
       </div>
-      <button
-        type="submit"
-        disabled={loading || query.trim().length < 2}
-        className="btn-primary whitespace-nowrap"
-      >
-        {loading ? 'Searching…' : 'Search'}
-      </button>
     </form>
   );
 }

@@ -14,6 +14,7 @@ router.get('/search', ctrl.searchTracks);
 router.get('/venue/:slug', ctrl.getVenueInfo);
 
 // ── Payment flow ───────────────────────────────────────────
+router.post('/precheck-genre', ctrl.precheckGenre);
 router.post('/create-payment', ctrl.createPayment);
 router.post('/confirm', ctrl.confirmAndProcess);
 

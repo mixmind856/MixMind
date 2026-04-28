@@ -71,8 +71,10 @@ export default function StatusModal({ state, track, data, onClose, onRetry }) {
               </motion.div>
               <h2 className="text-2xl font-bold mb-2">Genre Not Allowed</h2>
               <p className="text-gray-400 mb-4 text-sm">
-                This song didn't match the venue's playlist genres.
-                <strong className="text-white block mt-1"> Your payment has been automatically refunded.</strong>
+                This song doesn&apos;t fit tonight&apos;s music policy.
+                <strong className="text-white block mt-1">
+                  {data?.precheck ? ' No payment was started for this track.' : ' Your payment has been automatically refunded.'}
+                </strong>
               </p>
 
               <div className="bg-brand-black/50 rounded-xl p-3 mb-5 text-left text-sm space-y-2">
