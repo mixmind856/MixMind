@@ -28,10 +28,10 @@ export default function VenueLogin() {
 
   return (
     <div className="min-h-screen flex items-center justify-center px-4">
-      <div className="card w-full max-w-sm space-y-6">
+      <div className="card glass-card w-full max-w-sm space-y-6">
         <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-full bg-brand-green flex items-center justify-center">
-            <Music2 size={18} className="text-black" />
+          <div className="w-10 h-10 rounded-full bg-gradient-to-r from-brand-purple to-brand-violet flex items-center justify-center shadow-[0_0_18px_rgba(168,85,247,0.45)]">
+            <Music2 size={18} className="text-white" />
           </div>
           <div>
             <h1 className="font-bold text-lg leading-none">Spotify DJ</h1>
@@ -72,7 +72,7 @@ export default function VenueLogin() {
 
         <p className="text-xs text-gray-600 text-center">
           New venue?{' '}
-          <a href="/venue-setup" className="text-brand-green hover:underline">
+          <a href="/venue-setup" className="text-brand-purple hover:underline">
             Register here
           </a>
         </p>

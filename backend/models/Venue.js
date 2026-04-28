@@ -26,6 +26,11 @@ const VenueSchema = new Schema(
     // DJ Mode
     djMode: { type: Boolean, default: false },
     djPassword: { type: String },
+    spotifyMode: { type: Boolean, default: false },
+    spotifyConnected: { type: Boolean, default: false },
+    spotifyAccessToken: { type: String },
+    spotifyRefreshToken: { type: String },
+    spotifyTokenExpiresAt: { type: Date },
     
     // Genre Management System
     preferredGenres: {

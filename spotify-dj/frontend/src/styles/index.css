@@ -1,3 +1,5 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Space+Grotesk:wght@500;600;700&display=swap');
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
@@ -5,6 +7,10 @@
 @layer base {
   body {
     @apply bg-brand-dark text-white font-sans;
+  }
+
+  h1, h2, h3, h4, h5, h6 {
+    @apply font-heading;
   }
 
   ::-webkit-scrollbar {
@@ -20,8 +26,9 @@
 
 @layer components {
   .btn-primary {
-    @apply bg-brand-green text-black font-semibold rounded-full px-6 py-2.5
-           hover:scale-105 active:scale-95 transition-transform duration-150 disabled:opacity-50 disabled:cursor-not-allowed;
+    @apply bg-gradient-to-r from-brand-purple to-brand-violet text-white font-semibold rounded-2xl px-6 py-2.5
+           hover:scale-105 active:scale-95 transition-all duration-150 disabled:opacity-50 disabled:cursor-not-allowed
+           shadow-[0_0_24px_rgba(168,85,247,0.45)] hover:shadow-[0_0_34px_rgba(168,85,247,0.55)];
   }
 
   .btn-secondary {
@@ -30,11 +37,26 @@
   }
 
   .card {
-    @apply bg-brand-card rounded-2xl p-5;
+    @apply rounded-2xl p-5 border border-brand-border backdrop-blur-[24px]
+           bg-[linear-gradient(135deg,rgba(18,18,34,0.92),rgba(18,18,34,0.55))];
   }
 
   .input {
-    @apply bg-brand-card border border-brand-hover rounded-xl px-4 py-3 text-white
-           placeholder-gray-500 focus:outline-none focus:border-brand-green transition-colors w-full;
+    @apply bg-brand-card/70 border border-brand-border rounded-xl px-4 py-3 text-white
+           placeholder-gray-500 focus:outline-none focus:border-brand-purple transition-all w-full
+           focus:shadow-[0_0_0_3px_rgba(168,85,247,0.28)];
+  }
+
+  .glass-card {
+    @apply rounded-2xl border border-brand-border backdrop-blur-[24px]
+           bg-[linear-gradient(135deg,rgba(18,18,34,0.92),rgba(18,18,34,0.55))];
+  }
+
+  .tag-purple {
+    @apply inline-flex items-center rounded-full border border-brand-purple/40 bg-brand-purple/15 text-brand-purple text-xs px-3 py-1 capitalize;
+  }
+
+  .tag-mint {
+    @apply inline-flex items-center rounded-full border border-brand-mint/40 bg-brand-mint/10 text-brand-mint text-xs px-3 py-1 capitalize;
   }
 }

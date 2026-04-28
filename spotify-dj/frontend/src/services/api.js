@@ -19,6 +19,7 @@ export const searchTracks = (q, venueSlug) =>
   api.get(`${API_PREFIX}/search`, { params: { q, venueSlug } });
 
 export const createPayment = (body) => api.post(`${API_PREFIX}/create-payment`, body);
+export const precheckGenre = (body) => api.post(`${API_PREFIX}/precheck-genre`, body);
 
 export const confirmPayment = (body) => api.post(`${API_PREFIX}/confirm`, body);
 

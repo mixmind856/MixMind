@@ -9,6 +9,7 @@ const {
   getPublicVenue,
   toggleLivePlaylist,
   toggleVenueStatus,
+  toggleSpotifyMode,
   getActiveVenues,
   setPreferredGenres,
   getPreferredGenres,
@@ -29,6 +30,7 @@ router.get("/profile", verifyVenueToken, getVenueProfile);
 router.put("/profile", verifyVenueToken, updateVenueProfile);
 router.post("/toggle-live-playlist", verifyVenueToken, toggleLivePlaylist);
 router.post("/toggle-status", verifyVenueToken, toggleVenueStatus);
+router.put("/spotify-mode", verifyVenueToken, toggleSpotifyMode);
 
 // Genre management routes
 router.post("/genres/set", verifyVenueToken, setPreferredGenres);

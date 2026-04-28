@@ -15,7 +15,7 @@ const stripePromise = loadStripe(import.meta.env.VITE_STRIPE_PUBLISHABLE_KEY || 
 const STRIPE_APPEARANCE = {
   theme: 'night',
   variables: {
-    colorPrimary: '#1DB954',
+    colorPrimary: '#A855F7',
     colorBackground: '#282828',
     colorText: '#ffffff',
     colorDanger: '#ef4444',
@@ -27,6 +27,8 @@ const STRIPE_APPEARANCE = {
 // ── Inner form (must be inside <Elements>) ──────────────────
 
 function CheckoutForm({ requestId, track, amountPence, onSuccess, onError }) {
+  const safeAmountPence = amountPence || 169;
+
   const stripe = useStripe();
   const elements = useElements();
   const [processing, setProcessing] = useState(false);
@@ -73,11 +75,11 @@ function CheckoutForm({ requestId, track, amountPence, onSuccess, onError }) {
   return (
     <form onSubmit={handleSubmit} className="space-y-5">
       {/* Pre-auth notice */}
-      <div className="flex items-start gap-2 text-xs text-gray-400 bg-brand-black/50 rounded-xl p-3">
-        <ShieldCheck size={14} className="text-brand-green flex-shrink-0 mt-0.5" />
+      <div className="flex items-start gap-2 text-xs text-gray-300 bg-brand-mint/10 border border-brand-mint/25 rounded-xl p-3">
+        <ShieldCheck size={14} className="text-brand-mint flex-shrink-0 mt-0.5" />
         <span>
           Your card will be pre-authorised for{' '}
-          <strong className="text-white">£{(amountPence / 100).toFixed(2)}</strong>.
+          <strong className="text-white">£{(safeAmountPence / 100).toFixed(2)}</strong>.
           Payment is only charged if the song genre matches the venue's playlist.
           Otherwise your hold is automatically released — no charge.
         </span>
@@ -97,7 +99,7 @@ function CheckoutForm({ requestId, track, amountPence, onSuccess, onError }) {
         disabled={!stripe || processing}
         className="btn-primary w-full text-center"
       >
-        {processing ? 'Processing…' : `Authorise £${(amountPence / 100).toFixed(2)}`}
+        {processing ? 'Processing…' : `Authorise £${(safeAmountPence / 100).toFixed(2)}`}
       </button>
     </form>
   );
@@ -124,7 +126,7 @@ export default function PaymentModal({ track, clientSecret, requestId, amountPen
           animate={{ y: 0, opacity: 1 }}
           exit={{ y: 80, opacity: 0 }}
           transition={{ type: 'spring', stiffness: 300, damping: 30 }}
-          className="card w-full max-w-md relative"
+          className="card glass-card w-full max-w-md relative"
           onClick={(e) => e.stopPropagation()}
         >
           {/* Close */}
@@ -140,7 +142,7 @@ export default function PaymentModal({ track, clientSecret, requestId, amountPen
             {track.albumArt ? (
               <img src={track.albumArt} alt={track.album} className="w-12 h-12 rounded-lg" />
             ) : (
-              <div className="w-12 h-12 rounded-lg bg-brand-hover flex items-center justify-center">
+              <div className="w-12 h-12 rounded-lg bg-brand-card/70 flex items-center justify-center">
                 <Music size={16} className="text-gray-500" />
               </div>
             )}
