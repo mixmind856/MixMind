@@ -4,6 +4,7 @@ const spotifyService = require("../../services/spotifyJukebox.service");
 const stripeService = require("../../services/stripeJukebox.service");
 const { getTrackGenreTags } = require("../../services/lastfmGenreService");
 const { mapVenueGenresToTags, normalizeTag } = require("./genreMap");
+const mongoose = require("mongoose");
 
 async function spotifyLogin(req, res) {
   const { venueId, returnTo } = req.query;
@@ -309,6 +310,58 @@ async function confirmAndProcess(req, res) {
   }
 }
 
+async function getJukeboxStats(req, res) {
+  try {
+    const { venueId } = req.query;
+    const filter = {};
+
+    if (venueId) {
+      if (!mongoose.Types.ObjectId.isValid(venueId)) {
+        return res.status(400).json({ error: "Invalid venueId" });
+      }
+      filter.venueId = venueId;
+    }
+
+    const pendingStatuses = ["pending_payment", "paid_pending_genre"];
+    const acceptedStatuses = ["genre_approved", "queued"];
+    const rejectedStatuses = ["genre_rejected", "failed"];
+    const completedStatuses = ["queued"];
+
+    const [
+      totalRequests,
+      acceptedRequests,
+      rejectedRequests,
+      pendingRequests,
+      completedRequests,
+      revenueAgg,
+    ] = await Promise.all([
+      JukeboxRequest.countDocuments(filter),
+      JukeboxRequest.countDocuments({ ...filter, status: { $in: acceptedStatuses } }),
+      JukeboxRequest.countDocuments({ ...filter, status: { $in: rejectedStatuses } }),
+      JukeboxRequest.countDocuments({ ...filter, status: { $in: pendingStatuses } }),
+      JukeboxRequest.countDocuments({ ...filter, status: { $in: completedStatuses } }),
+      JukeboxRequest.aggregate([
+        { $match: { ...filter, status: { $in: ["queued", "genre_approved"] } } },
+        { $group: { _id: null, totalPence: { $sum: "$amountPence" } } },
+      ]),
+    ]);
+
+    const totalPence = revenueAgg?.[0]?.totalPence || 0;
+    const totalRevenue = Number((totalPence / 100).toFixed(2));
+
+    return res.json({
+      totalRequests,
+      acceptedRequests,
+      rejectedRequests,
+      pendingRequests,
+      completedRequests,
+      totalRevenue,
+    });
+  } catch (err) {
+    return res.status(500).json({ error: "Failed to load jukebox stats" });
+  }
+}
+
 module.exports = {
   spotifyLogin,
   spotifyCallback,
@@ -316,4 +369,5 @@ module.exports = {
   precheckGenre,
   createPayment,
   confirmAndProcess,
+  getJukeboxStats,
 };

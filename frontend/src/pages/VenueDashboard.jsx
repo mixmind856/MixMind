@@ -63,6 +63,15 @@ export default function VenueDashboard() {
     rejected: 0,
     revenue: 0
   });
+  const [jukeboxStats, setJukeboxStats] = useState({
+    totalRequests: 0,
+    acceptedRequests: 0,
+    rejectedRequests: 0,
+    pendingRequests: 0,
+    completedRequests: 0,
+    totalRevenue: 0
+  });
+  const [jukeboxStatsError, setJukeboxStatsError] = useState("");
   const [refreshing, setRefreshing] = useState(false);
 
   useEffect(() => {
@@ -131,6 +140,37 @@ export default function VenueDashboard() {
       setDJMode(venueData.djMode || false);
       setSpotifyMode(venueData.spotifyMode || false);
       setSpotifyConnected(!!venueData.spotifyConnected);
+
+      try {
+        const jukeboxStatsRes = await fetch(
+          `${import.meta.env.VITE_API_URL}/jukebox/stats?venueId=${venueData._id}`
+        );
+
+        if (!jukeboxStatsRes.ok) {
+          throw new Error("Unable to load jukebox stats");
+        }
+
+        const jukeboxData = await jukeboxStatsRes.json();
+        setJukeboxStats({
+          totalRequests: Number(jukeboxData.totalRequests || 0),
+          acceptedRequests: Number(jukeboxData.acceptedRequests || 0),
+          rejectedRequests: Number(jukeboxData.rejectedRequests || 0),
+          pendingRequests: Number(jukeboxData.pendingRequests || 0),
+          completedRequests: Number(jukeboxData.completedRequests || 0),
+          totalRevenue: Number(jukeboxData.totalRevenue || 0)
+        });
+        setJukeboxStatsError("");
+      } catch (_) {
+        setJukeboxStats({
+          totalRequests: 0,
+          acceptedRequests: 0,
+          rejectedRequests: 0,
+          pendingRequests: 0,
+          completedRequests: 0,
+          totalRevenue: 0
+        });
+        setJukeboxStatsError("Unable to load jukebox stats");
+      }
 
       // Fetch venue requests
       const requestsRes = await fetch(
@@ -981,6 +1021,42 @@ export default function VenueDashboard() {
             </div>
           </div>
           <p className="text-xs text-gray-500 mt-4">💡 Auto-refreshes every 10 seconds</p>
+        </div>
+
+        {/* Spotify/Jukebox Stats */}
+        <div className="mb-12">
+          <div className="bg-white/5 backdrop-blur-md border border-violet-500/30 rounded-xl p-8">
+            <h2 className="text-2xl font-bold mb-4">Spotify/Jukebox Stats</h2>
+            {jukeboxStatsError && (
+              <p className="text-sm text-amber-300 mb-4">{jukeboxStatsError}</p>
+            )}
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+              <div className="bg-black/20 border border-purple-500/20 rounded-lg p-4">
+                <p className="text-gray-400 text-sm">Total song requests</p>
+                <p className="text-2xl font-bold text-purple-300">{jukeboxStats.totalRequests}</p>
+              </div>
+              <div className="bg-black/20 border border-green-500/20 rounded-lg p-4">
+                <p className="text-gray-400 text-sm">Accepted</p>
+                <p className="text-2xl font-bold text-green-300">{jukeboxStats.acceptedRequests}</p>
+              </div>
+              <div className="bg-black/20 border border-red-500/20 rounded-lg p-4">
+                <p className="text-gray-400 text-sm">Rejected</p>
+                <p className="text-2xl font-bold text-red-300">{jukeboxStats.rejectedRequests}</p>
+              </div>
+              <div className="bg-black/20 border border-yellow-500/20 rounded-lg p-4">
+                <p className="text-gray-400 text-sm">Pending</p>
+                <p className="text-2xl font-bold text-yellow-300">{jukeboxStats.pendingRequests}</p>
+              </div>
+              <div className="bg-black/20 border border-blue-500/20 rounded-lg p-4">
+                <p className="text-gray-400 text-sm">Completed</p>
+                <p className="text-2xl font-bold text-blue-300">{jukeboxStats.completedRequests}</p>
+              </div>
+              <div className="bg-black/20 border border-emerald-500/20 rounded-lg p-4">
+                <p className="text-gray-400 text-sm">Total revenue</p>
+                <p className="text-2xl font-bold text-emerald-300">£{jukeboxStats.totalRevenue.toFixed(2)}</p>
+              </div>
+            </div>
+          </div>
         </div>
 
         {/* Venue Info */}

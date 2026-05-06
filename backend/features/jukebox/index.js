@@ -4,6 +4,7 @@ const ctrl = require("./jukebox.controller");
 
 router.get("/spotify/login", ctrl.spotifyLogin);
 router.get("/spotify/callback", ctrl.spotifyCallback);
+router.get("/stats", ctrl.getJukeboxStats);
 router.get("/search", ctrl.searchTracks);
 router.post("/precheck-genre", ctrl.precheckGenre);
 router.post("/create-payment", ctrl.createPayment);
