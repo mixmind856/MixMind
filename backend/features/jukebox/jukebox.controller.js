@@ -341,7 +341,16 @@ async function getJukeboxStats(req, res) {
       JukeboxRequest.countDocuments({ ...filter, status: { $in: pendingStatuses } }),
       JukeboxRequest.countDocuments({ ...filter, status: { $in: completedStatuses } }),
       JukeboxRequest.aggregate([
-        { $match: { ...filter, status: { $in: ["queued", "genre_approved"] } } },
+        {
+          $match: {
+            ...filter,
+            $or: [
+              { paymentStatus: "succeeded" },
+              { status: "queued" },
+              { status: "genre_approved", paymentStatus: "succeeded" },
+            ],
+          },
+        },
         { $group: { _id: null, totalPence: { $sum: "$amountPence" } } },
       ]),
     ]);

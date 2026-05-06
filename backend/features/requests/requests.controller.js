@@ -107,7 +107,7 @@ let couponDiscountAmount = 0;
 
 if (venueId && venue) {
   if (djModeEnabled) {
-    finalPrice = isPriority ? 8.99 : 5.99;
+    finalPrice = isPriority ? 5.99 : 3.0;
   } else {
     finalPrice = isPriority ? 2.99 : 1.69;
   }
