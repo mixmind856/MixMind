@@ -193,7 +193,10 @@ export default function VenueDashboard() {
         const pending = requestsData.filter(r => PENDING_STATUSES.includes(r.status)).length;
         const completed = requestsData.filter(r => COMPLETED_STATUSES.includes(r.status)).length;
         const rejected = requestsData.filter(r => REJECTED_STATUSES.includes(r.status)).length;
-        const revenue = requestsData.reduce((sum, r) => sum + (r.price || 0), 0);
+        const revenueEligibleStatuses = ["queued", "paid", "approved", "processing", "completed"];
+        const revenue = requestsData
+          .filter(r => r.paymentStatus === "captured" && revenueEligibleStatuses.includes(r.status))
+          .reduce((sum, r) => sum + (Number(r.paidAmount ?? r.price ?? 0) || 0), 0);
 
         // Debug logs
         console.log("📊 Total requests from API:", total);

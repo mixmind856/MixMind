@@ -10,6 +10,21 @@ const { capturePayment, cancelPayment, createSplitTransfers } = require("../../f
 const bcrypt = require("bcryptjs");
 const jwt = require("jsonwebtoken");
 
+const DJ_ACCESS_DURATION_MS = 7 * 60 * 60 * 1000;
+
+function getAccessGrantedAt(access) {
+  return access?.approvedAt || access?.activeSince || access?.respondedAt || access?.updatedAt;
+}
+
+function isDJAccessStillValid(access) {
+  if (!access) return false;
+  if (access.status !== "approved") return false;
+  if (!access.currentlyActive) return false;
+  const grantedAt = getAccessGrantedAt(access);
+  if (!grantedAt) return false;
+  return Date.now() - new Date(grantedAt).getTime() <= DJ_ACCESS_DURATION_MS;
+}
+
 function isStripeAlreadyCapturedError(err) {
   const code = err?.code;
   const msg = String(err?.message || "").toLowerCase();
@@ -194,6 +209,14 @@ async function getPendingRequests(req, res) {
           error: "You don't have active access to this venue. Your approval may have been revoked." 
         });
       }
+
+      if (!isDJAccessStillValid(accessRequest)) {
+        accessRequest.currentlyActive = false;
+        await accessRequest.save();
+        return res.status(403).json({
+          error: "Your venue access has expired. Please request access again."
+        });
+      }
       
       console.log(`   ✅ DJ user approved for venue`);
     } else {
@@ -264,6 +287,14 @@ async function djAcceptRequest(req, res) {
 
       if (!accessRequest) {
         return res.status(403).json({ error: "You don't have access to this venue" });
+      }
+
+      if (!isDJAccessStillValid(accessRequest)) {
+        accessRequest.currentlyActive = false;
+        await accessRequest.save();
+        return res.status(403).json({
+          error: "Your venue access has expired. Please request access again."
+        });
       }
     } else {
       return res.status(401).json({ error: "Invalid DJ token" });
@@ -518,6 +549,14 @@ async function djRejectRequest(req, res) {
       if (!accessRequest) {
         return res.status(403).json({ error: "You don't have access to this venue" });
       }
+
+      if (!isDJAccessStillValid(accessRequest)) {
+        accessRequest.currentlyActive = false;
+        await accessRequest.save();
+        return res.status(403).json({
+          error: "Your venue access has expired. Please request access again."
+        });
+      }
     } else {
       return res.status(401).json({ error: "Invalid DJ token" });
     }
@@ -658,6 +697,14 @@ async function getDJStats(req, res) {
 
       if (!accessRequest) {
         return res.status(403).json({ error: "You don't have access to this venue" });
+      }
+
+      if (!isDJAccessStillValid(accessRequest)) {
+        accessRequest.currentlyActive = false;
+        await accessRequest.save();
+        return res.status(403).json({
+          error: "Your venue access has expired. Please request access again."
+        });
       }
     } else {
       return res.status(401).json({ error: "Invalid DJ token" });
@@ -849,23 +896,45 @@ async function requestVenueAccess(req, res) {
       return res.status(400).json({ error: "This venue does not have DJ mode enabled" });
     }
 
-    // Check if DJ already has access or pending request
     const existingAccess = await DJVenueAccess.findOne({
       djId: djId,
       venueId: venueId
-    });
+    }).sort({ updatedAt: -1 });
 
     if (existingAccess) {
-      if (existingAccess.status === "approved") {
-        console.log(`   ⚠️  DJ already has approved access`);
-        return res.status(400).json({ error: "You already have access to this venue" });
-      } else if (existingAccess.status === "pending") {
+      if (existingAccess.status === "pending") {
         console.log(`   ⚠️  DJ already has pending request`);
         return res.status(400).json({ error: "You already have a pending request for this venue" });
       }
+      if (existingAccess.status === "approved" && isDJAccessStillValid(existingAccess)) {
+        console.log(`   ⚠️  DJ already has approved access`);
+        return res.status(400).json({ error: "You already have access to this venue" });
+      }
+      if (
+        existingAccess.status === "approved" ||
+        existingAccess.status === "rejected" ||
+        existingAccess.status === "revoked"
+      ) {
+        existingAccess.status = "pending";
+        existingAccess.currentlyActive = false;
+        existingAccess.requestedAt = new Date();
+        existingAccess.respondedAt = null;
+        existingAccess.approvedAt = null;
+        existingAccess.activeSince = null;
+        await existingAccess.save();
+
+        console.log(`   ✅ Access request reopened - Request ID: ${existingAccess._id}`);
+        console.log(`   ✅ Request pending venue approval\n`);
+
+        return res.status(201).json({
+          message: "Access request submitted successfully",
+          accessRequestId: existingAccess._id,
+          status: "pending",
+          venueName: venue.name
+        });
+      }
     }
 
-    // Create access request
     const accessRequest = new DJVenueAccess({
       djId: djId,
       venueId: venueId,
@@ -906,9 +975,15 @@ async function getDJAccessStatus(req, res) {
 
     console.log(`   ✅ Found ${accessRequests.length} access records`);
 
-    // Organize by status
+    for (const r of accessRequests) {
+      if (r.status === "approved" && r.currentlyActive && !isDJAccessStillValid(r)) {
+        r.currentlyActive = false;
+        await r.save();
+      }
+    }
+
     const organized = {
-      approved: accessRequests.filter(r => r.status === "approved"),
+      approved: accessRequests.filter(r => r.status === "approved" && isDJAccessStillValid(r)),
       pending: accessRequests.filter(r => r.status === "pending"),
       rejected: accessRequests.filter(r => r.status === "rejected"),
       revoked: accessRequests.filter(r => r.status === "revoked"),
@@ -939,6 +1014,16 @@ async function getActiveVenue(req, res) {
 
     if (!activeAccess) {
       console.log(`   ℹ️  No currently active venue`);
+      return res.json({
+        activeVenue: null,
+        message: "No active venue"
+      });
+    }
+
+    if (!isDJAccessStillValid(activeAccess)) {
+      activeAccess.currentlyActive = false;
+      await activeAccess.save();
+      console.log(`   ℹ️  Active venue access expired`);
       return res.json({
         activeVenue: null,
         message: "No active venue"
@@ -991,10 +1076,16 @@ async function getVenueDJAccessRequests(req, res) {
       console.log(`   ⚠️  Filtered out ${requests.length - validRequests.length} requests with missing DJ records`);
     }
 
-    // Organize by status
+    for (const r of validRequests) {
+      if (r.status === "approved" && r.currentlyActive && !isDJAccessStillValid(r)) {
+        r.currentlyActive = false;
+        await r.save();
+      }
+    }
+
     const organized = {
       pending: validRequests.filter(r => r.status === "pending"),
-      approved: validRequests.filter(r => r.status === "approved"),
+      approved: validRequests.filter(r => r.status === "approved" && isDJAccessStillValid(r)),
       rejected: validRequests.filter(r => r.status === "rejected"),
       revoked: validRequests.filter(r => r.status === "revoked"),
       all: validRequests
@@ -1049,6 +1140,7 @@ async function approveVenueDJAccess(req, res) {
     // Update access request status and set as active
     accessRequest.status = "approved";
     accessRequest.respondedAt = new Date();
+    accessRequest.approvedAt = new Date();
     accessRequest.currentlyActive = true;
     accessRequest.activeSince = new Date();
     await accessRequest.save();
