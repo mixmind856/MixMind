@@ -10,6 +10,33 @@ const { capturePayment, cancelPayment, createSplitTransfers } = require("../../f
 const bcrypt = require("bcryptjs");
 const jwt = require("jsonwebtoken");
 
+function isStripeAlreadyCapturedError(err) {
+  const code = err?.code;
+  const msg = String(err?.message || "").toLowerCase();
+  if (code === "charge_already_captured") return true;
+  if (code === "payment_intent_unexpected_state" && (msg.includes("succeeded") || msg.includes("captured"))) return true;
+  if (msg.includes("already been captured") || msg.includes("has already been captured")) return true;
+  return false;
+}
+
+function isStripeAlreadyCanceledError(err) {
+  const code = err?.code;
+  const msg = String(err?.message || "").toLowerCase();
+  if (code === "payment_intent_unexpected_state" && (msg.includes("cancel") || msg.includes("canceled") || msg.includes("cancelled"))) {
+    return true;
+  }
+  if (msg.includes("already been canceled") || msg.includes("already been cancelled")) return true;
+  return false;
+}
+
+function isStripeCancelFailsBecauseCaptured(err) {
+  const code = err?.code;
+  const msg = String(err?.message || "").toLowerCase();
+  if (code === "payment_intent_unexpected_state" && (msg.includes("succeeded") || msg.includes("captured"))) return true;
+  if (msg.includes("cannot cancel") && (msg.includes("succeeded") || msg.includes("captured"))) return true;
+  return false;
+}
+
 /* -------------------- INITIALIZE DJ MODE -------------------- */
 async function initializeDJMode(req, res) {
   try {
@@ -252,77 +279,138 @@ async function djAcceptRequest(req, res) {
     console.log(`   Request ID: ${request._id}`);
     console.log(`   Live Playlist Active: ${venue.livePlaylistActive}`);
 
-    // Update status to approved and record DJ approval
-    request.status = "queued";
-    request.djApprovedAt = new Date();
-    
-    // ===== HANDLE PAYMENT BASED ON PAYMENT INTENT =====
-    // DJ mode uses PaymentIntent for manual capture (authorize now, capture later)
-    // When DJ approves, we capture the payment
-    if (request.paymentIntentId && request.paymentStatus === "authorized") {
-      try {
-        console.log(`💳 Capturing payment for PaymentIntent: ${request.paymentIntentId}...`);
-        
-        // Capture the PaymentIntent (charge the customer)
-        const captureResult = await capturePayment(request.paymentIntentId);
-        
-        if (captureResult.success) {
-          console.log(`✅ Payment captured: ${request.paymentIntentId}`);
-          request.paymentStatus = "captured";
-          request.paidAt = new Date();
-          request.paidAmount = request.price;
-          
-          // Perform split transfers (DJ mode: DJ 44.44%, Venue 33.33%)
-          try {
-            const amountCents = Math.round(request.price * 100);
-            await createSplitTransfers(request.paymentIntentId, amountCents, request.venueId, "dj");
-            console.log(`✅ Split transfers initiated for DJ mode`);
-          } catch (transferErr) {
-            console.warn("⚠️ Split transfer failed:", transferErr.message);
-          }
-        } else {
-          console.warn("⚠️ Capture failed but continuing...");
-        }
-      } catch (captureErr) {
-        console.error("❌ Payment capture failed:", captureErr.message);
-        request.paymentStatus = "capture_failed";
-      }
+    if (request.paymentStatus !== "authorized" && request.paymentStatus !== "captured") {
+      return res.status(409).json({
+        error: "Request cannot be approved in the current payment state",
+        paymentStatus: request.paymentStatus,
+      });
     }
-    
-    // ===== HANDLE CHECKOUT SESSION CAPTURE =====
-    // DJ mode with checkout sessions (with manual capture via payment_intent_data)
-    else if (request.checkoutSessionId && request.paymentStatus === "authorized") {
-      try {
-        console.log(`💳 Capturing payment for checkout session: ${request.checkoutSessionId}...`);
-        
-        // Need to retrieve the PaymentIntent from the session and capture it
-        const stripe = require("stripe")(process.env.STRIPE_SECRET_KEY);
-        const session = await stripe.checkout.sessions.retrieve(request.checkoutSessionId);
-        
-        if (session.payment_intent) {
-          const captureResult = await capturePayment(session.payment_intent, request.checkoutSessionId);
+
+    // ===== HANDLE PAYMENT (capture only while authorized; idempotent if already captured) =====
+    if (request.paymentStatus === "authorized") {
+      if (request.paymentIntentId) {
+        try {
+          console.log(`💳 Capturing payment for PaymentIntent: ${request.paymentIntentId}...`);
+          const captureResult = await capturePayment(request.paymentIntentId);
           if (captureResult.success) {
-            console.log(`✅ Payment captured: ${session.payment_intent}`);
+            console.log(`✅ Payment captured: ${request.paymentIntentId}`);
             request.paymentStatus = "captured";
             request.paidAt = new Date();
             request.paidAmount = request.price;
-            
-            // Perform split transfers
             try {
               const amountCents = Math.round(request.price * 100);
-              await createSplitTransfers(request.checkoutSessionId, amountCents, request.venueId, "dj");
+              await createSplitTransfers(request.paymentIntentId, amountCents, request.venueId, "dj");
               console.log(`✅ Split transfers initiated for DJ mode`);
             } catch (transferErr) {
               console.warn("⚠️ Split transfer failed:", transferErr.message);
             }
+          } else {
+            return res.status(409).json({
+              error: "Payment capture did not succeed",
+              paymentIntentId: request.paymentIntentId,
+            });
+          }
+        } catch (captureErr) {
+          if (isStripeAlreadyCapturedError(captureErr)) {
+            console.log(`✅ Payment already captured/succeeded (Stripe): ${request.paymentIntentId}`);
+            request.paymentStatus = "captured";
+            request.paidAt = new Date();
+            request.paidAmount = request.price;
+            try {
+              const amountCents = Math.round(request.price * 100);
+              await createSplitTransfers(request.paymentIntentId, amountCents, request.venueId, "dj");
+              console.log(`✅ Split transfers initiated for DJ mode`);
+            } catch (transferErr) {
+              console.warn("⚠️ Split transfer failed:", transferErr.message);
+            }
+          } else {
+            const msgLower = String(captureErr?.message || "").toLowerCase();
+            const statusCode =
+              captureErr?.code === "resource_missing" || msgLower.includes("no such paymentintent") ? 400 : 409;
+            console.error("❌ Payment capture failed:", captureErr.message);
+            return res.status(statusCode).json({
+              error: "Payment capture failed",
+              detail: captureErr.message,
+              code: captureErr.code,
+            });
           }
         }
-      } catch (captureErr) {
-        console.error("❌ Payment capture failed:", captureErr.message);
-        request.paymentStatus = "capture_failed";
+      } else if (request.checkoutSessionId) {
+        try {
+          console.log(`💳 Capturing payment for checkout session: ${request.checkoutSessionId}...`);
+          const stripe = require("stripe")(process.env.STRIPE_SECRET_KEY);
+          const session = await stripe.checkout.sessions.retrieve(request.checkoutSessionId);
+          if (!session.payment_intent) {
+            return res.status(409).json({
+              error: "Checkout session has no payment intent; payment may be stale or incomplete",
+              checkoutSessionId: request.checkoutSessionId,
+            });
+          }
+          const piId =
+            typeof session.payment_intent === "string" ? session.payment_intent : session.payment_intent.id;
+          try {
+            const captureResult = await capturePayment(piId, request.checkoutSessionId);
+            if (captureResult.success) {
+              console.log(`✅ Payment captured: ${piId}`);
+              request.paymentStatus = "captured";
+              request.paidAt = new Date();
+              request.paidAmount = request.price;
+              try {
+                const amountCents = Math.round(request.price * 100);
+                await createSplitTransfers(request.checkoutSessionId, amountCents, request.venueId, "dj");
+                console.log(`✅ Split transfers initiated for DJ mode`);
+              } catch (transferErr) {
+                console.warn("⚠️ Split transfer failed:", transferErr.message);
+              }
+            } else {
+              return res.status(409).json({
+                error: "Payment capture did not succeed",
+                checkoutSessionId: request.checkoutSessionId,
+              });
+            }
+          } catch (captureErr) {
+            if (isStripeAlreadyCapturedError(captureErr)) {
+              console.log(`✅ Payment already captured/succeeded (Stripe): ${piId}`);
+              request.paymentStatus = "captured";
+              request.paidAt = new Date();
+              request.paidAmount = request.price;
+              try {
+                const amountCents = Math.round(request.price * 100);
+                await createSplitTransfers(request.checkoutSessionId, amountCents, request.venueId, "dj");
+                console.log(`✅ Split transfers initiated for DJ mode`);
+              } catch (transferErr) {
+                console.warn("⚠️ Split transfer failed:", transferErr.message);
+              }
+            } else {
+              const msgLower = String(captureErr?.message || "").toLowerCase();
+              const statusCode =
+                captureErr?.code === "resource_missing" || msgLower.includes("no such paymentintent") ? 400 : 409;
+              console.error("❌ Payment capture failed:", captureErr.message);
+              return res.status(statusCode).json({
+                error: "Payment capture failed",
+                detail: captureErr.message,
+                code: captureErr.code,
+              });
+            }
+          }
+        } catch (sessionErr) {
+          console.error("❌ Checkout session retrieve failed:", sessionErr.message);
+          return res.status(400).json({
+            error: "Unable to retrieve checkout session",
+            detail: sessionErr.message,
+            code: sessionErr.code,
+          });
+        }
+      } else {
+        return res.status(409).json({
+          error: "Authorized payment has no payment intent or checkout session reference",
+        });
       }
     }
-    
+
+    request.status = "queued";
+    request.djApprovedAt = new Date();
+
     await request.save();
 
     // Send acceptance email to user
@@ -438,48 +526,74 @@ async function djRejectRequest(req, res) {
     request.status = "rejected";
     request.djRejectedAt = new Date();
     request.djRejectionReason = reason || "Rejected by DJ";
-    
-    // ===== CANCEL PAYMENT IF AUTHORIZED OR CAPTURED =====
-    if (request.paymentIntentId && (request.paymentStatus === "authorized" || request.paymentStatus === "captured")) {
-      try {
-        console.log(`💳 Cancelling PaymentIntent: ${request.paymentIntentId}...`);
-        const cancelResult = await cancelPayment(request.paymentIntentId);
-        
-        if (cancelResult.success) {
-          request.paymentStatus = "cancelled";
-          console.log(`✅ Payment cancelled for rejected request ${request._id}`);
-          
-          // Payment record already updated by cancelPayment()
-          // No need for duplicate update here
-        }
-      } catch (cancelErr) {
-        console.error("❌ Cancel failed:", cancelErr.message);
-        request.paymentStatus = "cancel_failed";
-      }
-    }
-    
-    // ===== CANCEL CHECKOUT SESSION (REFUND) =====
-    else if (request.checkoutSessionId && request.paymentStatus === "authorized") {
-      try {
-        console.log(`💳 Refunding checkout session: ${request.checkoutSessionId}...`);
-        
-        // Need to retrieve the PaymentIntent from the session and cancel it
-        const stripe = require("stripe")(process.env.STRIPE_SECRET_KEY);
-        const session = await stripe.checkout.sessions.retrieve(request.checkoutSessionId);
-        
-        if (session.payment_intent) {
-          const cancelResult = await cancelPayment(session.payment_intent, request.checkoutSessionId);
+
+    let manualRefundNote = null;
+
+    // ===== CANCEL PAYMENT WHILE AUTHORIZED ONLY (never cancel/capture_failed-style enums) =====
+    if (request.paymentStatus === "authorized") {
+      if (request.paymentIntentId) {
+        try {
+          console.log(`💳 Cancelling PaymentIntent: ${request.paymentIntentId}...`);
+          const cancelResult = await cancelPayment(request.paymentIntentId);
           if (cancelResult.success) {
             request.paymentStatus = "cancelled";
-            console.log(`✅ Checkout payment cancelled for rejected request ${request._id}`);
+            console.log(`✅ Payment cancelled for rejected request ${request._id}`);
+          } else {
+            request.paymentStatus = "failed";
+          }
+        } catch (cancelErr) {
+          console.error("❌ Cancel failed:", cancelErr.message);
+          if (isStripeCancelFailsBecauseCaptured(cancelErr)) {
+            request.paymentStatus = "captured";
+            manualRefundNote =
+              "Payment was already captured before cancellation; process a manual refund if the customer should not be charged.";
+          } else if (isStripeAlreadyCanceledError(cancelErr)) {
+            request.paymentStatus = "cancelled";
+          } else {
+            request.paymentStatus = "failed";
           }
         }
-      } catch (refundErr) {
-        console.error("❌ Refund failed:", refundErr.message);
-        request.paymentStatus = "refund_failed";
+      } else if (request.checkoutSessionId) {
+        try {
+          console.log(`💳 Cancelling checkout session payment: ${request.checkoutSessionId}...`);
+          const stripe = require("stripe")(process.env.STRIPE_SECRET_KEY);
+          const session = await stripe.checkout.sessions.retrieve(request.checkoutSessionId);
+          if (session.payment_intent) {
+            const piId =
+              typeof session.payment_intent === "string" ? session.payment_intent : session.payment_intent.id;
+            try {
+              const cancelResult = await cancelPayment(piId, request.checkoutSessionId);
+              if (cancelResult.success) {
+                request.paymentStatus = "cancelled";
+                console.log(`✅ Checkout payment cancelled for rejected request ${request._id}`);
+              } else {
+                request.paymentStatus = "failed";
+              }
+            } catch (cancelErr) {
+              console.error("❌ Cancel failed:", cancelErr.message);
+              if (isStripeCancelFailsBecauseCaptured(cancelErr)) {
+                request.paymentStatus = "captured";
+                manualRefundNote =
+                  "Payment was already captured before cancellation; process a manual refund if the customer should not be charged.";
+              } else if (isStripeAlreadyCanceledError(cancelErr)) {
+                request.paymentStatus = "cancelled";
+              } else {
+                request.paymentStatus = "failed";
+              }
+            }
+          } else {
+            request.paymentStatus = "failed";
+          }
+        } catch (checkoutErr) {
+          console.error("❌ Checkout retrieve/cancel failed:", checkoutErr.message);
+          request.paymentStatus = "failed";
+        }
       }
+    } else if (request.paymentStatus === "captured") {
+      manualRefundNote =
+        "Payment was already captured; process a manual refund if the customer should not be charged.";
     }
-    
+
     await request.save();
 
     console.log(`❌ DJ REJECTED - Request ID: ${request._id}, Reason: ${request.djRejectionReason}`);
@@ -510,8 +624,10 @@ async function djRejectRequest(req, res) {
       message: "Request rejected",
       requestId: request._id,
       status: request.status,
+      paymentStatus: request.paymentStatus,
       rejectionReason: request.djRejectionReason,
-      emailSent: emailResult.success
+      emailSent: emailResult.success,
+      ...(manualRefundNote ? { manualRefundNote } : {}),
     });
   } catch (err) {
     console.error("DJ reject request error:", err);
