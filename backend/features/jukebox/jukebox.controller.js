@@ -327,6 +327,14 @@ async function getJukeboxStats(req, res) {
     const rejectedStatuses = ["genre_rejected", "failed"];
     const completedStatuses = ["queued"];
 
+    const revenueMatch = {
+      status: "queued",
+      paymentStatus: "succeeded",
+    };
+    if (venueId) {
+      revenueMatch.venueId = new mongoose.Types.ObjectId(venueId);
+    }
+
     const [
       totalRequests,
       acceptedRequests,
@@ -341,17 +349,13 @@ async function getJukeboxStats(req, res) {
       JukeboxRequest.countDocuments({ ...filter, status: { $in: pendingStatuses } }),
       JukeboxRequest.countDocuments({ ...filter, status: { $in: completedStatuses } }),
       JukeboxRequest.aggregate([
+        { $match: revenueMatch },
         {
-          $match: {
-            ...filter,
-            $or: [
-              { paymentStatus: "succeeded" },
-              { status: "queued" },
-              { status: "genre_approved", paymentStatus: "succeeded" },
-            ],
+          $group: {
+            _id: null,
+            totalPence: { $sum: { $ifNull: ["$amountPence", 0] } },
           },
         },
-        { $group: { _id: null, totalPence: { $sum: "$amountPence" } } },
       ]),
     ]);
 
