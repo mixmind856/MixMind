@@ -77,7 +77,7 @@ const suppressNextSpotifySearchRef = useRef(false);
       setSpotifyMode(!!venueData.spotifyMode);
 
       // Keep your current pricing logic here
-      const dynamicPrice = venueData.djMode ? 5.99 : 1.69;
+      const dynamicPrice = venueData.djMode ? 3.0 : 1.69;
       setFormData((prev) => ({
         ...prev,
         price: dynamicPrice
@@ -405,8 +405,8 @@ console.log("✅ Song request created");
   setPriorityRequest(isPriority);
   setShowPriorityChoice(false);
 
-  const basePrice = venue?.djMode ? 5.99 : 1.69;
-  const priorityPrice = venue?.djMode ? 8.99 : 2.99;
+  const basePrice = venue?.djMode ? 3.0 : 1.69;
+  const priorityPrice = venue?.djMode ? 5.99 : 2.99;
   const selectedPrice = isPriority ? priorityPrice : basePrice;
 
   setFormData((prev) => ({
@@ -419,7 +419,7 @@ console.log("✅ Song request created");
 
   const handlePaymentSuccess = async () => {
     // Keep your current pricing reset logic here
-    const resetPrice = venue && venue.djMode ? 5.99 : 1.69;
+    const resetPrice = venue && venue.djMode ? 3.0 : 1.69;
 
     setFormData({
       songTitle: "",
@@ -1068,7 +1068,7 @@ console.log("✅ Song request created");
               </div>
 
               <div className="text-xl font-bold text-white mt-1">
-                £5.99
+                £3.00
               </div>
 
               <div className="text-sm mt-1 text-gray-400">
@@ -1127,7 +1127,7 @@ console.log("✅ Song request created");
                 </div>
 
                 <div className="text-lg font-semibold text-white mt-1">
-                  £8.99 total
+                  £5.99 total
                 </div>
 
                 <div className="text-sm text-gray-400 mt-1">
