@@ -383,6 +383,88 @@ async function getJukeboxStats(req, res) {
   }
 }
 
+async function getSpotifyDebugDevices(req, res) {
+  try {
+    const { venueId } = req.params;
+    const tokenVenueId = req?.venue?.venueId || req?.venue?.id || req?.venue?._id;
+
+    if (!mongoose.Types.ObjectId.isValid(venueId)) {
+      return res.status(400).json({ error: "Invalid venueId" });
+    }
+
+    if (!tokenVenueId || String(tokenVenueId) !== String(venueId)) {
+      return res.status(403).json({ error: "Forbidden" });
+    }
+
+    const venue = await Venue.findById(venueId).select(
+      "_id spotifyConnected spotifyMode spotifyTokenExpiresAt spotifyLastActiveDeviceId spotifyLastActiveDeviceName"
+    );
+    if (!venue) {
+      return res.status(404).json({ error: "Venue not found" });
+    }
+
+    if (!venue.spotifyConnected) {
+      return res.json({
+        venueId: String(venue._id),
+        spotifyConnected: false,
+        spotifyMode: !!venue.spotifyMode,
+        spotifyUser: null,
+        devices: [],
+        activeDevice: null,
+        lastStoredDeviceId: venue.spotifyLastActiveDeviceId || null,
+        lastStoredDeviceName: venue.spotifyLastActiveDeviceName || null,
+        tokenExpiresAt: venue.spotifyTokenExpiresAt || null
+      });
+    }
+
+    const [profile, deviceResult] = await Promise.all([
+      spotifyService.getSpotifyProfile(venueId),
+      spotifyService.getSpotifyDevices(venueId)
+    ]);
+    const devices = Array.isArray(deviceResult?.devices) ? deviceResult.devices : [];
+    const active = devices.find((d) => d.is_active) || null;
+
+    return res.json({
+      venueId: String(venue._id),
+      spotifyConnected: !!venue.spotifyConnected,
+      spotifyMode: !!venue.spotifyMode,
+      spotifyUser: profile
+        ? {
+            id: profile.id || null,
+            display_name: profile.display_name || null,
+            email: profile.email || null
+          }
+        : null,
+      devices: devices.map((d) => ({
+        id: d.id || null,
+        name: d.name || null,
+        type: d.type || null,
+        is_active: !!d.is_active,
+        is_restricted: !!d.is_restricted,
+        volume_percent: typeof d.volume_percent === "number" ? d.volume_percent : null
+      })),
+      activeDevice: active
+        ? {
+            id: active.id || null,
+            name: active.name || null,
+            type: active.type || null
+          }
+        : null,
+      lastStoredDeviceId: venue.spotifyLastActiveDeviceId || null,
+      lastStoredDeviceName: venue.spotifyLastActiveDeviceName || null,
+      tokenExpiresAt: venue.spotifyTokenExpiresAt || null
+    });
+  } catch (err) {
+    console.error("[Spotify Debug Devices] Error:", {
+      venueId: req?.params?.venueId,
+      code: err?.code || null,
+      statusCode: err?.statusCode || null,
+      message: err?.message
+    });
+    return res.status(500).json({ error: "Failed to check Spotify devices" });
+  }
+}
+
 module.exports = {
   spotifyLogin,
   spotifyCallback,
@@ -391,4 +473,5 @@ module.exports = {
   createPayment,
   confirmAndProcess,
   getJukeboxStats,
+  getSpotifyDebugDevices
 };

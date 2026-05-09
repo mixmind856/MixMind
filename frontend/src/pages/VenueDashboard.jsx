@@ -73,6 +73,9 @@ export default function VenueDashboard() {
   });
   const [jukeboxStatsError, setJukeboxStatsError] = useState("");
   const [refreshing, setRefreshing] = useState(false);
+  const [spotifyDebug, setSpotifyDebug] = useState(null);
+  const [spotifyDeviceCheckLoading, setSpotifyDeviceCheckLoading] = useState(false);
+  const [spotifyDeviceCheckError, setSpotifyDeviceCheckError] = useState("");
 
   useEffect(() => {
     const token = localStorage.getItem("venueToken");
@@ -140,6 +143,7 @@ export default function VenueDashboard() {
       setDJMode(venueData.djMode || false);
       setSpotifyMode(venueData.spotifyMode || false);
       setSpotifyConnected(!!venueData.spotifyConnected);
+      await fetchSpotifyDebugStatus(venueData._id, token);
 
       try {
         const jukeboxStatsRes = await fetch(
@@ -221,6 +225,37 @@ export default function VenueDashboard() {
       setError(err.message || "Failed to load data");
     } finally {
       setLoading(false);
+    }
+  };
+
+  const fetchSpotifyDebugStatus = async (venueId, tokenOverride) => {
+    if (!venueId) return;
+    const token = tokenOverride || localStorage.getItem("venueToken");
+    if (!token) return;
+
+    try {
+      setSpotifyDeviceCheckLoading(true);
+      setSpotifyDeviceCheckError("");
+      const response = await fetch(
+        `${import.meta.env.VITE_API_URL}/jukebox/debug-devices/${venueId}`,
+        {
+          headers: {
+            Authorization: `Bearer ${token}`
+          }
+        }
+      );
+
+      if (!response.ok) {
+        throw new Error("Failed to check Spotify device");
+      }
+
+      const data = await response.json();
+      setSpotifyDebug(data);
+    } catch (err) {
+      setSpotifyDeviceCheckError(err.message || "Error checking Spotify device");
+      setSpotifyDebug(null);
+    } finally {
+      setSpotifyDeviceCheckLoading(false);
     }
   };
 
@@ -423,6 +458,7 @@ export default function VenueDashboard() {
       if (typeof data.djMode === "boolean") {
         setDJMode(!!data.djMode);
       }
+      await fetchSpotifyDebugStatus(venue?._id, token);
       setSuccessMsg(data.message || (nextSpotifyMode ? "Spotify mode enabled" : "Spotify mode disabled"));
       setTimeout(() => setSuccessMsg(""), 3000);
     } catch (err) {
@@ -439,6 +475,41 @@ export default function VenueDashboard() {
     console.log("[Connect Spotify Main Dashboard]", currentVenueId);
     const returnTo = `${window.location.origin}/venue/dashboard`;
     window.location.href = `${import.meta.env.VITE_API_URL}/jukebox/spotify/login?venueId=${currentVenueId}&returnTo=${encodeURIComponent(returnTo)}`;
+  };
+
+  const getSpotifyDevicePill = () => {
+    if (spotifyDeviceCheckLoading) {
+      return {
+        text: "Checking Spotify device...",
+        className: "bg-gray-600/20 text-gray-300 border border-gray-500/30"
+      };
+    }
+
+    if (spotifyDeviceCheckError) {
+      return {
+        text: "Error checking device",
+        className: "bg-red-600/20 text-red-300 border border-red-500/40"
+      };
+    }
+
+    if (!spotifyDebug?.spotifyConnected) {
+      return {
+        text: "Spotify not connected",
+        className: "bg-red-600/20 text-red-300 border border-red-500/40"
+      };
+    }
+
+    if (spotifyDebug?.activeDevice?.name) {
+      return {
+        text: `Device online: ${spotifyDebug.activeDevice.name}`,
+        className: "bg-green-600/20 text-green-300 border border-green-500/40"
+      };
+    }
+
+    return {
+      text: "Spotify connected, but no active device",
+      className: "bg-yellow-600/20 text-yellow-300 border border-yellow-500/40"
+    };
   };
 
   const getStatusBadgeColor = (status) => {
@@ -805,8 +876,24 @@ export default function VenueDashboard() {
               <p className={`text-sm mt-2 ${spotifyConnected ? "text-emerald-300" : "text-amber-300"}`}>
                 {spotifyConnected ? "Spotify: Connected" : "Spotify: Not connected"}
               </p>
+              <div className="mt-3">
+                <span className={`inline-flex items-center px-3 py-1 rounded-full text-xs font-semibold ${getSpotifyDevicePill().className}`}>
+                  {getSpotifyDevicePill().text}
+                </span>
+              </div>
             </div>
             <div className="flex gap-3">
+              <button
+                onClick={() => fetchSpotifyDebugStatus(venue?._id)}
+                disabled={spotifyDeviceCheckLoading || !venue?._id}
+                className={`px-6 py-3 rounded-lg font-semibold transition-all ${
+                  spotifyDeviceCheckLoading
+                    ? "bg-gray-600 text-gray-300 cursor-not-allowed"
+                    : "bg-indigo-600 hover:bg-indigo-700 text-white"
+                }`}
+              >
+                {spotifyDeviceCheckLoading ? "Checking..." : "Check Spotify Device"}
+              </button>
               <button
                 onClick={handleConnectSpotify}
                 className={`px-8 py-3 rounded-lg font-semibold transition-all ${

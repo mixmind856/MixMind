@@ -164,6 +164,13 @@ async function fetchSpotifyDevicesWithToken(token) {
   return data?.devices || [];
 }
 
+async function fetchSpotifyProfileWithToken(token) {
+  const { data } = await axios.get(`${SPOTIFY_API}/me`, {
+    headers: { Authorization: `Bearer ${token}` }
+  });
+  return data || null;
+}
+
 async function getSpotifyDevices(venueId) {
   let token = await getValidToken(venueId);
 
@@ -180,6 +187,26 @@ async function getSpotifyDevices(venueId) {
     try {
       const devices = await fetchSpotifyDevicesWithToken(token);
       return { devices, refreshed: true };
+    } catch (retryErr) {
+      throw mapSpotifyApiError(retryErr, "SPOTIFY_QUEUE_FAILED");
+    }
+  }
+}
+
+async function getSpotifyProfile(venueId) {
+  let token = await getValidToken(venueId);
+
+  try {
+    return await fetchSpotifyProfileWithToken(token);
+  } catch (err) {
+    const mapped = mapSpotifyApiError(err, "SPOTIFY_QUEUE_FAILED");
+    if (mapped.code !== "SPOTIFY_AUTH_EXPIRED") {
+      throw mapped;
+    }
+
+    token = await refreshAccessToken(venueId);
+    try {
+      return await fetchSpotifyProfileWithToken(token);
     } catch (retryErr) {
       throw mapSpotifyApiError(retryErr, "SPOTIFY_QUEUE_FAILED");
     }
@@ -353,4 +380,11 @@ async function addToQueue(venueId, spotifyUri) {
   return runQueueFlow({ forceRefreshToken: false, allowDeviceRetry: true });
 }
 
-module.exports = { buildAuthUrl, exchangeCode, searchTracks, addToQueue, getSpotifyDevices };
+module.exports = {
+  buildAuthUrl,
+  exchangeCode,
+  searchTracks,
+  addToQueue,
+  getSpotifyDevices,
+  getSpotifyProfile
+};
