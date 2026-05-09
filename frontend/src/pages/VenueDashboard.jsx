@@ -75,7 +75,7 @@ export default function VenueDashboard() {
   const [refreshing, setRefreshing] = useState(false);
   const [spotifyDebug, setSpotifyDebug] = useState(null);
   const [spotifyDeviceCheckLoading, setSpotifyDeviceCheckLoading] = useState(false);
-  const [spotifyDeviceCheckError, setSpotifyDeviceCheckError] = useState("");
+  const [spotifyDeviceCheckError, setSpotifyDeviceCheckError] = useState(null);
 
   useEffect(() => {
     const token = localStorage.getItem("venueToken");
@@ -246,13 +246,23 @@ export default function VenueDashboard() {
       );
 
       if (!response.ok) {
-        throw new Error("Failed to check Spotify device");
+        const errData = await response.json().catch(() => ({}));
+        const errObj = {
+          status: response.status,
+          code: errData?.code || null,
+          message: errData?.message || "Failed to check Spotify device"
+        };
+        throw errObj;
       }
 
       const data = await response.json();
       setSpotifyDebug(data);
     } catch (err) {
-      setSpotifyDeviceCheckError(err.message || "Error checking Spotify device");
+      setSpotifyDeviceCheckError({
+        status: err?.status || null,
+        code: err?.code || null,
+        message: err?.message || "Error checking Spotify device"
+      });
       setSpotifyDebug(null);
     } finally {
       setSpotifyDeviceCheckLoading(false);
@@ -486,15 +496,24 @@ export default function VenueDashboard() {
     }
 
     if (spotifyDeviceCheckError) {
+      if (spotifyDeviceCheckError.code === "SPOTIFY_FORBIDDEN" || spotifyDeviceCheckError.status === 403) {
+        return {
+          text: "Spotify denied access — reconnect Spotify",
+          className: "bg-red-600/20 text-red-300 border border-red-500/40"
+        };
+      }
       return {
         text: "Error checking device",
         className: "bg-red-600/20 text-red-300 border border-red-500/40"
       };
     }
 
-    if (!spotifyDebug?.spotifyConnected) {
+    if (
+      spotifyDebug?.connectionIssue === "SPOTIFY_NOT_CONFIGURED" ||
+      !spotifyDebug?.spotifyConnected
+    ) {
       return {
-        text: "Spotify not connected",
+        text: "Spotify not configured",
         className: "bg-red-600/20 text-red-300 border border-red-500/40"
       };
     }
@@ -506,8 +525,15 @@ export default function VenueDashboard() {
       };
     }
 
+    if (Array.isArray(spotifyDebug?.devices) && spotifyDebug.devices.length === 0) {
+      return {
+        text: "Spotify connected, no device visible",
+        className: "bg-yellow-600/20 text-yellow-300 border border-yellow-500/40"
+      };
+    }
+
     return {
-      text: "Spotify connected, but no active device",
+      text: "Spotify connected, no device visible",
       className: "bg-yellow-600/20 text-yellow-300 border border-yellow-500/40"
     };
   };
@@ -882,17 +908,17 @@ export default function VenueDashboard() {
                 </span>
               </div>
             </div>
-            <div className="flex gap-3">
+            <div className="flex flex-wrap gap-2 justify-end">
               <button
                 onClick={() => fetchSpotifyDebugStatus(venue?._id)}
                 disabled={spotifyDeviceCheckLoading || !venue?._id}
-                className={`px-6 py-3 rounded-lg font-semibold transition-all ${
+                className={`px-2 py-1 text-xs rounded font-semibold transition-all ${
                   spotifyDeviceCheckLoading
                     ? "bg-gray-600 text-gray-300 cursor-not-allowed"
                     : "bg-indigo-600 hover:bg-indigo-700 text-white"
                 }`}
               >
-                {spotifyDeviceCheckLoading ? "Checking..." : "Check Spotify Device"}
+                {spotifyDeviceCheckLoading ? "..." : "CS"}
               </button>
               <button
                 onClick={handleConnectSpotify}

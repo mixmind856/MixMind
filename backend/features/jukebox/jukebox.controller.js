@@ -397,13 +397,18 @@ async function getSpotifyDebugDevices(req, res) {
     }
 
     const venue = await Venue.findById(venueId).select(
-      "_id spotifyConnected spotifyMode spotifyTokenExpiresAt spotifyLastActiveDeviceId spotifyLastActiveDeviceName"
+      "_id spotifyConnected spotifyMode spotifyAccessToken spotifyRefreshToken spotifyTokenExpiresAt spotifyLastActiveDeviceId spotifyLastActiveDeviceName"
     );
     if (!venue) {
       return res.status(404).json({ error: "Venue not found" });
     }
 
-    if (!venue.spotifyConnected) {
+    const isSpotifyConfigured =
+      venue.spotifyConnected === true &&
+      !!venue.spotifyAccessToken &&
+      !!venue.spotifyRefreshToken;
+
+    if (!isSpotifyConfigured) {
       return res.json({
         venueId: String(venue._id),
         spotifyConnected: false,
@@ -411,6 +416,7 @@ async function getSpotifyDebugDevices(req, res) {
         spotifyUser: null,
         devices: [],
         activeDevice: null,
+        connectionIssue: "SPOTIFY_NOT_CONFIGURED",
         lastStoredDeviceId: venue.spotifyLastActiveDeviceId || null,
         lastStoredDeviceName: venue.spotifyLastActiveDeviceName || null,
         tokenExpiresAt: venue.spotifyTokenExpiresAt || null
@@ -418,8 +424,8 @@ async function getSpotifyDebugDevices(req, res) {
     }
 
     const [profile, deviceResult] = await Promise.all([
-      spotifyService.getSpotifyProfile(venueId),
-      spotifyService.getSpotifyDevices(venueId)
+      spotifyService.getSpotifyProfileDebug(venueId),
+      spotifyService.getSpotifyDevicesDebug(venueId)
     ]);
     const devices = Array.isArray(deviceResult?.devices) ? deviceResult.devices : [];
     const active = devices.find((d) => d.is_active) || null;
@@ -461,6 +467,14 @@ async function getSpotifyDebugDevices(req, res) {
       statusCode: err?.statusCode || null,
       message: err?.message
     });
+    if (err?.code === "SPOTIFY_FORBIDDEN" || err?.statusCode === 403) {
+      return res.status(403).json({
+        code: "SPOTIFY_FORBIDDEN",
+        statusCode: 403,
+        message:
+          "Spotify denied device access. Reconnect Spotify and make sure the account supports playback control."
+      });
+    }
     return res.status(500).json({ error: "Failed to check Spotify devices" });
   }
 }

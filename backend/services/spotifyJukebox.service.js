@@ -49,6 +49,30 @@ function mapSpotifyApiError(err, fallbackCode = "SPOTIFY_QUEUE_FAILED") {
   return makeSpotifyError(fallbackCode, `Spotify queue error: ${message}`, status, err?.response?.data);
 }
 
+function mapSpotifyDebugApiError(err, fallbackCode = "SPOTIFY_DEBUG_FAILED") {
+  const status = err?.response?.status;
+  const message =
+    err?.response?.data?.error?.message ||
+    err?.response?.data?.error ||
+    err?.message ||
+    "Spotify API request failed";
+
+  if (status === 401) {
+    return makeSpotifyError("SPOTIFY_AUTH_EXPIRED", `Spotify auth error: ${message}`, status, err?.response?.data);
+  }
+
+  if (status === 403) {
+    return makeSpotifyError(
+      "SPOTIFY_FORBIDDEN",
+      "Spotify denied device access. Reconnect Spotify and make sure the account supports playback control.",
+      403,
+      err?.response?.data
+    );
+  }
+
+  return makeSpotifyError(fallbackCode, `Spotify debug error: ${message}`, status, err?.response?.data);
+}
+
 function assertSpotifyConfig() {
   if (!process.env.SPOTIFY_CLIENT_ID || !process.env.SPOTIFY_CLIENT_SECRET) {
     const missing = [
@@ -209,6 +233,48 @@ async function getSpotifyProfile(venueId) {
       return await fetchSpotifyProfileWithToken(token);
     } catch (retryErr) {
       throw mapSpotifyApiError(retryErr, "SPOTIFY_QUEUE_FAILED");
+    }
+  }
+}
+
+async function getSpotifyDevicesDebug(venueId) {
+  let token = await getValidToken(venueId);
+
+  try {
+    const devices = await fetchSpotifyDevicesWithToken(token);
+    return { devices, refreshed: false };
+  } catch (err) {
+    const mapped = mapSpotifyDebugApiError(err, "SPOTIFY_DEBUG_FAILED");
+    if (mapped.code !== "SPOTIFY_AUTH_EXPIRED") {
+      throw mapped;
+    }
+
+    token = await refreshAccessToken(venueId);
+    try {
+      const devices = await fetchSpotifyDevicesWithToken(token);
+      return { devices, refreshed: true };
+    } catch (retryErr) {
+      throw mapSpotifyDebugApiError(retryErr, "SPOTIFY_DEBUG_FAILED");
+    }
+  }
+}
+
+async function getSpotifyProfileDebug(venueId) {
+  let token = await getValidToken(venueId);
+
+  try {
+    return await fetchSpotifyProfileWithToken(token);
+  } catch (err) {
+    const mapped = mapSpotifyDebugApiError(err, "SPOTIFY_DEBUG_FAILED");
+    if (mapped.code !== "SPOTIFY_AUTH_EXPIRED") {
+      throw mapped;
+    }
+
+    token = await refreshAccessToken(venueId);
+    try {
+      return await fetchSpotifyProfileWithToken(token);
+    } catch (retryErr) {
+      throw mapSpotifyDebugApiError(retryErr, "SPOTIFY_DEBUG_FAILED");
     }
   }
 }
@@ -386,5 +452,7 @@ module.exports = {
   searchTracks,
   addToQueue,
   getSpotifyDevices,
-  getSpotifyProfile
+  getSpotifyProfile,
+  getSpotifyDevicesDebug,
+  getSpotifyProfileDebug
 };
