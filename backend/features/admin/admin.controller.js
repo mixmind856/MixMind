@@ -13,6 +13,7 @@ const {
 
 // Import admin stats service
 const adminStatsService = require("../../services/adminStatsService");
+const { buildAnalyticsFunnel } = require("../../services/analyticsFunnelService");
 
 // Import models
 const Request = require("../../models/Request");
@@ -432,6 +433,16 @@ async function getTopVenues(req, res) {
   }
 }
 
+async function getAnalyticsFunnel(req, res) {
+  try {
+    const data = await buildAnalyticsFunnel(req.query);
+    res.json(data);
+  } catch (err) {
+    console.error("Get Analytics Funnel Error:", err.message);
+    res.status(500).json({ error: "Internal server error" });
+  }
+}
+
 module.exports = {
   listVenueRequests,
   approveRequest,
@@ -445,5 +456,6 @@ module.exports = {
   getAllVenuesStats,
   getRevenueBreakdown,
   getSongRequestDetails,
-  getTopVenues
+  getTopVenues,
+  getAnalyticsFunnel
 };

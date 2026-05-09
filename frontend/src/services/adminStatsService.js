@@ -129,3 +129,32 @@ export const getTopVenues = async (limit = 10) => {
     throw error;
   }
 };
+
+/**
+ * QR landing & funnel analytics (defaults to today, Europe/London on server)
+ */
+export const getAnalyticsFunnel = async (queryString = "") => {
+  try {
+    if (!ADMIN_KEY) {
+      throw new Error("Admin key not configured. Please check your .env file.");
+    }
+
+    const qs = queryString && queryString.startsWith("?") ? queryString : queryString ? `?${queryString}` : "";
+    const response = await fetch(`${API_BASE_URL}/admin/analytics/funnel${qs}`, {
+      method: "GET",
+      headers: {
+        "Content-Type": "application/json",
+        "x-admin-key": ADMIN_KEY
+      }
+    });
+
+    if (!response.ok) {
+      throw new Error(`Error: ${response.statusText}`);
+    }
+
+    return await response.json();
+  } catch (error) {
+    console.error("Error fetching analytics funnel:", error);
+    throw error;
+  }
+};

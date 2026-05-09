@@ -1,6 +1,12 @@
 import React, { useEffect, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import { venueService } from "../services";
+import {
+  getOrCreateSessionId,
+  setAnalyticsSrc,
+  getAnalyticsContext,
+  trackAnalyticsEvent
+} from "../services/analyticsService";
 import { CheckCircle, ArrowRight } from "lucide-react";
 import "./BrowseVenues.css";
 import logo from "../assets/Mixmind.jpeg";
@@ -11,6 +17,7 @@ import logo from "../assets/Mixmind.jpeg";
  */
 export default function BrowseVenues() {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const [venues, setVenues] = useState([]);
   const [selectedVenue, setSelectedVenue] = useState("");
   const [loading, setLoading] = useState(true);
@@ -19,6 +26,18 @@ export default function BrowseVenues() {
   useEffect(() => {
     fetchVenues();
   }, []);
+
+  useEffect(() => {
+    const sessionId = getOrCreateSessionId();
+    const src = searchParams.get("src") || "";
+    setAnalyticsSrc(src);
+    trackAnalyticsEvent({
+      eventType: "qr_scan_landing",
+      src,
+      sessionId,
+      metadata: { path: "/browse-venues" }
+    });
+  }, [searchParams]);
 
   const fetchVenues = async () => {
     try {
@@ -39,6 +58,17 @@ export default function BrowseVenues() {
       setError("Please select a venue");
       return;
     }
+    const picked = venues.find((v) => v._id === selectedVenue);
+    const ctx = getAnalyticsContext();
+    const sessionId = ctx.sessionId || getOrCreateSessionId();
+    trackAnalyticsEvent({
+      eventType: "venue_selected",
+      venueId: selectedVenue,
+      venueName: picked?.name,
+      src: ctx.src,
+      sessionId,
+      metadata: {}
+    });
     navigate(`/venue-request/${selectedVenue}`);
   };
 

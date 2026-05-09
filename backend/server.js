@@ -63,6 +63,7 @@ app.use(express.json());
 
 // -------------------- ROUTES --------------------
 app.use("/api/admin", require("./features/admin"));
+app.use("/api/analytics", require("./features/analytics"));
 app.use("/api/requests", require("./features/requests"));
 app.use("/api/payments", require("./features/payments"));
 app.use("/api/stripe", require("./features/payments/stripe")); // webhook route

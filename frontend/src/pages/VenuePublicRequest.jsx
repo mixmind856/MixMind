@@ -4,6 +4,11 @@ import VenuePaymentModalWrapper from "../componentsRequest/VenuePaymentModal";
 import SpotifyPaymentModal from "../componentsRequest/SpotifyPaymentModal";
 import logo from "../assets/Mixmind.jpeg";
 import { Gift, Check } from "lucide-react";
+import {
+  getOrCreateSessionId,
+  getAnalyticsContext,
+  trackAnalyticsEvent
+} from "../services/analyticsService";
 
 export default function VenuePublicRequest() {
   const navigate = useNavigate();
@@ -48,10 +53,98 @@ const [spotifyPrecheckLoading, setSpotifyPrecheckLoading] = useState(false);
 const [spotifyPaymentLoading, setSpotifyPaymentLoading] = useState(false);
 const [spotifyPaymentData, setSpotifyPaymentData] = useState(null);
 const suppressNextSpotifySearchRef = useRef(false);
+  const checkoutLegacyKeyRef = useRef(null);
+  const checkoutSpotifyKeyRef = useRef(null);
+  const lastLegacySongSearchRef = useRef("");
 
   useEffect(() => {
     fetchVenueData();
   }, [venueId]);
+
+  useEffect(() => {
+    lastLegacySongSearchRef.current = "";
+    checkoutLegacyKeyRef.current = null;
+    checkoutSpotifyKeyRef.current = null;
+  }, [venueId]);
+
+  useEffect(() => {
+    if (!venueId || !venue || !isVenueActive || loading) return;
+    const sid = getOrCreateSessionId();
+    const storageKey = `mixmind_vp_visit_${venueId}_${sid}`;
+    const prev = sessionStorage.getItem(storageKey);
+    const now = Date.now();
+    if (prev && now - Number(prev) < 30 * 60 * 1000) return;
+    sessionStorage.setItem(storageKey, String(now));
+    const ctx = getAnalyticsContext();
+    trackAnalyticsEvent({
+      eventType: "venue_page_visit",
+      venueId,
+      venueName: venue.name,
+      src: ctx.src,
+      sessionId: ctx.sessionId || sid,
+      metadata: {}
+    });
+  }, [venueId, venue, isVenueActive, loading]);
+
+  useEffect(() => {
+    if (spotifyMode || loading || !venueId || !venue || !isVenueActive) return;
+    const title = formData.songTitle.trim();
+    const artist = formData.artistName.trim();
+    if (title.length < 2 || artist.length < 2) return;
+    const timer = setTimeout(() => {
+      const fingerprint = `${venueId}|${title.toLowerCase()}|${artist.toLowerCase()}`;
+      if (lastLegacySongSearchRef.current === fingerprint) return;
+      lastLegacySongSearchRef.current = fingerprint;
+      const ctx = getAnalyticsContext();
+      trackAnalyticsEvent({
+        eventType: "song_search",
+        venueId,
+        venueName: venue.name,
+        src: ctx.src,
+        sessionId: ctx.sessionId || getOrCreateSessionId(),
+        metadata: { mode: "manual", songTitle: title, artistName: artist }
+      });
+    }, 1100);
+    return () => clearTimeout(timer);
+  }, [
+    spotifyMode,
+    loading,
+    venueId,
+    venue,
+    isVenueActive,
+    formData.songTitle,
+    formData.artistName
+  ]);
+
+  useEffect(() => {
+    if (!showPaymentModal || !checkoutUrl || !venueId || !venue) return;
+    if (checkoutLegacyKeyRef.current === checkoutUrl) return;
+    checkoutLegacyKeyRef.current = checkoutUrl;
+    const ctx = getAnalyticsContext();
+    trackAnalyticsEvent({
+      eventType: "checkout_started",
+      venueId,
+      venueName: venue.name,
+      src: ctx.src,
+      sessionId: ctx.sessionId || getOrCreateSessionId(),
+      metadata: { flow: "stripe_checkout_redirect" }
+    });
+  }, [showPaymentModal, checkoutUrl, venueId, venue]);
+
+  useEffect(() => {
+    if (!spotifyPaymentData?.clientSecret || !venueId || !venue) return;
+    if (checkoutSpotifyKeyRef.current === spotifyPaymentData.clientSecret) return;
+    checkoutSpotifyKeyRef.current = spotifyPaymentData.clientSecret;
+    const ctx = getAnalyticsContext();
+    trackAnalyticsEvent({
+      eventType: "checkout_started",
+      venueId,
+      venueName: venue.name,
+      src: ctx.src,
+      sessionId: ctx.sessionId || getOrCreateSessionId(),
+      metadata: { flow: "spotify_payment_element" }
+    });
+  }, [spotifyPaymentData, venueId, venue]);
 
   useEffect(() => {
     if (spotifyMode) {
@@ -142,6 +235,15 @@ const suppressNextSpotifySearchRef = useRef(false);
         }));
         setSpotifyResults(tracks);
         setSpotifySearched(true);
+        const ctxSearch = getAnalyticsContext();
+        trackAnalyticsEvent({
+          eventType: "song_search",
+          venueId,
+          venueName: venue?.name,
+          src: ctxSearch.src,
+          sessionId: ctxSearch.sessionId || getOrCreateSessionId(),
+          metadata: { mode: "spotify", query: q, resultCount: tracks.length }
+        });
       } catch (err) {
         setSpotifyResults([]);
         setSpotifySearched(true);
@@ -152,7 +254,7 @@ const suppressNextSpotifySearchRef = useRef(false);
     }, 250);
 
     return () => clearTimeout(timer);
-  }, [spotifyMode, spotifyQuery, venueId]);
+  }, [spotifyMode, spotifyQuery, venueId, venue?.name]);
 
   const handleSpotifyTrackSelect = (track) => {
     if (!spotifyMode || submitting) return;
@@ -249,6 +351,16 @@ const suppressNextSpotifySearchRef = useRef(false);
   setSuccess(false);
 
   try {
+    const ctxReq = getAnalyticsContext();
+    trackAnalyticsEvent({
+      eventType: "request_started",
+      venueId,
+      venueName: venue?.name,
+      src: ctxReq.src,
+      sessionId: ctxReq.sessionId || getOrCreateSessionId(),
+      metadata: { flow: "legacy" }
+    });
+
     const response = await fetch(
       `${import.meta.env.VITE_API_URL}/requests/create`,
       {
@@ -356,6 +468,15 @@ console.log("✅ Song request created");
         console.log("SPOTIFY MODE FLOW ACTIVE");
         console.log("Calling /api/jukebox/create-payment");
         setSpotifyPaymentData(null);
+        const ctxSpotReq = getAnalyticsContext();
+        trackAnalyticsEvent({
+          eventType: "request_started",
+          venueId,
+          venueName: venue?.name,
+          src: ctxSpotReq.src,
+          sessionId: ctxSpotReq.sessionId || getOrCreateSessionId(),
+          metadata: { flow: "spotify", trackId: selectedSpotifyTrack.trackId }
+        });
         const paymentRes = await fetch(`${import.meta.env.VITE_API_URL}/jukebox/create-payment`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },

@@ -2,6 +2,10 @@ import { useState, useEffect } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { Music, Zap, Award, Flame, Info } from "lucide-react";
 import logo from "../assets/Mixmind.jpeg";
+import {
+  getAnalyticsContext,
+  trackAnalyticsEvent
+} from "../services/analyticsService";
 
 export default function ThankYou() {
   const navigate = useNavigate();
@@ -22,13 +26,51 @@ export default function ThankYou() {
       try {
         if (x) {
           const response = await fetch(`${import.meta.env.VITE_API_URL}/venue/public/${x}`);
+          let resolvedName = "";
           if (response.ok) {
             const venueData = await response.json();
             setDjModeEnabled(venueData.djMode || false);
+            resolvedName = venueData.name || "";
+          }
+          const ctx = getAnalyticsContext();
+          const sessionId = ctx.sessionId;
+          if (sessionId) {
+            const requestId = localStorage.getItem("lastRequestId") || "";
+            const dedupeKey = `mixmind_payment_completed_${x}_${requestId || "na"}`;
+            if (!sessionStorage.getItem(dedupeKey)) {
+              sessionStorage.setItem(dedupeKey, "1");
+              trackAnalyticsEvent({
+                eventType: "payment_completed",
+                venueId: x,
+                venueName: resolvedName || undefined,
+                src: ctx.src,
+                sessionId,
+                metadata: { requestId: requestId || undefined }
+              });
+            }
           }
         }
       } catch (err) {
         console.error("Failed to fetch venue data:", err);
+        if (x) {
+          const ctx = getAnalyticsContext();
+          const sessionId = ctx.sessionId;
+          if (sessionId) {
+            const requestId = localStorage.getItem("lastRequestId") || "";
+            const dedupeKey = `mixmind_payment_completed_${x}_${requestId || "na"}`;
+            if (!sessionStorage.getItem(dedupeKey)) {
+              sessionStorage.setItem(dedupeKey, "1");
+              trackAnalyticsEvent({
+                eventType: "payment_completed",
+                venueId: x,
+                venueName: undefined,
+                src: ctx.src,
+                sessionId,
+                metadata: { requestId: requestId || undefined }
+              });
+            }
+          }
+        }
       } finally {
         setLoading(false);
       }

@@ -1,10 +1,7 @@
 import React, { useState, useEffect } from "react";
 import {
   getDashboardSummary,
-  getAllVenuesStats,
-  getRevenueBreakdown,
-  getSongRequestDetails,
-  getTopVenues,
+  getAnalyticsFunnel,
 } from "../services/adminStatsService";
 import {
   BarChart3,
@@ -18,6 +15,7 @@ import {
   Activity,
   MapPin,
   AlertCircle,
+  QrCode,
 } from "lucide-react";
 import "./AdminDashboard.css";
 
@@ -26,9 +24,12 @@ const AdminDashboard = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [activeTab, setActiveTab] = useState("overview");
+  const [funnel, setFunnel] = useState(null);
+  const [funnelError, setFunnelError] = useState(null);
 
   useEffect(() => {
     fetchDashboardData();
+    fetchFunnelData();
   }, []);
 
   const fetchDashboardData = async () => {
@@ -42,6 +43,17 @@ const AdminDashboard = () => {
       console.error(err);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const fetchFunnelData = async () => {
+    try {
+      setFunnelError(null);
+      const data = await getAnalyticsFunnel();
+      setFunnel(data);
+    } catch (err) {
+      console.error(err);
+      setFunnelError("Could not load QR & funnel analytics.");
     }
   };
 
@@ -77,13 +89,184 @@ const AdminDashboard = () => {
     <div className="admin-dashboard">
       <div className="dashboard-header">
         <div className="header-content">
-          <h1>Realllllllllllllllllllllllllllll 2</h1>
+          <h1>Admin Dashboard</h1>
           <p className="subtitle">Complete Platform Overview & Analytics</p>
         </div>
-        <button onClick={fetchDashboardData} className="refresh-button">
+        <button
+          onClick={() => {
+            fetchDashboardData();
+            fetchFunnelData();
+          }}
+          className="refresh-button"
+        >
           ↻ Refresh
         </button>
       </div>
+
+      {/* QR & FUNNEL ANALYTICS */}
+      <section className="summary-section funnel-section">
+        <div style={{ display: "flex", alignItems: "center", gap: "10px", marginBottom: "8px" }}>
+          <QrCode size={22} />
+          <h2 style={{ margin: 0 }}>QR & Funnel Analytics</h2>
+        </div>
+        <p className="subtitle" style={{ marginTop: 0, opacity: 0.85, fontSize: "0.9rem" }}>
+          {funnel?.dateRange?.timezone
+            ? `Date range uses ${funnel.dateRange.timezone} midnight boundaries.`
+            : "Loading timezone info…"}
+        </p>
+        {funnelError && (
+          <p style={{ color: "#f87171", marginBottom: "12px" }}>{funnelError}</p>
+        )}
+        {funnel && funnel.totals && (
+          <>
+            <div className="summary-grid" style={{ marginTop: "16px" }}>
+              <div className="summary-card requests-card">
+                <div className="card-header">
+                  <QrCode size={22} />
+                  <span className="badge">QR</span>
+                </div>
+                <div className="card-content">
+                  <h3>{funnel.totals.qrLandingVisits}</h3>
+                  <p>QR landing visits today</p>
+                </div>
+              </div>
+              <div className="summary-card venues-card">
+                <div className="card-header">
+                  <MapPin size={22} />
+                  <span className="badge">Select</span>
+                </div>
+                <div className="card-content">
+                  <h3>{funnel.totals.venueSelections}</h3>
+                  <p>Venue selections today</p>
+                </div>
+              </div>
+              <div className="summary-card requests-card">
+                <div className="card-header">
+                  <Activity size={22} />
+                  <span className="badge">Pages</span>
+                </div>
+                <div className="card-content">
+                  <h3>{funnel.totals.venuePageVisits}</h3>
+                  <p>Venue page visits today</p>
+                </div>
+              </div>
+              <div className="summary-card revenue-card">
+                <div className="card-header">
+                  <CheckCircle size={22} />
+                  <span className="badge">Paid</span>
+                </div>
+                <div className="card-content">
+                  <h3>{funnel.totals.paymentsCompleted}</h3>
+                  <p>Payments completed today</p>
+                </div>
+              </div>
+              <div className="summary-card approval-card">
+                <div className="card-header">
+                  <TrendingUp size={22} />
+                  <span className="badge">Funnel</span>
+                </div>
+                <div className="card-content">
+                  <h3>{funnel.totals.overallConversionRate}%</h3>
+                  <p>Overall conversion (payments ÷ QR visits)</p>
+                </div>
+              </div>
+              <div className="summary-card approval-card">
+                <div className="card-header">
+                  <Clock size={22} />
+                  <span className="badge">Peak</span>
+                </div>
+                <div className="card-content">
+                  <h3>
+                    {funnel.hottestScanTimes?.[0]
+                      ? `${funnel.hottestScanTimes[0].hour} (${funnel.hottestScanTimes[0].count})`
+                      : "—"}
+                  </h3>
+                  <p>Hottest scan / visit hour</p>
+                </div>
+              </div>
+            </div>
+
+            <div className="venues-table-container" style={{ marginTop: "28px" }}>
+              <h3 style={{ marginBottom: "12px" }}>By venue</h3>
+              <table className="data-table">
+                <thead>
+                  <tr>
+                    <th>Venue</th>
+                    <th>Selected</th>
+                    <th>Page visits</th>
+                    <th>Searches</th>
+                    <th>Checkouts</th>
+                    <th>Payments</th>
+                    <th>Conv %</th>
+                    <th>Hottest hour</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {(funnel.venues || []).length === 0 ? (
+                    <tr>
+                      <td colSpan={8} style={{ textAlign: "center", opacity: 0.7 }}>
+                        No venue-attributed activity today.
+                      </td>
+                    </tr>
+                  ) : (
+                    funnel.venues.map((row) => (
+                      <tr key={row.venueId}>
+                        <td className="venue-name">{row.venueName || row.venueId}</td>
+                        <td>{row.venueSelections}</td>
+                        <td>{row.venuePageVisits}</td>
+                        <td>{row.songSearches}</td>
+                        <td>{row.checkoutsStarted}</td>
+                        <td>{row.paymentsCompleted}</td>
+                        <td>{row.visitToPaymentConversion}%</td>
+                        <td>{row.hottestHour || "—"}</td>
+                      </tr>
+                    ))
+                  )}
+                </tbody>
+              </table>
+            </div>
+
+            <div className="venues-table-container" style={{ marginTop: "28px" }}>
+              <h3 style={{ marginBottom: "12px" }}>Source breakdown</h3>
+              <p className="subtitle" style={{ fontSize: "0.85rem", opacity: 0.75, marginBottom: "10px" }}>
+                Visits = QR landings with <code>src</code>; selections = venue picks; payments = completed checkouts.
+              </p>
+              <table className="data-table">
+                <thead>
+                  <tr>
+                    <th>Source</th>
+                    <th>Visits</th>
+                    <th>Venue selected</th>
+                    <th>Payments</th>
+                    <th>Conv %</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {Object.entries(funnel.sources || {}).length === 0 ? (
+                    <tr>
+                      <td colSpan={5} style={{ textAlign: "center", opacity: 0.7 }}>
+                        No source tags recorded today.
+                      </td>
+                    </tr>
+                  ) : (
+                    Object.entries(funnel.sources || {})
+                      .sort((a, b) => (b[1].visits || 0) - (a[1].visits || 0))
+                      .map(([src, s]) => (
+                        <tr key={src}>
+                          <td>{src}</td>
+                          <td>{s.visits}</td>
+                          <td>{s.selections}</td>
+                          <td>{s.paymentsCompleted}</td>
+                          <td>{s.conversion}%</td>
+                        </tr>
+                      ))
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </>
+        )}
+      </section>
 
       {/* SUMMARY CARDS */}
       <section className="summary-section">
