@@ -283,13 +283,20 @@ const handleCancelConfirm = () => {
                                
             <h1 className="text-2xl font-bold">DJ Dashboard</h1>
           </div>
-          
-          <button
-            onClick={handleLogout}
-            className="px-6 py-2 rounded-lg border border-gray-600 hover:border-gray-400 transition-colors"
-          >
-            Logout
-          </button>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => navigate("/dj/select-venue")}
+              className="px-4 py-2 rounded-lg border border-purple-500/40 hover:border-purple-400 transition-colors"
+            >
+              Back to Venues
+            </button>
+            <button
+              onClick={handleLogout}
+              className="px-6 py-2 rounded-lg border border-gray-600 hover:border-gray-400 transition-colors"
+            >
+              Logout
+            </button>
+          </div>
         </div>
                   <div className="mt-2">
           <p style={{ color: "rgba(255,255,255,0.72)" }}>

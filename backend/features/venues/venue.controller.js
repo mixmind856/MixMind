@@ -331,11 +331,13 @@ async function toggleSpotifyMode(req, res) {
       return res.status(400).json({ error: "spotifyMode must be boolean" });
     }
 
-    const venue = await Venue.findByIdAndUpdate(
-      venueId,
-      { spotifyMode },
-      { new: true }
-    ).select("-password");
+    const updateData = spotifyMode
+      ? { spotifyMode: true, djMode: false }
+      : { spotifyMode: false };
+
+    const venue = await Venue.findByIdAndUpdate(venueId, updateData, {
+      new: true
+    }).select("-password");
 
     if (!venue) {
       return res.status(404).json({ error: "Venue not found" });
@@ -343,7 +345,8 @@ async function toggleSpotifyMode(req, res) {
 
     res.json({
       message: spotifyMode ? "Spotify mode enabled" : "Spotify mode disabled",
-      spotifyMode: venue.spotifyMode
+      spotifyMode: venue.spotifyMode,
+      djMode: venue.djMode
     });
   } catch (err) {
     console.error("Toggle Spotify Mode Error:", err.message);

@@ -10,21 +10,6 @@ const { capturePayment, cancelPayment, createSplitTransfers } = require("../../f
 const bcrypt = require("bcryptjs");
 const jwt = require("jsonwebtoken");
 
-const DJ_ACCESS_DURATION_MS = 7 * 60 * 60 * 1000;
-
-function getAccessGrantedAt(access) {
-  return access?.approvedAt || access?.activeSince || access?.respondedAt || access?.updatedAt;
-}
-
-function isDJAccessStillValid(access) {
-  if (!access) return false;
-  if (access.status !== "approved") return false;
-  if (!access.currentlyActive) return false;
-  const grantedAt = getAccessGrantedAt(access);
-  if (!grantedAt) return false;
-  return Date.now() - new Date(grantedAt).getTime() <= DJ_ACCESS_DURATION_MS;
-}
-
 function isStripeAlreadyCapturedError(err) {
   const code = err?.code;
   const msg = String(err?.message || "").toLowerCase();
@@ -79,6 +64,7 @@ async function initializeDJMode(req, res) {
     const hashedPassword = await bcrypt.hash(djPassword, salt);
 
     venue.djMode = true;
+    venue.spotifyMode = false;
     venue.djPassword = hashedPassword;
     await venue.save();
 
@@ -88,7 +74,8 @@ async function initializeDJMode(req, res) {
 
     res.json({
       message: "DJ mode initialized successfully",
-      djMode: venue.djMode
+      djMode: venue.djMode,
+      spotifyMode: venue.spotifyMode
     });
   } catch (err) {
     console.error("❌ Initialize DJ mode error:", err.message);
@@ -160,11 +147,16 @@ async function toggleDJMode(req, res) {
       venue.djPassword = await bcrypt.hash(djPassword, salt);
     }
 
-    venue.djMode = !venue.djMode;
+    const nextDJMode = !venue.djMode;
+    venue.djMode = nextDJMode;
+    if (nextDJMode) {
+      venue.spotifyMode = false;
+    }
     await venue.save();
 
     res.json({
       djMode: venue.djMode,
+      spotifyMode: venue.spotifyMode,
       message: `DJ mode ${venue.djMode ? "enabled" : "disabled"} successfully`
     });
   } catch (err) {
@@ -210,14 +202,6 @@ async function getPendingRequests(req, res) {
         });
       }
 
-      if (!isDJAccessStillValid(accessRequest)) {
-        accessRequest.currentlyActive = false;
-        await accessRequest.save();
-        return res.status(403).json({
-          error: "Your venue access has expired. Please request access again."
-        });
-      }
-      
       console.log(`   ✅ DJ user approved for venue`);
     } else {
       console.log(`❌ No venueId or djId found in token`);
@@ -289,13 +273,6 @@ async function djAcceptRequest(req, res) {
         return res.status(403).json({ error: "You don't have access to this venue" });
       }
 
-      if (!isDJAccessStillValid(accessRequest)) {
-        accessRequest.currentlyActive = false;
-        await accessRequest.save();
-        return res.status(403).json({
-          error: "Your venue access has expired. Please request access again."
-        });
-      }
     } else {
       return res.status(401).json({ error: "Invalid DJ token" });
     }
@@ -550,13 +527,6 @@ async function djRejectRequest(req, res) {
         return res.status(403).json({ error: "You don't have access to this venue" });
       }
 
-      if (!isDJAccessStillValid(accessRequest)) {
-        accessRequest.currentlyActive = false;
-        await accessRequest.save();
-        return res.status(403).json({
-          error: "Your venue access has expired. Please request access again."
-        });
-      }
     } else {
       return res.status(401).json({ error: "Invalid DJ token" });
     }
@@ -699,13 +669,6 @@ async function getDJStats(req, res) {
         return res.status(403).json({ error: "You don't have access to this venue" });
       }
 
-      if (!isDJAccessStillValid(accessRequest)) {
-        accessRequest.currentlyActive = false;
-        await accessRequest.save();
-        return res.status(403).json({
-          error: "Your venue access has expired. Please request access again."
-        });
-      }
     } else {
       return res.status(401).json({ error: "Invalid DJ token" });
     }
@@ -906,12 +869,21 @@ async function requestVenueAccess(req, res) {
         console.log(`   ⚠️  DJ already has pending request`);
         return res.status(400).json({ error: "You already have a pending request for this venue" });
       }
-      if (existingAccess.status === "approved" && isDJAccessStillValid(existingAccess)) {
+      if (existingAccess.status === "approved") {
+        if (!existingAccess.currentlyActive) {
+          existingAccess.currentlyActive = true;
+          existingAccess.activeSince = existingAccess.activeSince || existingAccess.approvedAt || new Date();
+          await existingAccess.save();
+        }
         console.log(`   ⚠️  DJ already has approved access`);
-        return res.status(400).json({ error: "You already have access to this venue" });
+        return res.status(200).json({
+          message: "You already have approved access to this venue",
+          accessRequestId: existingAccess._id,
+          status: "approved",
+          venueName: venue.name
+        });
       }
       if (
-        existingAccess.status === "approved" ||
         existingAccess.status === "rejected" ||
         existingAccess.status === "revoked"
       ) {
@@ -975,15 +947,8 @@ async function getDJAccessStatus(req, res) {
 
     console.log(`   ✅ Found ${accessRequests.length} access records`);
 
-    for (const r of accessRequests) {
-      if (r.status === "approved" && r.currentlyActive && !isDJAccessStillValid(r)) {
-        r.currentlyActive = false;
-        await r.save();
-      }
-    }
-
     const organized = {
-      approved: accessRequests.filter(r => r.status === "approved" && isDJAccessStillValid(r)),
+      approved: accessRequests.filter(r => r.status === "approved" && r.currentlyActive),
       pending: accessRequests.filter(r => r.status === "pending"),
       rejected: accessRequests.filter(r => r.status === "rejected"),
       revoked: accessRequests.filter(r => r.status === "revoked"),
@@ -1014,16 +979,6 @@ async function getActiveVenue(req, res) {
 
     if (!activeAccess) {
       console.log(`   ℹ️  No currently active venue`);
-      return res.json({
-        activeVenue: null,
-        message: "No active venue"
-      });
-    }
-
-    if (!isDJAccessStillValid(activeAccess)) {
-      activeAccess.currentlyActive = false;
-      await activeAccess.save();
-      console.log(`   ℹ️  Active venue access expired`);
       return res.json({
         activeVenue: null,
         message: "No active venue"
@@ -1076,16 +1031,9 @@ async function getVenueDJAccessRequests(req, res) {
       console.log(`   ⚠️  Filtered out ${requests.length - validRequests.length} requests with missing DJ records`);
     }
 
-    for (const r of validRequests) {
-      if (r.status === "approved" && r.currentlyActive && !isDJAccessStillValid(r)) {
-        r.currentlyActive = false;
-        await r.save();
-      }
-    }
-
     const organized = {
       pending: validRequests.filter(r => r.status === "pending"),
-      approved: validRequests.filter(r => r.status === "approved" && isDJAccessStillValid(r)),
+      approved: validRequests.filter(r => r.status === "approved" && r.currentlyActive),
       rejected: validRequests.filter(r => r.status === "rejected"),
       revoked: validRequests.filter(r => r.status === "revoked"),
       all: validRequests
@@ -1129,12 +1077,6 @@ async function approveVenueDJAccess(req, res) {
     await DJ.findByIdAndUpdate(
       accessRequest.djId._id,
       { $addToSet: { approvedVenues: accessRequest.venueId._id } }
-    );
-
-    // Deactivate any other active DJs for this venue
-    await DJVenueAccess.updateMany(
-      { venueId: accessRequest.venueId._id, currentlyActive: true },
-      { currentlyActive: false }
     );
 
     // Update access request status and set as active

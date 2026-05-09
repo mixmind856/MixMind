@@ -420,6 +420,9 @@ export default function VenueDashboard() {
 
       const data = await response.json();
       setSpotifyMode(!!data.spotifyMode);
+      if (typeof data.djMode === "boolean") {
+        setDJMode(!!data.djMode);
+      }
       setSuccessMsg(data.message || (nextSpotifyMode ? "Spotify mode enabled" : "Spotify mode disabled"));
       setTimeout(() => setSuccessMsg(""), 3000);
     } catch (err) {
@@ -479,9 +482,15 @@ export default function VenueDashboard() {
           throw new Error("Failed to setup DJ mode");
         }
 
-        setDJMode(true);
-        // DJ Mode is now INDEPENDENT - doesn't affect Live Playlist
-        setSuccessMsg("✅ DJ Mode enabled! Share the password with your DJ. Live Playlist remains unchanged.");
+        const data = await response.json();
+        setDJMode(!!data.djMode);
+        if (typeof data.spotifyMode === "boolean") {
+          setSpotifyMode(!!data.spotifyMode);
+        }
+        setSuccessMsg(
+          data.message ||
+            "✅ DJ Mode enabled! Spotify mode has been turned off."
+        );
         
         setDjPassword("");
         setShowDJModal(false);
@@ -503,9 +512,12 @@ export default function VenueDashboard() {
           throw new Error("Failed to disable DJ mode");
         }
 
-        setDJMode(false);
-        // DJ Mode is now INDEPENDENT - doesn't affect Live Playlist
-        setSuccessMsg("✅ DJ Mode disabled. Live Playlist remains unchanged.");
+        const data = await response.json();
+        setDJMode(!!data.djMode);
+        if (typeof data.spotifyMode === "boolean") {
+          setSpotifyMode(!!data.spotifyMode);
+        }
+        setSuccessMsg(data.message || "✅ DJ Mode disabled.");
         setShowDJModal(false);
       }
 

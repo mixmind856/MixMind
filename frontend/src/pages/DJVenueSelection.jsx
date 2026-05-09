@@ -5,13 +5,16 @@ import { MapPin, Building2, ArrowRight, Loader } from "lucide-react";
 export default function DJVenueSelection() {
   const navigate = useNavigate();
   const [venues, setVenues] = useState([]);
+  const [acceptedVenues, setAcceptedVenues] = useState([]);
   const [selectedVenue, setSelectedVenue] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [accessLoading, setAccessLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState("");
 
   useEffect(() => {
     fetchVenuesWithDJMode();
+    fetchDJAccessStatus();
   }, []);
 
   const fetchVenuesWithDJMode = async () => {
@@ -34,6 +37,45 @@ export default function DJVenueSelection() {
     }
   };
 
+  const fetchDJAccessStatus = async () => {
+    try {
+      setAccessLoading(true);
+      const token = localStorage.getItem("djToken");
+      if (!token) {
+        setAcceptedVenues([]);
+        return;
+      }
+
+      const response = await fetch(
+        `${import.meta.env.VITE_API_URL}/dj/access-status`,
+        {
+          headers: {
+            Authorization: `Bearer ${token}`
+          }
+        }
+      );
+
+      if (!response.ok) {
+        throw new Error("Failed to fetch access status");
+      }
+
+      const data = await response.json();
+      const approved = Array.isArray(data?.approved) ? data.approved : [];
+      const mapped = approved
+        .filter((entry) => entry?.venueId)
+        .map((entry) => ({
+          accessRequestId: entry._id,
+          venue: entry.venueId
+        }));
+      setAcceptedVenues(mapped);
+    } catch (err) {
+      console.error("Failed to load approved venues:", err.message);
+      setAcceptedVenues([]);
+    } finally {
+      setAccessLoading(false);
+    }
+  };
+
   const handleContinue = async () => {
     if (!selectedVenue) {
       setError("Please select a venue");
@@ -43,6 +85,14 @@ export default function DJVenueSelection() {
     try {
       setSubmitting(true);
       const token = localStorage.getItem("djToken");
+      const alreadyAccepted = acceptedVenues.some(
+        (item) => item.venue?._id === selectedVenue._id
+      );
+
+      if (alreadyAccepted) {
+        navigate(`/dj/dashboard/${selectedVenue._id}`);
+        return;
+      }
 
       const response = await fetch(
         `${import.meta.env.VITE_API_URL}/dj/request-access`,
@@ -76,8 +126,12 @@ export default function DJVenueSelection() {
         return;
       }
 
-      // Redirect to waiting screen
-      navigate(`/dj/waiting-approval/${selectedVenue._id}`);
+      if (data?.status === "approved") {
+        navigate(`/dj/dashboard/${selectedVenue._id}`);
+      } else {
+        // Redirect to waiting screen
+        navigate(`/dj/waiting-approval/${selectedVenue._id}`);
+      }
     } catch (err) {
       setError(err.message || "An error occurred");
       setSubmitting(false);
@@ -168,6 +222,45 @@ export default function DJVenueSelection() {
           </div>
         )}
 
+        {/* Section B: Accepted Venues */}
+        <div className="mb-8">
+          <h2 className="text-2xl font-bold mb-3">Accepted Venues</h2>
+          {accessLoading ? (
+            <div className="glass-card rounded-2xl p-6 text-center">
+              <span>Loading accepted venues...</span>
+            </div>
+          ) : acceptedVenues.length === 0 ? (
+            <div className="glass-card rounded-2xl p-6 text-center">
+              <p style={{ color: "rgba(255,255,255,0.72)" }}>
+                No accepted venues yet. Request access below.
+              </p>
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {acceptedVenues.map((item) => (
+                <button
+                  key={item.accessRequestId}
+                  type="button"
+                  onClick={() => navigate(`/dj/dashboard/${item.venue._id}`)}
+                  className="glass-card venue-card rounded-xl p-6 border-2 text-left"
+                  style={{
+                    borderColor: "rgba(34,227,161,0.45)",
+                    background: "linear-gradient(135deg, rgba(34,227,161,0.12) 0%, rgba(18,18,34,0.72) 100%)"
+                  }}
+                >
+                  <h3 className="text-lg font-bold mb-2">{item.venue.name}</h3>
+                  <p className="text-sm" style={{ color: "rgba(255,255,255,0.72)" }}>
+                    {item.venue.city || "City N/A"}{item.venue.state ? `, ${item.venue.state}` : ""}
+                  </p>
+                  <p className="text-xs mt-3" style={{ color: "#22E3A1" }}>
+                    Approved access - Open dashboard
+                  </p>
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+
         {/* Loading State */}
         {loading ? (
           <div className="flex items-center justify-center py-12">
@@ -184,6 +277,7 @@ export default function DJVenueSelection() {
           </div>
         ) : (
           <>
+            <h2 className="text-2xl font-bold mb-3">Request Venue Access</h2>
             {/* Venues Grid */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-8">
               {venues.map((venue) => (
