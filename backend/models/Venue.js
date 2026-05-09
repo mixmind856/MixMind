@@ -31,6 +31,9 @@ const VenueSchema = new Schema(
     spotifyAccessToken: { type: String },
     spotifyRefreshToken: { type: String },
     spotifyTokenExpiresAt: { type: Date },
+    spotifyLastActiveDeviceId: { type: String },
+    spotifyLastActiveDeviceName: { type: String },
+    spotifyLastDeviceSeenAt: { type: Date },
     
     // Genre Management System
     preferredGenres: {

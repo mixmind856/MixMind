@@ -303,6 +303,14 @@ async function confirmAndProcess(req, res) {
     jukeboxReq.rejectionReason = err.message;
     await jukeboxReq.save().catch(() => {});
 
+    if (err?.code === "NO_ACTIVE_DEVICE") {
+      return res.status(503).json({
+        error:
+          "The venue Spotify player is not reachable right now. Your payment was not taken. Please ask staff to reopen Spotify and try again.",
+        message: err.message
+      });
+    }
+
     return res.status(500).json({
       error: "Processing failed. Payment hold released.",
       message: err.message,
