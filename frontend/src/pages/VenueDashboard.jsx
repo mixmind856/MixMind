@@ -529,10 +529,6 @@ export default function VenueDashboard() {
     }
   };
 
-  const handleAccessDJ = () => {
-    navigate(`/venue/dj/${venue._id}`);
-  };
-
   const fetchPreferredGenres = async (token) => {
     try {
       const response = await fetch(`${import.meta.env.VITE_API_URL}/venue/genres/get`, {
@@ -781,14 +777,6 @@ export default function VenueDashboard() {
               </p>
             </div>
             <div className="flex gap-3">
-              {djMode && (
-                <button
-                  onClick={handleAccessDJ}
-                  className="px-8 py-3 rounded-lg font-semibold bg-purple-600 hover:bg-purple-700 text-white transition-all"
-                >
-                  Access DJ Panel
-                </button>
-              )}
               <button
                 onClick={() => setShowDJModal(true)}
                 className={`px-8 py-3 rounded-lg font-semibold transition-all ${

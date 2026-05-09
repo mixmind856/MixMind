@@ -113,6 +113,18 @@ export default function LoginModal({ isOpen, onClose, type }) {
               </button>
 
             </form>
+            {!isCustomer && (
+              <p className="text-sm text-center mt-4 text-gray-300">
+                Don&apos;t have a venue account?{" "}
+                <button
+                  type="button"
+                  onClick={() => navigate("/venue/signup")}
+                  className="text-purple-400 hover:text-purple-300 underline underline-offset-2"
+                >
+                  Sign up
+                </button>
+              </p>
+            )}
           </>
         ) : (
           <div className="text-center py-8">

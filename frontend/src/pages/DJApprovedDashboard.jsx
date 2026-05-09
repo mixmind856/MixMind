@@ -499,7 +499,7 @@ const handleCancelConfirm = () => {
     cursor: "pointer"
   }}
 >
-  {confirmAction === "accept" ? "Cancel" : "😕 Not Now"}
+  Cancel
 </button>
 
         {/* RIGHT BUTTON */}
@@ -522,9 +522,7 @@ const handleCancelConfirm = () => {
     cursor: "pointer"
   }}
 >
-  {confirmAction === "accept"
-    ? "✅ Add to set"
-    : "🔥 I’ll play it"}
+  Confirm
 </button>
       </div>
     </div>
