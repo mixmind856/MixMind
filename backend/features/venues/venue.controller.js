@@ -298,6 +298,16 @@ async function toggleVenueStatus(req, res) {
     const venueId = req.venue.id;
     const { active } = req.body;
 
+    if (typeof active !== "boolean") {
+      return res.status(400).json({ error: "active must be a boolean" });
+    }
+
+    console.log("[toggleVenueStatus]", {
+      venueId,
+      active,
+      timestamp: new Date().toISOString()
+    });
+
     const venue = await Venue.findByIdAndUpdate(
       venueId,
       { isActive: active },

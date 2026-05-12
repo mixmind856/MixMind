@@ -14,7 +14,8 @@ export default function VenueDashboard() {
   const [successMsg, setSuccessMsg] = useState("");
   const [processingId, setProcessingId] = useState(null);
   const [livePlaylistActive, setLivePlaylistActive] = useState(false);
-  const [venueActive, setVenueActive] = useState(true);
+  const [venueActive, setVenueActive] = useState(false);
+  const [venueProfileLoaded, setVenueProfileLoaded] = useState(false);
   const [togglingVenueStatus, setTogglingVenueStatus] = useState(false);
   const [djMode, setDJMode] = useState(false);
   const [spotifyMode, setSpotifyMode] = useState(false);
@@ -124,7 +125,8 @@ export default function VenueDashboard() {
     try {
       setLoading(true);
       setError("");
-      
+      setVenueProfileLoaded(false);
+
       // Fetch venue profile
       const venueRes = await fetch(`${import.meta.env.VITE_API_URL}/venue/profile`, {
         headers: { Authorization: `Bearer ${token}` }
@@ -139,7 +141,8 @@ export default function VenueDashboard() {
       const venueData = await venueRes.json();
       setVenue(venueData);
       setLivePlaylistActive(venueData.livePlaylistActive || false);
-      setVenueActive(venueData.isActive || true);
+      setVenueActive(venueData.isActive === true);
+      setVenueProfileLoaded(true);
       setDJMode(venueData.djMode || false);
       setSpotifyMode(venueData.spotifyMode || false);
       setSpotifyConnected(!!venueData.spotifyConnected);
@@ -223,6 +226,7 @@ export default function VenueDashboard() {
       }
     } catch (err) {
       setError(err.message || "Failed to load data");
+      setVenueProfileLoaded(false);
     } finally {
       setLoading(false);
     }
@@ -403,6 +407,8 @@ export default function VenueDashboard() {
   };
 
   const handleToggleVenueStatus = async () => {
+    if (togglingVenueStatus || !venueProfileLoaded) return;
+
     const token = localStorage.getItem("venueToken");
     setTogglingVenueStatus(true);
     setError("");
@@ -838,26 +844,44 @@ export default function VenueDashboard() {
         </div>
 
         {/* Venue Status Control */}
-        <div className={`bg-gradient-to-r ${venueActive ? 'from-green-900/30 to-emerald-900/30 border-green-500/30' : 'from-red-900/30 to-orange-900/30 border-red-500/30'} border rounded-xl p-8 mb-12`}>
+        <div
+          className={`bg-gradient-to-r border rounded-xl p-8 mb-12 ${
+            !venueProfileLoaded
+              ? "from-gray-900/30 to-gray-900/30 border-gray-500/30"
+              : venueActive
+                ? "from-green-900/30 to-emerald-900/30 border-green-500/30"
+                : "from-red-900/30 to-orange-900/30 border-red-500/30"
+          }`}
+        >
           <div className="flex items-center justify-between">
             <div>
               <h2 className="text-2xl font-bold mb-2">Venue Status</h2>
               <p className="text-gray-400">
-                {venueActive 
-                  ? "🟢 ONLINE - Customers can view your venue and request songs" 
-                  : "🔴 OFFLINE - Your venue is hidden from customers"}
+                {!venueProfileLoaded
+                  ? "Loading venue status…"
+                  : venueActive
+                    ? "🟢 ONLINE - Customers can view your venue and request songs"
+                    : "🔴 OFFLINE - Your venue is hidden from customers"}
               </p>
             </div>
             <button
               onClick={handleToggleVenueStatus}
-              disabled={togglingVenueStatus}
+              disabled={togglingVenueStatus || !venueProfileLoaded}
               className={`px-8 py-3 rounded-lg font-semibold transition-all ${
-                venueActive
-                  ? "bg-green-600 hover:bg-green-700 text-white"
-                  : "bg-red-600 hover:bg-red-700 text-white"
-              } ${togglingVenueStatus ? 'opacity-50 cursor-not-allowed' : ''}`}
+                !venueProfileLoaded
+                  ? "bg-gray-600 text-gray-300 cursor-not-allowed"
+                  : venueActive
+                    ? "bg-green-600 hover:bg-green-700 text-white"
+                    : "bg-red-600 hover:bg-red-700 text-white"
+              } ${togglingVenueStatus || !venueProfileLoaded ? "opacity-50 cursor-not-allowed" : ""}`}
             >
-              {togglingVenueStatus ? "Updating..." : (venueActive ? "Go Offline" : "Go Online")}
+              {togglingVenueStatus
+                ? "Updating..."
+                : !venueProfileLoaded
+                  ? "…"
+                  : venueActive
+                    ? "Go Offline"
+                    : "Go Online"}
             </button>
           </div>
         </div>
