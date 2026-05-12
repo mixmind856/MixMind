@@ -48,7 +48,6 @@ function startOfNextLondonDay(fromStart) {
   return new Date(t);
 }
 
-/** Start of calendar day YYYY-MM-DD in Europe/London */
 function startOfLondonYmd(ymdStr) {
   if (!/^\d{4}-\d{2}-\d{2}$/.test(ymdStr)) return null;
   const [Y, M, D] = ymdStr.split("-").map(Number);
@@ -61,7 +60,6 @@ function startOfLondonYmd(ymdStr) {
   return null;
 }
 
-/** Monday 00:00 Europe/London for the week containing `reference` */
 function startOfLondonWeekMonday(reference = new Date()) {
   let t = startOfLondonDay(reference);
   for (let i = 0; i < 10; i++) {
@@ -72,7 +70,6 @@ function startOfLondonWeekMonday(reference = new Date()) {
   return startOfLondonDay(reference);
 }
 
-/** Next Monday 00:00 after `weekMonday` (start of following week) */
 function startOfNextLondonWeekMonday(weekMonday) {
   return startOfLondonWeekMonday(new Date(weekMonday.getTime() + 8 * 86400000));
 }
@@ -107,7 +104,7 @@ function formatLondonLong(d) {
 }
 
 /**
- * Resolve [from, toExclusive) and label. `from`+`to` in query take priority when both valid.
+ * Resolve [from, toExclusive) and label. Valid `from`+`to` ISO params take priority.
  */
 function resolveAnalyticsWindow(query = {}) {
   if (query.from && query.to) {
@@ -127,6 +124,37 @@ function resolveAnalyticsWindow(query = {}) {
 
   const now = new Date();
   const range = typeof query.range === "string" ? query.range.trim().toLowerCase() : "today";
+
+  if (range === "custom") {
+    const sd = typeof query.startDate === "string" ? query.startDate.trim() : "";
+    const ed = typeof query.endDate === "string" ? query.endDate.trim() : "";
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(sd) || !/^\d{4}-\d{2}-\d{2}$/.test(ed)) {
+      const err = new Error("Invalid or missing startDate / endDate (YYYY-MM-DD) for range=custom");
+      err.statusCode = 400;
+      throw err;
+    }
+    const from = startOfLondonYmd(sd);
+    const endInclusive = startOfLondonYmd(ed);
+    if (!from || !endInclusive) {
+      const err = new Error("Invalid startDate or endDate for range=custom");
+      err.statusCode = 400;
+      throw err;
+    }
+    const toExclusive = startOfNextLondonDay(endInclusive);
+    if (toExclusive <= from) {
+      const err = new Error("endDate must be on or after startDate");
+      err.statusCode = 400;
+      throw err;
+    }
+    return {
+      from,
+      toExclusive,
+      appliedRange: {
+        kind: "custom",
+        label: `Showing: ${formatLondonLong(from)} – ${formatLondonLong(endInclusive)}`
+      }
+    };
+  }
 
   if (range === "day") {
     const dateStr = typeof query.date === "string" ? query.date.trim() : "";
@@ -149,6 +177,21 @@ function resolveAnalyticsWindow(query = {}) {
         kind: "day",
         date: dateStr,
         label: `Showing: ${formatLondonLong(start)}`
+      }
+    };
+  }
+
+  if (range === "yesterday") {
+    const todayStart = startOfLondonDay(now);
+    const from = startOfLondonDay(new Date(todayStart.getTime() - 1));
+    const toExclusive = todayStart;
+    const endDay = new Date(toExclusive.getTime() - 1);
+    return {
+      from,
+      toExclusive,
+      appliedRange: {
+        kind: "yesterday",
+        label: `Showing: Yesterday (${formatLondonLong(from)} – ${formatLondonLong(endDay)})`
       }
     };
   }
@@ -195,7 +238,6 @@ function resolveAnalyticsWindow(query = {}) {
     };
   }
 
-  /* today (default) */
   const from = startOfLondonDay(now);
   const toExclusive = startOfNextLondonDay(from);
   return {
@@ -225,7 +267,7 @@ function ensureSource(map, src) {
     map[key] = {
       visits: 0,
       selections: 0,
-      paymentsCompleted: 0,
+      analyticsCheckoutCompletions: 0,
       conversion: 0
     };
   }
@@ -238,13 +280,14 @@ function ensureVenue(venueMap, id, name) {
     venueMap.set(k, {
       venueId: k,
       venueName: name || "Unknown venue",
-      qrLandingVisits: 0,
+      qrScans: 0,
       venueSelections: 0,
       venuePageVisits: 0,
       songSearches: 0,
       requestsStarted: 0,
       checkoutsStarted: 0,
-      paymentsCompleted: 0,
+      analyticsCheckoutCompletions: 0,
+      venueFunnelConversionPct: 0,
       visitToPaymentConversion: 0,
       hottestHour: null,
       sources: {},
@@ -263,14 +306,14 @@ function pct(num, den) {
 
 function processEventsToFunnelData(events) {
   const totals = {
-    qrLandingVisits: 0,
+    qrScans: 0,
     venueSelections: 0,
     venuePageVisits: 0,
     songSearches: 0,
     requestsStarted: 0,
     checkoutsStarted: 0,
-    paymentsCompleted: 0,
-    overallConversionRate: 0
+    analyticsCheckoutCompletions: 0,
+    overallFunnelConversionPct: 0
   };
 
   const scanVisitHourCounts = {};
@@ -284,7 +327,7 @@ function processEventsToFunnelData(events) {
 
     switch (e.eventType) {
       case "qr_scan_landing": {
-        totals.qrLandingVisits++;
+        totals.qrScans++;
         const hlQr = hourLabelLondon(created);
         scanVisitHourCounts[hlQr] = (scanVisitHourCounts[hlQr] || 0) + 1;
         ensureSource(globalSources, src).visits++;
@@ -333,20 +376,20 @@ function processEventsToFunnelData(events) {
         }
         break;
       case "payment_completed":
-        totals.paymentsCompleted++;
+        totals.analyticsCheckoutCompletions++;
         if (vid) {
           const vrow = ensureVenue(venueMap, vid, e.venueName);
-          vrow.paymentsCompleted++;
-          ensureSource(vrow.sources, src).paymentsCompleted++;
+          vrow.analyticsCheckoutCompletions++;
+          ensureSource(vrow.sources, src).analyticsCheckoutCompletions++;
         }
-        ensureSource(globalSources, src).paymentsCompleted++;
+        ensureSource(globalSources, src).analyticsCheckoutCompletions++;
         break;
       default:
         break;
     }
   }
 
-  totals.overallConversionRate = pct(totals.paymentsCompleted, totals.qrLandingVisits);
+  totals.overallFunnelConversionPct = pct(totals.analyticsCheckoutCompletions, totals.qrScans);
 
   return { totals, venueMap, scanVisitHourCounts, globalSources };
 }
@@ -433,6 +476,99 @@ function summarizeJukeboxRequests(rows) {
   return { total, queuedSuccess, pending, rejected, revenue };
 }
 
+async function aggregateGlobalDbStats(from, toExclusive) {
+  const [reqDocs, jbDocs] = await Promise.all([
+    Request.find({ createdAt: { $gte: from, $lt: toExclusive } })
+      .select("status paymentStatus paidAmount price")
+      .lean()
+      .exec(),
+    JukeboxRequest.find({ createdAt: { $gte: from, $lt: toExclusive } })
+      .select("status paymentStatus amountPence")
+      .lean()
+      .exec()
+  ]);
+  const m = summarizeMixMindRequests(reqDocs);
+  const j = summarizeJukeboxRequests(jbDocs);
+  return {
+    mixmindCapturedRevenue: Math.round(m.capturedRevenue * 100) / 100,
+    jukeboxSucceededRevenue: Math.round(j.revenue * 100) / 100,
+    totalTrueRevenue: Math.round((m.capturedRevenue + j.revenue) * 100) / 100,
+    mixmindRequestCount: m.total,
+    jukeboxRequestCount: j.total
+  };
+}
+
+async function mergeVenuesFromDbActivity(venues, from, toExclusive) {
+  const have = new Set(venues.map((v) => String(v.venueId)));
+  const [reqIds, jbIds] = await Promise.all([
+    Request.distinct("venueId", {
+      createdAt: { $gte: from, $lt: toExclusive },
+      venueId: { $ne: null, $exists: true }
+    }),
+    JukeboxRequest.distinct("venueId", {
+      createdAt: { $gte: from, $lt: toExclusive }
+    })
+  ]);
+  const extra = new Set();
+  for (const id of [...reqIds, ...jbIds]) {
+    const s = id ? String(id) : "";
+    if (s && mongoose.Types.ObjectId.isValid(s) && !have.has(s)) extra.add(s);
+  }
+  if (extra.size === 0) return venues;
+
+  const oids = [...extra].map((id) => new mongoose.Types.ObjectId(id));
+  const vdocs = await Venue.find({ _id: { $in: oids } })
+    .select("name isActive")
+    .lean()
+    .exec();
+  const byId = {};
+  for (const v of vdocs) {
+    byId[String(v._id)] = v;
+  }
+
+  for (const sid of extra) {
+    const vdoc = byId[sid];
+    venues.push({
+      venueId: sid,
+      venueName: vdoc?.name || "Unknown venue",
+      isActive: vdoc?.isActive !== undefined ? !!vdoc.isActive : true,
+      qrScans: 0,
+      venueSelections: 0,
+      venuePageVisits: 0,
+      songSearches: 0,
+      requestsStarted: 0,
+      checkoutsStarted: 0,
+      analyticsCheckoutCompletions: 0,
+      venueFunnelConversionPct: 0,
+      visitToPaymentConversion: 0,
+      hottestHour: null,
+      sources: {}
+    });
+  }
+  return venues;
+}
+
+async function attachVenueMeta(venues) {
+  const oids = venues
+    .map((v) => v.venueId)
+    .filter((id) => id && mongoose.Types.ObjectId.isValid(String(id)))
+    .map((id) => new mongoose.Types.ObjectId(id));
+  if (oids.length === 0) return;
+  const vdocs = await Venue.find({ _id: { $in: oids } })
+    .select("name isActive")
+    .lean()
+    .exec();
+  const byId = {};
+  for (const v of vdocs) {
+    byId[String(v._id)] = v;
+  }
+  for (const row of venues) {
+    const doc = byId[String(row.venueId)];
+    if (doc?.name) row.venueName = doc.name;
+    if (doc && doc.isActive !== undefined) row.isActive = !!doc.isActive;
+  }
+}
+
 async function enrichVenuesWithDbStats(venues, from, toExclusive) {
   const ids = venues.map((v) => v.venueId).filter(Boolean);
   if (ids.length === 0) return;
@@ -487,7 +623,8 @@ async function enrichVenuesWithDbStats(venues, from, toExclusive) {
 
     const totalRev = row.mixmindCapturedRevenue + row.jukeboxRevenue;
     row.totalTrueRevenue = Math.round(totalRev * 100) / 100;
-    row.cardConversionPercent = row.visitToPaymentConversion;
+    row.dbRequestCount = (row.mixmindTotalRequests || 0) + (row.jukeboxTotalRequests || 0);
+    row.visitToPaymentConversion = row.venueFunnelConversionPct;
   }
 }
 
@@ -506,23 +643,11 @@ async function buildAnalyticsFunnel(query = {}) {
     .map(([hour, count]) => ({ hour, count }))
     .sort((a, b) => b.count - a.count);
 
-  const venueIds = Array.from(venueMap.keys());
-  const venuesFromDb = await Venue.find({ _id: { $in: venueIds } })
-    .select("name")
-    .lean()
-    .exec();
-  const nameById = {};
-  for (const v of venuesFromDb) {
-    nameById[String(v._id)] = v.name;
-  }
-
   const venues = [];
 
   for (const [, row] of venueMap) {
-    const dbName = nameById[row.venueId];
-    if (dbName) row.venueName = dbName;
-
-    row.visitToPaymentConversion = pct(row.paymentsCompleted, row.venuePageVisits);
+    row.venueFunnelConversionPct = pct(row.analyticsCheckoutCompletions, row.venuePageVisits);
+    row.visitToPaymentConversion = row.venueFunnelConversionPct;
 
     let maxH = null;
     let maxC = 0;
@@ -535,20 +660,36 @@ async function buildAnalyticsFunnel(query = {}) {
     row.hottestHour = maxH;
 
     for (const s of Object.values(row.sources)) {
-      s.conversion = pct(s.paymentsCompleted, s.visits);
+      s.conversion = pct(s.analyticsCheckoutCompletions, s.visits);
     }
 
     delete row._pageVisitHours;
     venues.push(row);
   }
 
-  venues.sort((a, b) => b.venuePageVisits - a.venuePageVisits);
+  await mergeVenuesFromDbActivity(venues, from, toExclusive);
+  await attachVenueMeta(venues);
+
+  venues.sort((a, b) => (b.venuePageVisits || 0) - (a.venuePageVisits || 0));
 
   for (const s of Object.values(globalSources)) {
-    s.conversion = pct(s.paymentsCompleted, s.visits);
+    s.conversion = pct(s.analyticsCheckoutCompletions, s.visits);
   }
 
   await enrichVenuesWithDbStats(venues, from, toExclusive);
+
+  const dbTotals = await aggregateGlobalDbStats(from, toExclusive);
+
+  const analyticsTotals = {
+    qrScans: totals.qrScans,
+    venuePageVisits: totals.venuePageVisits,
+    analyticsCheckoutCompletions: totals.analyticsCheckoutCompletions,
+    overallFunnelConversionPct: totals.overallFunnelConversionPct,
+    venueSelections: totals.venueSelections,
+    songSearches: totals.songSearches,
+    checkoutsStarted: totals.checkoutsStarted,
+    requestsStarted: totals.requestsStarted
+  };
 
   const dateRange = {
     from: from.toISOString(),
@@ -559,7 +700,8 @@ async function buildAnalyticsFunnel(query = {}) {
   return {
     appliedRange,
     dateRange,
-    totals,
+    analyticsTotals,
+    dbTotals,
     venues,
     hottestScanTimes,
     sources: globalSources
@@ -600,8 +742,8 @@ function venueFunnelRowFromEvents(events, venueId, venueName) {
         vrow.checkoutsStarted++;
         break;
       case "payment_completed":
-        vrow.paymentsCompleted++;
-        ensureSource(vrow.sources, src).paymentsCompleted++;
+        vrow.analyticsCheckoutCompletions++;
+        ensureSource(vrow.sources, src).analyticsCheckoutCompletions++;
         break;
       default:
         break;
@@ -619,9 +761,10 @@ function venueFunnelRowFromEvents(events, venueId, venueName) {
   vrow.hottestHour = maxH;
   delete vrow._pageVisitHours;
 
-  vrow.visitToPaymentConversion = pct(vrow.paymentsCompleted, vrow.venuePageVisits);
+  vrow.venueFunnelConversionPct = pct(vrow.analyticsCheckoutCompletions, vrow.venuePageVisits);
+  vrow.visitToPaymentConversion = vrow.venueFunnelConversionPct;
   for (const s of Object.values(vrow.sources)) {
-    s.conversion = pct(s.paymentsCompleted, s.visits);
+    s.conversion = pct(s.analyticsCheckoutCompletions, s.visits);
   }
   return vrow;
 }
@@ -633,7 +776,7 @@ async function buildVenueAnalyticsDeepDive(venueId, query = {}) {
     throw err;
   }
 
-  const venue = await Venue.findById(venueId).select("name").lean().exec();
+  const venue = await Venue.findById(venueId).select("name isActive").lean().exec();
   if (!venue) {
     const err = new Error("Venue not found");
     err.statusCode = 404;
@@ -694,7 +837,8 @@ async function buildVenueAnalyticsDeepDive(venueId, query = {}) {
     },
     venue: {
       id: String(venue._id),
-      name: venue.name
+      name: venue.name,
+      isActive: venue.isActive !== undefined ? !!venue.isActive : true
     },
     funnel: funnelVenue,
     hourlyActivity,
