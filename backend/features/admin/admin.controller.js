@@ -13,7 +13,10 @@ const {
 
 // Import admin stats service
 const adminStatsService = require("../../services/adminStatsService");
-const { buildAnalyticsFunnel } = require("../../services/analyticsFunnelService");
+const {
+  buildAnalyticsFunnel,
+  buildVenueAnalyticsDeepDive
+} = require("../../services/analyticsFunnelService");
 
 // Import models
 const Request = require("../../models/Request");
@@ -439,6 +442,27 @@ async function getAnalyticsFunnel(req, res) {
     res.json(data);
   } catch (err) {
     console.error("Get Analytics Funnel Error:", err.message);
+    const code = err.statusCode || 500;
+    if (code === 400) {
+      return res.status(400).json({ error: err.message || "Bad request" });
+    }
+    res.status(500).json({ error: "Internal server error" });
+  }
+}
+
+async function getAnalyticsVenue(req, res) {
+  try {
+    const data = await buildVenueAnalyticsDeepDive(req.params.venueId, req.query);
+    res.json(data);
+  } catch (err) {
+    console.error("Get Analytics Venue Error:", err.message);
+    const code = err.statusCode || 500;
+    if (code === 400) {
+      return res.status(400).json({ error: err.message || "Bad request" });
+    }
+    if (code === 404) {
+      return res.status(404).json({ error: err.message || "Not found" });
+    }
     res.status(500).json({ error: "Internal server error" });
   }
 }
@@ -457,5 +481,6 @@ module.exports = {
   getRevenueBreakdown,
   getSongRequestDetails,
   getTopVenues,
-  getAnalyticsFunnel
+  getAnalyticsFunnel,
+  getAnalyticsVenue
 };

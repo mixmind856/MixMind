@@ -2,6 +2,7 @@ import React, { useState, useEffect } from "react";
 import {
   getDashboardSummary,
   getAnalyticsFunnel,
+  getAnalyticsVenue,
 } from "../services/adminStatsService";
 import {
   BarChart3,
@@ -19,6 +20,28 @@ import {
 } from "lucide-react";
 import "./AdminDashboard.css";
 
+function londonYmdBrowser() {
+  return new Intl.DateTimeFormat("en-CA", {
+    timeZone: "Europe/London",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).format(new Date());
+}
+
+function buildAnalyticsQueryString(rangePreset, dayDate) {
+  const params = new URLSearchParams();
+  if (rangePreset === "today") params.set("range", "today");
+  else if (rangePreset === "day") {
+    params.set("range", "day");
+    if (dayDate) params.set("date", dayDate);
+  } else if (rangePreset === "week") params.set("range", "week");
+  else if (rangePreset === "month") params.set("range", "month");
+  else if (rangePreset === "year") params.set("range", "year");
+  const s = params.toString();
+  return s ? `?${s}` : "";
+}
+
 const AdminDashboard = () => {
   const [isAuthenticated, setIsAuthenticated] = useState(
     () => !!localStorage.getItem("adminKey")?.trim()
@@ -32,12 +55,49 @@ const AdminDashboard = () => {
   const [activeTab, setActiveTab] = useState("overview");
   const [funnel, setFunnel] = useState(null);
   const [funnelError, setFunnelError] = useState(null);
+  const [rangePreset, setRangePreset] = useState("today");
+  const [dayDate, setDayDate] = useState(() => londonYmdBrowser());
+  const [detailVenueId, setDetailVenueId] = useState(null);
+  const [detailData, setDetailData] = useState(null);
+  const [detailLoading, setDetailLoading] = useState(false);
+  const [detailError, setDetailError] = useState(null);
 
   useEffect(() => {
     if (!isAuthenticated) return;
     fetchDashboardData();
-    fetchFunnelData();
   }, [isAuthenticated]);
+
+  useEffect(() => {
+    if (!isAuthenticated) return;
+    fetchFunnelData();
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- refetch when range changes; fetchFunnelData reads latest state
+  }, [isAuthenticated, rangePreset, dayDate]);
+
+  useEffect(() => {
+    if (!isAuthenticated || !detailVenueId) {
+      setDetailData(null);
+      setDetailError(null);
+      return;
+    }
+    let cancelled = false;
+    const qs = buildAnalyticsQueryString(rangePreset, dayDate);
+    (async () => {
+      try {
+        setDetailLoading(true);
+        setDetailError(null);
+        const data = await getAnalyticsVenue(detailVenueId, qs);
+        if (!cancelled) setDetailData(data);
+      } catch (err) {
+        console.error(err);
+        if (!cancelled) setDetailError("Could not load venue analytics.");
+      } finally {
+        if (!cancelled) setDetailLoading(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [isAuthenticated, detailVenueId, rangePreset, dayDate]);
 
   const handleLogin = (e) => {
     e.preventDefault();
@@ -56,6 +116,9 @@ const AdminDashboard = () => {
     setFunnel(null);
     setError(null);
     setFunnelError(null);
+    setDetailVenueId(null);
+    setDetailData(null);
+    setDetailError(null);
     setLoading(false);
   };
 
@@ -76,7 +139,8 @@ const AdminDashboard = () => {
   const fetchFunnelData = async () => {
     try {
       setFunnelError(null);
-      const data = await getAnalyticsFunnel();
+      const qs = buildAnalyticsQueryString(rangePreset, dayDate);
+      const data = await getAnalyticsFunnel(qs);
       setFunnel(data);
     } catch (err) {
       console.error(err);
@@ -180,11 +244,57 @@ const AdminDashboard = () => {
           <QrCode size={22} />
           <h2 style={{ margin: 0 }}>QR & Funnel Analytics</h2>
         </div>
-        <p className="subtitle" style={{ marginTop: 0, opacity: 0.85, fontSize: "0.9rem" }}>
-          {funnel?.dateRange?.timezone
-            ? `Date range uses ${funnel.dateRange.timezone} midnight boundaries.`
-            : "Loading timezone info…"}
+        <p className="subtitle admin-range-label" style={{ marginTop: 0, opacity: 0.95, fontSize: "0.95rem" }}>
+          {funnel?.appliedRange?.label || "Showing: Today"}
         </p>
+        <p className="subtitle" style={{ marginTop: 4, opacity: 0.75, fontSize: "0.85rem" }}>
+          {funnel?.dateRange?.timezone
+            ? `Boundaries: ${funnel.dateRange.timezone}`
+            : ""}
+        </p>
+
+        <div className="admin-analytics-filters">
+          <button
+            type="button"
+            className={`admin-filter-btn ${rangePreset === "today" ? "active" : ""}`}
+            onClick={() => setRangePreset("today")}
+          >
+            Today
+          </button>
+          <label className="admin-filter-day">
+            <span className="admin-filter-day-label">Day</span>
+            <input
+              type="date"
+              value={dayDate}
+              onChange={(e) => {
+                setDayDate(e.target.value);
+                setRangePreset("day");
+              }}
+            />
+          </label>
+          <button
+            type="button"
+            className={`admin-filter-btn ${rangePreset === "week" ? "active" : ""}`}
+            onClick={() => setRangePreset("week")}
+          >
+            This week
+          </button>
+          <button
+            type="button"
+            className={`admin-filter-btn ${rangePreset === "month" ? "active" : ""}`}
+            onClick={() => setRangePreset("month")}
+          >
+            This month
+          </button>
+          <button
+            type="button"
+            className={`admin-filter-btn ${rangePreset === "year" ? "active" : ""}`}
+            onClick={() => setRangePreset("year")}
+          >
+            This year
+          </button>
+        </div>
+
         {funnelError && (
           <p style={{ color: "#f87171", marginBottom: "12px" }}>{funnelError}</p>
         )}
@@ -198,7 +308,7 @@ const AdminDashboard = () => {
                 </div>
                 <div className="card-content">
                   <h3>{funnel.totals.qrLandingVisits}</h3>
-                  <p>QR landing visits today</p>
+                  <p>QR landing visits</p>
                 </div>
               </div>
               <div className="summary-card venues-card">
@@ -208,7 +318,7 @@ const AdminDashboard = () => {
                 </div>
                 <div className="card-content">
                   <h3>{funnel.totals.venueSelections}</h3>
-                  <p>Venue selections today</p>
+                  <p>Venue selections</p>
                 </div>
               </div>
               <div className="summary-card requests-card">
@@ -218,7 +328,7 @@ const AdminDashboard = () => {
                 </div>
                 <div className="card-content">
                   <h3>{funnel.totals.venuePageVisits}</h3>
-                  <p>Venue page visits today</p>
+                  <p>Venue page visits</p>
                 </div>
               </div>
               <div className="summary-card revenue-card">
@@ -228,7 +338,7 @@ const AdminDashboard = () => {
                 </div>
                 <div className="card-content">
                   <h3>{funnel.totals.paymentsCompleted}</h3>
-                  <p>Payments completed today</p>
+                  <p>Checkout completions (analytics)</p>
                 </div>
               </div>
               <div className="summary-card approval-card">
@@ -258,43 +368,63 @@ const AdminDashboard = () => {
             </div>
 
             <div className="venues-table-container" style={{ marginTop: "28px" }}>
-              <h3 style={{ marginBottom: "12px" }}>By venue</h3>
-              <table className="data-table">
-                <thead>
-                  <tr>
-                    <th>Venue</th>
-                    <th>Selected</th>
-                    <th>Page visits</th>
-                    <th>Searches</th>
-                    <th>Checkouts</th>
-                    <th>Payments</th>
-                    <th>Conv %</th>
-                    <th>Hottest hour</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {(funnel.venues || []).length === 0 ? (
-                    <tr>
-                      <td colSpan={8} style={{ textAlign: "center", opacity: 0.7 }}>
-                        No venue-attributed activity today.
-                      </td>
-                    </tr>
-                  ) : (
-                    funnel.venues.map((row) => (
-                      <tr key={row.venueId}>
-                        <td className="venue-name">{row.venueName || row.venueId}</td>
-                        <td>{row.venueSelections}</td>
-                        <td>{row.venuePageVisits}</td>
-                        <td>{row.songSearches}</td>
-                        <td>{row.checkoutsStarted}</td>
-                        <td>{row.paymentsCompleted}</td>
-                        <td>{row.visitToPaymentConversion}%</td>
-                        <td>{row.hottestHour || "—"}</td>
-                      </tr>
-                    ))
-                  )}
-                </tbody>
-              </table>
+              <h3 style={{ marginBottom: "12px" }}>Venues</h3>
+              <p className="subtitle" style={{ fontSize: "0.85rem", opacity: 0.75, marginBottom: "12px" }}>
+                Tap a venue for deep dive (same date range).
+              </p>
+              {(funnel.venues || []).length === 0 ? (
+                <p style={{ textAlign: "center", opacity: 0.7 }}>No venue-attributed activity in this range.</p>
+              ) : (
+                <div className="admin-venue-grid">
+                  {funnel.venues.map((row) => {
+                    const rej =
+                      (row.mixmindRejectedFailed ?? 0) + (row.jukeboxRejected ?? 0);
+                    const pend =
+                      (row.mixmindPending ?? 0) + (row.jukeboxPending ?? 0);
+                    const acc =
+                      (row.mixmindAcceptedCompleted ?? 0) + (row.jukeboxQueuedSuccess ?? 0);
+                    const rev = row.totalTrueRevenue ?? 0;
+                    return (
+                      <button
+                        type="button"
+                        key={row.venueId}
+                        className="admin-venue-card"
+                        onClick={() => setDetailVenueId(row.venueId)}
+                      >
+                        <div className="admin-venue-card-title">{row.venueName || row.venueId}</div>
+                        <div className="admin-venue-card-stat">
+                          <span>Page visits</span>
+                          <strong>{row.venuePageVisits}</strong>
+                        </div>
+                        <div className="admin-venue-card-stat">
+                          <span>Funnel payments</span>
+                          <strong>{row.paymentsCompleted}</strong>
+                        </div>
+                        <div className="admin-venue-card-stat">
+                          <span>True revenue (£)</span>
+                          <strong>{rev.toFixed(2)}</strong>
+                        </div>
+                        <div className="admin-venue-card-stat">
+                          <span>Accepted / done</span>
+                          <strong>{acc}</strong>
+                        </div>
+                        <div className="admin-venue-card-stat">
+                          <span>Pending</span>
+                          <strong>{pend}</strong>
+                        </div>
+                        <div className="admin-venue-card-stat">
+                          <span>Rejected / failed</span>
+                          <strong>{rej}</strong>
+                        </div>
+                        <div className="admin-venue-card-stat">
+                          <span>Conv %</span>
+                          <strong>{row.visitToPaymentConversion ?? 0}%</strong>
+                        </div>
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
             </div>
 
             <div className="venues-table-container" style={{ marginTop: "28px" }}>
@@ -316,7 +446,7 @@ const AdminDashboard = () => {
                   {Object.entries(funnel.sources || {}).length === 0 ? (
                     <tr>
                       <td colSpan={5} style={{ textAlign: "center", opacity: 0.7 }}>
-                        No source tags recorded today.
+                        No source tags recorded in this range.
                       </td>
                     </tr>
                   ) : (
@@ -721,6 +851,219 @@ const AdminDashboard = () => {
             </div>
           </div>
         </section>
+      )}
+
+      {/* VENUE DETAIL MODAL */}
+      {detailVenueId && (
+        <div
+          className="admin-modal-overlay"
+          role="presentation"
+          onClick={() => setDetailVenueId(null)}
+        >
+          <div
+            className="admin-modal"
+            role="dialog"
+            aria-modal="true"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="admin-modal-header">
+              <h2>{detailData?.venue?.name || "Venue"}</h2>
+              <button
+                type="button"
+                className="admin-modal-close"
+                onClick={() => setDetailVenueId(null)}
+              >
+                Close
+              </button>
+            </div>
+            <p className="subtitle admin-range-label" style={{ marginBottom: "12px" }}>
+              {detailData?.appliedRange?.label || funnel?.appliedRange?.label}
+            </p>
+            {detailLoading && <p>Loading…</p>}
+            {detailError && <p style={{ color: "#f87171" }}>{detailError}</p>}
+            {!detailLoading && detailData && (
+              <div className="admin-modal-body">
+                <section className="admin-modal-section">
+                  <h3>Funnel (this venue)</h3>
+                  <ul className="admin-modal-kv">
+                    <li>
+                      <span>Page visits</span>
+                      <strong>{detailData.funnel?.venuePageVisits ?? 0}</strong>
+                    </li>
+                    <li>
+                      <span>Selections</span>
+                      <strong>{detailData.funnel?.venueSelections ?? 0}</strong>
+                    </li>
+                    <li>
+                      <span>Song searches</span>
+                      <strong>{detailData.funnel?.songSearches ?? 0}</strong>
+                    </li>
+                    <li>
+                      <span>Checkouts started</span>
+                      <strong>{detailData.funnel?.checkoutsStarted ?? 0}</strong>
+                    </li>
+                    <li>
+                      <span>Funnel payments (events)</span>
+                      <strong>{detailData.funnel?.paymentsCompleted ?? 0}</strong>
+                    </li>
+                    <li>
+                      <span>Conv %</span>
+                      <strong>{detailData.funnel?.visitToPaymentConversion ?? 0}%</strong>
+                    </li>
+                    <li>
+                      <span>Hottest hour</span>
+                      <strong>{detailData.funnel?.hottestHour || "—"}</strong>
+                    </li>
+                  </ul>
+                </section>
+
+                <section className="admin-modal-section">
+                  <h3>MixMind requests</h3>
+                  <ul className="admin-modal-kv">
+                    <li>
+                      <span>Total</span>
+                      <strong>{detailData.mixmind?.total ?? 0}</strong>
+                    </li>
+                    <li>
+                      <span>Accepted / pipeline</span>
+                      <strong>{detailData.mixmind?.acceptedCompleted ?? 0}</strong>
+                    </li>
+                    <li>
+                      <span>Pending</span>
+                      <strong>{detailData.mixmind?.pending ?? 0}</strong>
+                    </li>
+                    <li>
+                      <span>Rejected / failed</span>
+                      <strong>{detailData.mixmind?.rejectedFailed ?? 0}</strong>
+                    </li>
+                    <li>
+                      <span>Captured revenue (£)</span>
+                      <strong>
+                        {(detailData.mixmind?.capturedRevenue ?? 0).toFixed(2)}
+                      </strong>
+                    </li>
+                  </ul>
+                </section>
+
+                <section className="admin-modal-section">
+                  <h3>Spotify / Jukebox</h3>
+                  <ul className="admin-modal-kv">
+                    <li>
+                      <span>Total</span>
+                      <strong>{detailData.jukebox?.total ?? 0}</strong>
+                    </li>
+                    <li>
+                      <span>Queued (success)</span>
+                      <strong>{detailData.jukebox?.queuedSuccess ?? 0}</strong>
+                    </li>
+                    <li>
+                      <span>Pending</span>
+                      <strong>{detailData.jukebox?.pending ?? 0}</strong>
+                    </li>
+                    <li>
+                      <span>Rejected / failed</span>
+                      <strong>{detailData.jukebox?.rejected ?? 0}</strong>
+                    </li>
+                    <li>
+                      <span>Revenue (£)</span>
+                      <strong>{(detailData.jukebox?.revenue ?? 0).toFixed(2)}</strong>
+                    </li>
+                  </ul>
+                </section>
+
+                <section className="admin-modal-section">
+                  <h3>Source breakdown (analytics)</h3>
+                  {Object.keys(detailData.sources || {}).length === 0 ? (
+                    <p className="subtitle">No sources for this venue in range.</p>
+                  ) : (
+                    <table className="data-table admin-modal-table">
+                      <thead>
+                        <tr>
+                          <th>Source</th>
+                          <th>Visits</th>
+                          <th>Selected</th>
+                          <th>Payments</th>
+                          <th>Conv %</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {Object.entries(detailData.sources).map(([src, s]) => (
+                          <tr key={src}>
+                            <td>{src}</td>
+                            <td>{s.visits}</td>
+                            <td>{s.selections}</td>
+                            <td>{s.paymentsCompleted}</td>
+                            <td>{s.conversion}%</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  )}
+                </section>
+
+                <section className="admin-modal-section">
+                  <h3>Hourly activity (venue-tagged events)</h3>
+                  {(detailData.hourlyActivity || []).length === 0 ? (
+                    <p className="subtitle">No hourly data.</p>
+                  ) : (
+                    <div className="admin-hourly-scroll">
+                      <table className="data-table admin-modal-table">
+                        <thead>
+                          <tr>
+                            <th>Hour</th>
+                            <th>Events</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {detailData.hourlyActivity.map((h) => (
+                            <tr key={h.hour}>
+                              <td>{h.hour}</td>
+                              <td>{h.count}</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  )}
+                </section>
+
+                <section className="admin-modal-section">
+                  <h3>Recent MixMind requests</h3>
+                  {(detailData.mixmind?.recent || []).length === 0 ? (
+                    <p className="subtitle">None in range.</p>
+                  ) : (
+                    <ul className="admin-recent-list">
+                      {detailData.mixmind.recent.map((r) => (
+                        <li key={r._id}>
+                          <strong>{r.title || "—"}</strong> · {r.status} ·{" "}
+                          {r.paymentStatus} · £
+                          {(Number(r.paidAmount) || Number(r.price) || 0).toFixed(2)}
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                </section>
+
+                <section className="admin-modal-section">
+                  <h3>Recent Jukebox requests</h3>
+                  {(detailData.jukebox?.recent || []).length === 0 ? (
+                    <p className="subtitle">None in range.</p>
+                  ) : (
+                    <ul className="admin-recent-list">
+                      {detailData.jukebox.recent.map((r) => (
+                        <li key={r._id}>
+                          <strong>{r.trackName}</strong> · {r.status} ·{" "}
+                          {r.paymentStatus} · £
+                          {((Number(r.amountPence) || 0) / 100).toFixed(2)}
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                </section>
+              </div>
+            )}
+          </div>
+        </div>
       )}
 
       {/* FOOTER */}

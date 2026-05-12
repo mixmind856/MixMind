@@ -173,3 +173,37 @@ export const getAnalyticsFunnel = async (queryString = "") => {
     throw error;
   }
 };
+
+/**
+ * Per-venue analytics deep dive (same range query params as funnel)
+ */
+export const getAnalyticsVenue = async (venueId, queryString = "") => {
+  try {
+    const adminKey = requireAdminKey();
+    const qs =
+      queryString && queryString.startsWith("?")
+        ? queryString
+        : queryString
+          ? `?${queryString}`
+          : "";
+    const response = await fetch(
+      `${API_BASE_URL}/admin/analytics/venue/${encodeURIComponent(venueId)}${qs}`,
+      {
+        method: "GET",
+        headers: {
+          "Content-Type": "application/json",
+          "x-admin-key": adminKey,
+        },
+      }
+    );
+
+    if (!response.ok) {
+      throw new Error(`Error: ${response.statusText}`);
+    }
+
+    return await response.json();
+  } catch (error) {
+    console.error("Error fetching venue analytics:", error);
+    throw error;
+  }
+};
