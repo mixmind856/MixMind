@@ -3,9 +3,12 @@ import axios from "axios";
 import RequestRow from "./RequestRow";
 
 const API = import.meta.env.VITE_API_URL;
-const ADMIN_KEY = import.meta.env.VITE_ADMIN_KEY;
 
 export default function AdminDashboard() {
+  const [storedKey, setStoredKey] = useState(
+    () => localStorage.getItem("adminKey")?.trim() || ""
+  );
+  const [inputKey, setInputKey] = useState("");
   const [requests, setRequests] = useState([]);
   const [loading, setLoading] = useState(false);
   const [filter, setFilter] = useState("authorized");
@@ -16,13 +19,14 @@ export default function AdminDashboard() {
 
   // -------------------- REQUESTS --------------------
   async function load() {
+    if (!storedKey) return;
     setLoading(true);
     setError(null);
     try {
       const res = await axios.get(
         `${API}/admin/requests?status=${filter}`,
         {
-          headers: { "x-admin-key": ADMIN_KEY }
+          headers: { "x-admin-key": storedKey }
         }
       );
       const list = Array.isArray(res.data)
@@ -38,15 +42,18 @@ export default function AdminDashboard() {
   }
 
   useEffect(() => {
+    if (!storedKey) return;
     load();
-  }, [filter]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- load uses current storedKey/filter
+  }, [filter, storedKey]);
 
   async function approve(id) {
+    if (!storedKey) return;
     try {
       await axios.post(
         `${API}/admin/requests/${id}/approve`,
         {},
-        { headers: { "x-admin-key": ADMIN_KEY } }
+        { headers: { "x-admin-key": storedKey } }
       );
       load();
     } catch (err) {
@@ -55,11 +62,12 @@ export default function AdminDashboard() {
   }
 
   async function reject(id) {
+    if (!storedKey) return;
     try {
       await axios.post(
         `${API}/admin/requests/${id}/reject`,
         {},
-        { headers: { "x-admin-key": ADMIN_KEY } }
+        { headers: { "x-admin-key": storedKey } }
       );
       load();
     } catch (err) {
@@ -69,10 +77,11 @@ export default function AdminDashboard() {
 
   // -------------------- LIVE PLAYLIST TOGGLE --------------------
   useEffect(() => {
+    if (!storedKey) return;
     async function fetchLiveStatus() {
       try {
         const res = await axios.get(`${API}/admin/live-playlist/status`, {
-          headers: { "x-admin-key": ADMIN_KEY }
+          headers: { "x-admin-key": storedKey }
         });
         setLiveEnabled(res.data.enabled);
       } catch (err) {
@@ -80,9 +89,10 @@ export default function AdminDashboard() {
       }
     }
     fetchLiveStatus();
-  }, []);
+  }, [storedKey]);
 
   const toggleLivePlaylist = async () => {
+    if (!storedKey) return;
     setLiveLoading(true);
     try {
       const url = liveEnabled
@@ -90,7 +100,7 @@ export default function AdminDashboard() {
         : `${API}/admin/live-playlist/start`;
 
       const res = await axios.post(url, {}, {
-        headers: { "x-admin-key": ADMIN_KEY }
+        headers: { "x-admin-key": storedKey }
       });
 
       if (res.data.success) {
@@ -102,6 +112,42 @@ export default function AdminDashboard() {
     }
     setLiveLoading(false);
   };
+
+  const handleSaveKey = (e) => {
+    e.preventDefault();
+    const t = inputKey.trim();
+    if (!t) return;
+    localStorage.setItem("adminKey", t);
+    setStoredKey(t);
+    setInputKey("");
+  };
+
+  if (!storedKey) {
+    return (
+      <div className="max-w-md mx-auto bg-white p-6 rounded-md shadow mt-8">
+        <h2 className="text-xl font-semibold mb-2">Admin key required</h2>
+        <p className="text-sm text-slate-600 mb-4">
+          Enter the admin key to manage requests. It is stored in this browser only.
+        </p>
+        <form onSubmit={handleSaveKey} className="space-y-3">
+          <input
+            type="password"
+            autoComplete="off"
+            className="w-full border rounded px-3 py-2"
+            placeholder="Admin key"
+            value={inputKey}
+            onChange={(e) => setInputKey(e.target.value)}
+          />
+          <button
+            type="submit"
+            className="w-full bg-purple-600 text-white py-2 rounded font-medium"
+          >
+            Continue
+          </button>
+        </form>
+      </div>
+    );
+  }
 
   return (
     <div className="max-w-4xl mx-auto bg-white p-6 rounded-md shadow">

@@ -4,11 +4,9 @@
  */
 
 export const API_BASE_URL = import.meta.env.VITE_API_URL;
-export const ADMIN_KEY = import.meta.env.VITE_ADMIN_KEY;
 
 const API_CONFIG = {
   API_BASE_URL,
-  ADMIN_KEY,
   BASE_URL: API_BASE_URL,
   ENDPOINTS: {
     // Admin endpoints

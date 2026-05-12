@@ -1,22 +1,31 @@
-import { API_BASE_URL, ADMIN_KEY } from "./apiConfig";
+import { API_BASE_URL } from "./apiConfig";
+
+function getStoredAdminKey() {
+  if (typeof localStorage === "undefined") return null;
+  const k = localStorage.getItem("adminKey");
+  return k?.trim() || null;
+}
+
+function requireAdminKey() {
+  const key = getStoredAdminKey();
+  if (!key) {
+    throw new Error("Admin key required");
+  }
+  return key;
+}
 
 /**
  * Get comprehensive dashboard summary
  */
 export const getDashboardSummary = async () => {
   try {
-    if (!ADMIN_KEY) {
-      throw new Error("Admin key not configured. Please check your .env file.");
-    }
+    const adminKey = requireAdminKey();
 
-    console.log("API_BASE_URL:", API_BASE_URL);
-console.log("SUMMARY URL:", `${API_BASE_URL}/admin/dashboard/summary`);
-
-const response = await fetch(`${API_BASE_URL}/admin/dashboard/summary`, {
+    const response = await fetch(`${API_BASE_URL}/admin/dashboard/summary`, {
       method: "GET",
       headers: {
         "Content-Type": "application/json",
-        "x-admin-key": ADMIN_KEY,
+        "x-admin-key": adminKey,
       },
     });
 
@@ -36,11 +45,13 @@ const response = await fetch(`${API_BASE_URL}/admin/dashboard/summary`, {
  */
 export const getAllVenuesStats = async () => {
   try {
+    const adminKey = requireAdminKey();
+
     const response = await fetch(`${API_BASE_URL}/admin/venues/stats`, {
       method: "GET",
       headers: {
         "Content-Type": "application/json",
-        "x-admin-key": ADMIN_KEY,
+        "x-admin-key": adminKey,
       },
     });
 
@@ -60,11 +71,13 @@ export const getAllVenuesStats = async () => {
  */
 export const getRevenueBreakdown = async () => {
   try {
+    const adminKey = requireAdminKey();
+
     const response = await fetch(`${API_BASE_URL}/admin/revenue/breakdown`, {
       method: "GET",
       headers: {
         "Content-Type": "application/json",
-        "x-admin-key": ADMIN_KEY,
+        "x-admin-key": adminKey,
       },
     });
 
@@ -84,11 +97,13 @@ export const getRevenueBreakdown = async () => {
  */
 export const getSongRequestDetails = async () => {
   try {
+    const adminKey = requireAdminKey();
+
     const response = await fetch(`${API_BASE_URL}/admin/requests/details/all`, {
       method: "GET",
       headers: {
         "Content-Type": "application/json",
-        "x-admin-key": ADMIN_KEY,
+        "x-admin-key": adminKey,
       },
     });
 
@@ -108,13 +123,15 @@ export const getSongRequestDetails = async () => {
  */
 export const getTopVenues = async (limit = 10) => {
   try {
+    const adminKey = requireAdminKey();
+
     const response = await fetch(
       `${API_BASE_URL}/admin/venues/top?limit=${limit}`,
       {
         method: "GET",
         headers: {
           "Content-Type": "application/json",
-          "x-admin-key": ADMIN_KEY,
+          "x-admin-key": adminKey,
         },
       }
     );
@@ -135,16 +152,14 @@ export const getTopVenues = async (limit = 10) => {
  */
 export const getAnalyticsFunnel = async (queryString = "") => {
   try {
-    if (!ADMIN_KEY) {
-      throw new Error("Admin key not configured. Please check your .env file.");
-    }
+    const adminKey = requireAdminKey();
 
     const qs = queryString && queryString.startsWith("?") ? queryString : queryString ? `?${queryString}` : "";
     const response = await fetch(`${API_BASE_URL}/admin/analytics/funnel${qs}`, {
       method: "GET",
       headers: {
         "Content-Type": "application/json",
-        "x-admin-key": ADMIN_KEY
+        "x-admin-key": adminKey
       }
     });
 

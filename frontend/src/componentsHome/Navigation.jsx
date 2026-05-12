@@ -43,14 +43,6 @@ export default function Navigation({ onLoginClick }) {
           >
             Venue Login
           </button>
-
-          {/* <button
-             onClick={() => navigate("/admin/dashboard")}
-            className="px-5 py-2.5 rounded-full font-medium text-sm border-2 transition-all hover:scale-105 text-gray-300 cursor-pointer"
-            style={{ borderColor: "rgba(168, 85, 247, 0.5)" }}
-          >
-           Admin
-          </button> */}
         </div>
 
         {/* Mobile Hamburger */}
@@ -93,13 +85,6 @@ export default function Navigation({ onLoginClick }) {
           >
             Venue Login
           </button>
-
-          {/* <button
-            onClick={() => navigate("/admin/dashboard")}
-            className="w-full text-center  px-4 py-2 rounded-lg border  text-white"
-          >
-            Admin
-          </button> */}
         </div>
       )}
     </nav>

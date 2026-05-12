@@ -16,13 +16,6 @@ export default function Request() {
             >
               Request
             </Link>
-
-            <Link
-              className="text-sm text-slate-600 hover:underline"
-              to="/request/admin"
-            >
-              Admin
-            </Link>
           </nav>
         </div>
       </header>

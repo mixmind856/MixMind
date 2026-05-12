@@ -20,17 +20,44 @@ import {
 import "./AdminDashboard.css";
 
 const AdminDashboard = () => {
+  const [isAuthenticated, setIsAuthenticated] = useState(
+    () => !!localStorage.getItem("adminKey")?.trim()
+  );
+  const [loginInput, setLoginInput] = useState("");
   const [dashboardData, setDashboardData] = useState(null);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(
+    () => !!localStorage.getItem("adminKey")?.trim()
+  );
   const [error, setError] = useState(null);
   const [activeTab, setActiveTab] = useState("overview");
   const [funnel, setFunnel] = useState(null);
   const [funnelError, setFunnelError] = useState(null);
 
   useEffect(() => {
+    if (!isAuthenticated) return;
     fetchDashboardData();
     fetchFunnelData();
-  }, []);
+  }, [isAuthenticated]);
+
+  const handleLogin = (e) => {
+    e.preventDefault();
+    const v = loginInput.trim();
+    if (!v) return;
+    localStorage.setItem("adminKey", v);
+    setLoginInput("");
+    setLoading(true);
+    setIsAuthenticated(true);
+  };
+
+  const handleLogout = () => {
+    localStorage.removeItem("adminKey");
+    setIsAuthenticated(false);
+    setDashboardData(null);
+    setFunnel(null);
+    setError(null);
+    setFunnelError(null);
+    setLoading(false);
+  };
 
   const fetchDashboardData = async () => {
     try {
@@ -57,6 +84,40 @@ const AdminDashboard = () => {
     }
   };
 
+  if (!isAuthenticated) {
+    return (
+      <div className="admin-dashboard">
+        <div style={{ maxWidth: 400, margin: "4rem auto", padding: 24 }}>
+          <h1 style={{ marginBottom: 16 }}>Admin login</h1>
+          <p style={{ color: "#94a3b8", marginBottom: 20 }}>
+            Enter your admin key. It is stored only in this browser (localStorage).
+          </p>
+          <form onSubmit={handleLogin}>
+            <input
+              type="password"
+              autoComplete="off"
+              value={loginInput}
+              onChange={(e) => setLoginInput(e.target.value)}
+              placeholder="Admin key"
+              style={{
+                width: "100%",
+                padding: "10px 12px",
+                marginBottom: 12,
+                borderRadius: 8,
+                border: "1px solid rgba(168,85,247,0.4)",
+                background: "rgba(0,0,0,0.3)",
+                color: "#fff",
+              }}
+            />
+            <button type="submit" className="refresh-button" style={{ width: "100%" }}>
+              Continue
+            </button>
+          </form>
+        </div>
+      </div>
+    );
+  }
+
   if (loading) {
     return (
       <div className="admin-dashboard loading">
@@ -72,9 +133,14 @@ const AdminDashboard = () => {
         <AlertCircle size={48} />
         <h2>Error</h2>
         <p>{error}</p>
-        <button onClick={fetchDashboardData} className="retry-button">
-          Retry
-        </button>
+        <div style={{ display: "flex", gap: 12, justifyContent: "center", flexWrap: "wrap" }}>
+          <button onClick={fetchDashboardData} className="retry-button">
+            Retry
+          </button>
+          <button type="button" onClick={handleLogout} className="retry-button">
+            Logout
+          </button>
+        </div>
       </div>
     );
   }
@@ -92,15 +158,20 @@ const AdminDashboard = () => {
           <h1>Admin Dashboard</h1>
           <p className="subtitle">Complete Platform Overview & Analytics</p>
         </div>
-        <button
-          onClick={() => {
-            fetchDashboardData();
-            fetchFunnelData();
-          }}
-          className="refresh-button"
-        >
-          ↻ Refresh
-        </button>
+        <div style={{ display: "flex", gap: 12, alignItems: "center" }}>
+          <button type="button" onClick={handleLogout} className="refresh-button">
+            Logout
+          </button>
+          <button
+            onClick={() => {
+              fetchDashboardData();
+              fetchFunnelData();
+            }}
+            className="refresh-button"
+          >
+            ↻ Refresh
+          </button>
+        </div>
       </div>
 
       {/* QR & FUNNEL ANALYTICS */}

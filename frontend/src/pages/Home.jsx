@@ -1,4 +1,4 @@
-import { motion } from "framer-motion";
+import { motion as Motion } from "framer-motion";
 import { QrCode, Users, Smartphone, Menu, X } from "lucide-react";
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
@@ -29,12 +29,6 @@ export default function Home() {
             <a href="#about" className="hover:text-white transition">How it Works</a>
             <a href="#request" className="hover:text-white transition">Request</a>
             <a href="#dashboard" className="hover:text-white transition">Dashboard</a>
-            <button
-              onClick={() => navigate("/admin/dashboard")}
-              className="text-yellow-400 hover:text-yellow-300 transition font-medium"
-            >
-              Admin
-            </button>
           </nav>
 
           {/* Desktop CTA */}
@@ -67,15 +61,6 @@ export default function Home() {
             <a href="#about" onClick={() => setOpen(false)} className="block hover:text-white">How it Works</a>
             <a href="#features" onClick={() => setOpen(false)} className="block hover:text-white">Features</a>
             <a href="#request" onClick={() => setOpen(false)} className="block hover:text-white">Request</a>
-            <button
-              onClick={() => {
-                navigate("/admin/dashboard");
-                setOpen(false);
-              }}
-              className="block text-yellow-400 hover:text-yellow-300 font-medium w-full text-left"
-            >
-              Admin Dashboard
-            </button>
 
             <div className="mt-4 flex flex-col gap-3">
   <PrimaryButton
@@ -104,7 +89,7 @@ export default function Home() {
 
       {/* ================= HERO ================= */}
       <section className="relative grid md:grid-cols-2 gap-12 px-6 md:px-10 pt-32 pb-20 items-center">
-        <motion.div
+        <Motion.div
           initial={{ opacity: 0, y: 40 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.8 }}
@@ -128,9 +113,9 @@ export default function Home() {
               Browse Venues
             </SecondaryButton>
           </div>
-        </motion.div>
+        </Motion.div>
 
-        <motion.div
+        <Motion.div
           initial={{ opacity: 0, scale: 0.95 }}
           animate={{ opacity: 1, scale: 1 }}
           transition={{ duration: 1 }}
@@ -142,7 +127,7 @@ export default function Home() {
             alt="DJ"
             className="relative rounded-2xl shadow-2xl"
           />
-        </motion.div>
+        </Motion.div>
       </section>
 
       {/* ================= FEATURES ================= */}
