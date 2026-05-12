@@ -29,24 +29,164 @@ function londonYmdBrowser() {
   }).format(new Date());
 }
 
-function buildAnalyticsQueryString({ rangePreset, dayDate, customStart, customEnd }) {
+function defaultSectionFilter() {
+  return {
+    preset: "today",
+    customStart: londonYmdBrowser(),
+    customEnd: londonYmdBrowser(),
+  };
+}
+
+function sectionFilterToQuery(f) {
   const params = new URLSearchParams();
-  if (rangePreset === "custom" && customStart && customEnd) {
+  if (f.preset === "custom" && f.customStart && f.customEnd) {
     params.set("range", "custom");
-    params.set("startDate", customStart);
-    params.set("endDate", customEnd);
+    params.set("startDate", f.customStart);
+    params.set("endDate", f.customEnd);
     return `?${params.toString()}`;
   }
-  if (rangePreset === "today") params.set("range", "today");
-  else if (rangePreset === "yesterday") params.set("range", "yesterday");
-  else if (rangePreset === "day") {
-    params.set("range", "day");
-    if (dayDate) params.set("date", dayDate);
-  } else if (rangePreset === "week") params.set("range", "week");
-  else if (rangePreset === "month") params.set("range", "month");
-  else if (rangePreset === "year") params.set("range", "year");
-  const s = params.toString();
-  return s ? `?${s}` : "";
+  const rangeMap = {
+    today: "today",
+    week: "week",
+    month: "month",
+    last6months: "last6months",
+    year: "year",
+  };
+  params.set("range", rangeMap[f.preset] || "today");
+  return `?${params.toString()}`;
+}
+
+function csvEscape(cell) {
+  const s = String(cell ?? "");
+  if (/[",\n\r]/.test(s)) return `"${s.replace(/"/g, '""')}"`;
+  return s;
+}
+
+function buildVenueReportPayload(detail) {
+  const funnel = detail?.funnel || {};
+  const mm = detail?.mixmind || {};
+  const jb = detail?.jukebox || {};
+  const conv = funnel.venueFunnelConversionPct ?? funnel.visitToPaymentConversion ?? 0;
+  return {
+    venueName: detail?.venue?.name ?? "",
+    dateRange: detail?.dateRange ?? null,
+    appliedRangeLabel: detail?.appliedRange?.label ?? "",
+    pageVisits: funnel.venuePageVisits ?? 0,
+    venueTaggedQrScans: funnel.venueTaggedQrScans ?? 0,
+    visitToPaymentConversionPct: conv,
+    analyticsPaymentCompletions: funnel.analyticsCheckoutCompletions ?? 0,
+    totalDbRequests: (mm.total ?? 0) + (jb.total ?? 0),
+    mixmindAcceptedOrPipeline: mm.acceptedCompleted ?? 0,
+    mixmindPending: mm.pending ?? 0,
+    mixmindRejectedOrFailed: mm.rejectedFailed ?? 0,
+    jukeboxQueuedSuccess: jb.queuedSuccess ?? 0,
+    jukeboxPending: jb.pending ?? 0,
+    jukeboxRejected: jb.rejected ?? 0,
+    capturedMixmindRevenue: mm.capturedRevenue ?? 0,
+    succeededJukeboxRevenue: jb.revenue ?? 0,
+    totalTrueRevenue: (mm.capturedRevenue ?? 0) + (jb.revenue ?? 0),
+    sources: detail?.sources ?? {},
+    hourlyActivity: detail?.hourlyActivity ?? [],
+    recentMixmindRequests: mm.recent ?? [],
+    recentJukeboxRequests: jb.recent ?? [],
+  };
+}
+
+function venueReportToCsv(p) {
+  const lines = [];
+  lines.push("field,value");
+  const flat = [
+    ["venue", p.venueName],
+    ["appliedRange", p.appliedRangeLabel],
+    ["dateFrom", p.dateRange?.from ?? ""],
+    ["dateTo", p.dateRange?.to ?? ""],
+    ["pageVisits_events", p.pageVisits],
+    ["venueTaggedQrScans_events", p.venueTaggedQrScans],
+    ["visitToPaymentConversionPct_events", p.visitToPaymentConversionPct],
+    ["analyticsPaymentCompletions_events", p.analyticsPaymentCompletions],
+    ["totalDbRequests", p.totalDbRequests],
+    ["mixmindAcceptedOrPipeline_db", p.mixmindAcceptedOrPipeline],
+    ["mixmindPending_db", p.mixmindPending],
+    ["mixmindRejectedOrFailed_db", p.mixmindRejectedOrFailed],
+    ["jukeboxQueuedSuccess_db", p.jukeboxQueuedSuccess],
+    ["jukeboxPending_db", p.jukeboxPending],
+    ["jukeboxRejected_db", p.jukeboxRejected],
+    ["capturedMixmindRevenue_db", p.capturedMixmindRevenue],
+    ["succeededJukeboxRevenue_db", p.succeededJukeboxRevenue],
+    ["totalTrueRevenue_db", p.totalTrueRevenue],
+  ];
+  for (const [k, v] of flat) lines.push(`${csvEscape(k)},${csvEscape(v)}`);
+  lines.push("");
+  lines.push("hour,eventCount");
+  for (const h of p.hourlyActivity) {
+    lines.push(`${csvEscape(h.hour)},${csvEscape(h.count)}`);
+  }
+  lines.push("");
+  lines.push("source,visits,selections,analyticsPaymentCompletions,conversionPct");
+  for (const [src, s] of Object.entries(p.sources)) {
+    lines.push(
+      [src, s.visits ?? 0, s.selections ?? 0, s.analyticsCheckoutCompletions ?? 0, s.conversion ?? 0]
+        .map(csvEscape)
+        .join(",")
+    );
+  }
+  lines.push("");
+  lines.push("recentMixmindRequests_json", csvEscape(JSON.stringify(p.recentMixmindRequests)));
+  lines.push("recentJukeboxRequests_json", csvEscape(JSON.stringify(p.recentJukeboxRequests)));
+  return lines.join("\n");
+}
+
+function downloadBlob(filename, mime, body) {
+  const blob = new Blob([body], { type: mime });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = filename;
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
+const FILTER_CHIPS = [
+  { preset: "today", label: "Today" },
+  { preset: "week", label: "This week" },
+  { preset: "month", label: "This month" },
+  { preset: "last6months", label: "Last 6 months" },
+  { preset: "year", label: "This year" },
+];
+
+function SectionFilterControls({ value, onChange }) {
+  return (
+    <div className="admin-analytics-filters admin-section-filters">
+      {FILTER_CHIPS.map(({ preset, label }) => (
+        <button
+          key={preset}
+          type="button"
+          className={`admin-filter-btn ${value.preset === preset ? "active" : ""}`}
+          onClick={() => onChange({ ...value, preset })}
+        >
+          {label}
+        </button>
+      ))}
+      <div className="admin-filter-custom">
+        <span className="admin-filter-day-label">Custom</span>
+        <input
+          type="date"
+          value={value.customStart}
+          onChange={(e) =>
+            onChange({ ...value, preset: "custom", customStart: e.target.value })
+          }
+        />
+        <span style={{ opacity: 0.7 }}>–</span>
+        <input
+          type="date"
+          value={value.customEnd}
+          onChange={(e) =>
+            onChange({ ...value, preset: "custom", customEnd: e.target.value })
+          }
+        />
+      </div>
+    </div>
+  );
 }
 
 const AdminDashboard = () => {
@@ -60,17 +200,20 @@ const AdminDashboard = () => {
   );
   const [error, setError] = useState(null);
   const [activeTab, setActiveTab] = useState("overview");
-  const [funnel, setFunnel] = useState(null);
-  const [funnelError, setFunnelError] = useState(null);
-  const [rangePreset, setRangePreset] = useState("today");
-  const [dayDate, setDayDate] = useState(() => londonYmdBrowser());
-  const [customStart, setCustomStart] = useState(() => londonYmdBrowser());
-  const [customEnd, setCustomEnd] = useState(() => londonYmdBrowser());
+  const [analyticsFilter, setAnalyticsFilter] = useState(() => defaultSectionFilter());
+  const [revenueFilter, setRevenueFilter] = useState(() => defaultSectionFilter());
+  const [venueFilter, setVenueFilter] = useState(() => defaultSectionFilter());
+  const [analyticsSectionData, setAnalyticsSectionData] = useState(null);
+  const [revenueSectionData, setRevenueSectionData] = useState(null);
+  const [venueSectionData, setVenueSectionData] = useState(null);
+  const [analyticsSectionError, setAnalyticsSectionError] = useState(null);
+  const [revenueSectionError, setRevenueSectionError] = useState(null);
+  const [venueSectionError, setVenueSectionError] = useState(null);
   const [detailVenueId, setDetailVenueId] = useState(null);
   const [detailData, setDetailData] = useState(null);
   const [detailLoading, setDetailLoading] = useState(false);
   const [detailError, setDetailError] = useState(null);
-  const [detailTab, setDetailTab] = useState("funnel");
+  const [detailTab, setDetailTab] = useState("overview");
 
   useEffect(() => {
     if (!isAuthenticated) return;
@@ -79,9 +222,43 @@ const AdminDashboard = () => {
 
   useEffect(() => {
     if (!isAuthenticated) return;
-    fetchFunnelData();
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- refetch when range changes; fetchFunnelData reads latest state
-  }, [isAuthenticated, rangePreset, dayDate, customStart, customEnd]);
+    let cancelled = false;
+    const qa = sectionFilterToQuery(analyticsFilter);
+    const qr = sectionFilterToQuery(revenueFilter);
+    const qv = sectionFilterToQuery(venueFilter);
+    (async () => {
+      try {
+        setAnalyticsSectionError(null);
+        setRevenueSectionError(null);
+        setVenueSectionError(null);
+        const [a, r, v] = await Promise.all([
+          getAnalyticsFunnel(qa),
+          getAnalyticsFunnel(qr),
+          getAnalyticsFunnel(qv),
+        ]);
+        if (!cancelled) {
+          setAnalyticsSectionData(a);
+          setRevenueSectionData(r);
+          setVenueSectionData(v);
+        }
+      } catch (err) {
+        console.error(err);
+        if (!cancelled) {
+          setAnalyticsSectionError("Could not load analytics funnel.");
+          setRevenueSectionError("Could not load true revenue.");
+          setVenueSectionError("Could not load venue performance.");
+        }
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [
+    isAuthenticated,
+    analyticsFilter,
+    revenueFilter,
+    venueFilter,
+  ]);
 
   useEffect(() => {
     if (!isAuthenticated || !detailVenueId) {
@@ -90,7 +267,7 @@ const AdminDashboard = () => {
       return;
     }
     let cancelled = false;
-    const qs = buildAnalyticsQueryString({ rangePreset, dayDate, customStart, customEnd });
+    const qs = sectionFilterToQuery(venueFilter);
     (async () => {
       try {
         setDetailLoading(true);
@@ -107,10 +284,10 @@ const AdminDashboard = () => {
     return () => {
       cancelled = true;
     };
-  }, [isAuthenticated, detailVenueId, rangePreset, dayDate, customStart, customEnd]);
+  }, [isAuthenticated, detailVenueId, venueFilter]);
 
   useEffect(() => {
-    if (detailVenueId) setDetailTab("funnel");
+    if (detailVenueId) setDetailTab("overview");
   }, [detailVenueId]);
 
   const handleLogin = (e) => {
@@ -127,9 +304,13 @@ const AdminDashboard = () => {
     localStorage.removeItem("adminKey");
     setIsAuthenticated(false);
     setDashboardData(null);
-    setFunnel(null);
+    setAnalyticsSectionData(null);
+    setRevenueSectionData(null);
+    setVenueSectionData(null);
     setError(null);
-    setFunnelError(null);
+    setAnalyticsSectionError(null);
+    setRevenueSectionError(null);
+    setVenueSectionError(null);
     setDetailVenueId(null);
     setDetailData(null);
     setDetailError(null);
@@ -150,16 +331,25 @@ const AdminDashboard = () => {
     }
   };
 
-  const fetchFunnelData = async () => {
-    try {
-      setFunnelError(null);
-      const qs = buildAnalyticsQueryString({ rangePreset, dayDate, customStart, customEnd });
-      const data = await getAnalyticsFunnel(qs);
-      setFunnel(data);
-    } catch (err) {
-      console.error(err);
-      setFunnelError("Could not load QR & funnel analytics.");
-    }
+  const refetchAnalyticsSections = () => {
+    const qa = sectionFilterToQuery(analyticsFilter);
+    const qr = sectionFilterToQuery(revenueFilter);
+    const qv = sectionFilterToQuery(venueFilter);
+    setAnalyticsSectionError(null);
+    setRevenueSectionError(null);
+    setVenueSectionError(null);
+    Promise.all([getAnalyticsFunnel(qa), getAnalyticsFunnel(qr), getAnalyticsFunnel(qv)])
+      .then(([a, r, v]) => {
+        setAnalyticsSectionData(a);
+        setRevenueSectionData(r);
+        setVenueSectionData(v);
+      })
+      .catch((err) => {
+        console.error(err);
+        setAnalyticsSectionError("Could not load analytics funnel.");
+        setRevenueSectionError("Could not load true revenue.");
+        setVenueSectionError("Could not load venue performance.");
+      });
   };
 
   if (!isAuthenticated) {
@@ -243,7 +433,7 @@ const AdminDashboard = () => {
           <button
             onClick={() => {
               fetchDashboardData();
-              fetchFunnelData();
+              refetchAnalyticsSections();
             }}
             className="refresh-button"
           >
@@ -252,119 +442,55 @@ const AdminDashboard = () => {
         </div>
       </div>
 
-      {/* QR & FUNNEL ANALYTICS */}
-      <section className="summary-section funnel-section">
-        <div style={{ display: "flex", alignItems: "center", gap: "10px", marginBottom: "8px" }}>
-          <QrCode size={22} />
-          <h2 style={{ margin: 0 }}>Analytics & true revenue</h2>
-        </div>
-        <p className="subtitle admin-range-label" style={{ marginTop: 0, opacity: 0.95, fontSize: "0.95rem" }}>
-          {funnel?.appliedRange?.label || "Showing: Today"}
-        </p>
-        <p className="subtitle" style={{ marginTop: 4, opacity: 0.75, fontSize: "0.85rem" }}>
-          {funnel?.dateRange?.timezone
-            ? `Boundaries: ${funnel.dateRange.timezone}`
-            : ""}
-        </p>
+      <p
+        className="subtitle"
+        style={{ opacity: 0.9, marginBottom: "20px", maxWidth: "800px", lineHeight: 1.5 }}
+      >
+        <strong>Events</strong> = in-app analytics. <strong>DB</strong> = stored requests and real payments.{" "}
+        <span style={{ opacity: 0.85 }}>
+          Revenue uses captured (MixMind) and succeeded (Jukebox) payments only.
+        </span>
+      </p>
 
-        <div className="admin-analytics-filters">
-          <button
-            type="button"
-            className={`admin-filter-btn ${rangePreset === "today" ? "active" : ""}`}
-            onClick={() => setRangePreset("today")}
-          >
-            Today
-          </button>
-          <button
-            type="button"
-            className={`admin-filter-btn ${rangePreset === "yesterday" ? "active" : ""}`}
-            onClick={() => setRangePreset("yesterday")}
-          >
-            Yesterday
-          </button>
-          <label className="admin-filter-day">
-            <span className="admin-filter-day-label">Day</span>
-            <input
-              type="date"
-              value={dayDate}
-              onChange={(e) => {
-                setDayDate(e.target.value);
-                setRangePreset("day");
-              }}
-            />
-          </label>
-          <button
-            type="button"
-            className={`admin-filter-btn ${rangePreset === "week" ? "active" : ""}`}
-            onClick={() => setRangePreset("week")}
-          >
-            This week
-          </button>
-          <button
-            type="button"
-            className={`admin-filter-btn ${rangePreset === "month" ? "active" : ""}`}
-            onClick={() => setRangePreset("month")}
-          >
-            This month
-          </button>
-          <button
-            type="button"
-            className={`admin-filter-btn ${rangePreset === "year" ? "active" : ""}`}
-            onClick={() => setRangePreset("year")}
-          >
-            This year
-          </button>
-          <div className="admin-filter-custom">
-            <span className="admin-filter-day-label">Custom</span>
-            <input
-              type="date"
-              value={customStart}
-              onChange={(e) => {
-                setCustomStart(e.target.value);
-                setRangePreset("custom");
-              }}
-            />
-            <span style={{ opacity: 0.7 }}>–</span>
-            <input
-              type="date"
-              value={customEnd}
-              onChange={(e) => {
-                setCustomEnd(e.target.value);
-                setRangePreset("custom");
-              }}
-            />
-          </div>
+      {/* A) Analytics funnel */}
+      <section className="summary-section funnel-section admin-insights-block">
+        <div className="admin-insights-block-header">
+          <h2 style={{ margin: "0 0 6px" }}>A. Analytics funnel</h2>
+          <p className="subtitle admin-range-label" style={{ margin: 0, fontSize: "0.95rem" }}>
+            {analyticsSectionData?.appliedRange?.label || "—"}
+          </p>
+          <p className="subtitle" style={{ marginTop: 6, opacity: 0.75, fontSize: "0.82rem" }}>
+            {analyticsSectionData?.dateRange?.timezone || ""}
+          </p>
         </div>
-
-        {funnelError && (
-          <p style={{ color: "#f87171", marginBottom: "12px" }}>{funnelError}</p>
+        <SectionFilterControls value={analyticsFilter} onChange={setAnalyticsFilter} />
+        {analyticsSectionError && (
+          <p style={{ color: "#f87171", marginBottom: "12px" }}>{analyticsSectionError}</p>
         )}
-        {funnel && funnel.analyticsTotals && funnel.dbTotals && (
+        {analyticsSectionData?.analyticsTotals && (
           <>
-            <h3 className="admin-analytics-section-title" style={{ marginTop: "20px", marginBottom: "10px" }}>
-              1. Analytics funnel
-            </h3>
-            <p className="subtitle" style={{ fontSize: "0.85rem", opacity: 0.75, marginBottom: "12px" }}>
-              Event-based funnel (not banked revenue).
+            <p className="subtitle" style={{ fontSize: "0.82rem", opacity: 0.78, marginBottom: "14px" }}>
+              Numbers in this section are <strong>event-based</strong>. QR scans include visits before a venue may be
+              chosen.
             </p>
             <div className="summary-grid" style={{ marginTop: "4px" }}>
               <div className="summary-card requests-card">
                 <div className="card-header">
                   <QrCode size={22} />
-                  <span className="badge">QR</span>
+                  <span className="badge">Events</span>
                 </div>
                 <div className="card-content">
-                  <h3>{funnel.analyticsTotals.qrScans}</h3>
-                  <p>QR scans</p>
+                  <h3>{analyticsSectionData.analyticsTotals.qrScans}</h3>
+                  <p>QR scans (all traffic)</p>
                 </div>
               </div>
               <div className="summary-card requests-card">
                 <div className="card-header">
                   <Activity size={22} />
-                  <span className="badge">Pages</span>
+                  <span className="badge">Events</span>
                 </div>
                 <div className="card-content">
-                  <h3>{funnel.analyticsTotals.venuePageVisits}</h3>
+                  <h3>{analyticsSectionData.analyticsTotals.venuePageVisits}</h3>
                   <p>Venue page visits</p>
                 </div>
               </div>
@@ -374,57 +500,79 @@ const AdminDashboard = () => {
                   <span className="badge">Events</span>
                 </div>
                 <div className="card-content">
-                  <h3>{funnel.analyticsTotals.analyticsCheckoutCompletions}</h3>
-                  <p>Analytics checkout completions</p>
+                  <h3>{analyticsSectionData.analyticsTotals.analyticsCheckoutCompletions}</h3>
+                  <p>Analytics payment completions</p>
                 </div>
               </div>
               <div className="summary-card approval-card">
                 <div className="card-header">
                   <TrendingUp size={22} />
-                  <span className="badge">Funnel</span>
+                  <span className="badge">Events</span>
                 </div>
                 <div className="card-content">
-                  <h3>{funnel.analyticsTotals.overallFunnelConversionPct}%</h3>
-                  <p>Funnel conversion (completions ÷ QR scans)</p>
+                  <h3>
+                    {Number(
+                      analyticsSectionData.analyticsTotals.visitToPaymentConversionPct ?? 0
+                    ).toFixed(2)}
+                    %
+                  </h3>
+                  <p>Conversion: page visits → payment completions</p>
                 </div>
               </div>
             </div>
+          </>
+        )}
+      </section>
 
-            <h3 className="admin-analytics-section-title" style={{ marginTop: "28px", marginBottom: "10px" }}>
-              2. True revenue (database)
-            </h3>
-            <p className="subtitle" style={{ fontSize: "0.85rem", opacity: 0.75, marginBottom: "12px" }}>
-              MixMind captured and Jukebox succeeded amounts in the selected window.
+      {/* B) True revenue */}
+      <section className="summary-section funnel-section admin-insights-block">
+        <div className="admin-insights-block-header">
+          <h2 style={{ margin: "0 0 6px" }}>B. True revenue</h2>
+          <p className="subtitle admin-range-label" style={{ margin: 0, fontSize: "0.95rem" }}>
+            {revenueSectionData?.appliedRange?.label || "—"}
+          </p>
+          <p className="subtitle" style={{ marginTop: 6, opacity: 0.75, fontSize: "0.82rem" }}>
+            {revenueSectionData?.dateRange?.timezone || ""}
+          </p>
+        </div>
+        <SectionFilterControls value={revenueFilter} onChange={setRevenueFilter} />
+        {revenueSectionError && (
+          <p style={{ color: "#f87171", marginBottom: "12px" }}>{revenueSectionError}</p>
+        )}
+        {revenueSectionData?.dbTotals && (
+          <>
+            <p className="subtitle" style={{ fontSize: "0.82rem", opacity: 0.78, marginBottom: "14px" }}>
+              All amounts below are <strong>DB-based</strong> (real captured / succeeded payments in this date range).
             </p>
             <div className="summary-grid" style={{ marginTop: "4px" }}>
               <div className="summary-card revenue-card">
                 <div className="card-header">
                   <DollarSign size={22} />
-                  <span className="badge">MixMind</span>
+                  <span className="badge">DB</span>
                 </div>
                 <div className="card-content">
-                  <h3>£{Number(funnel.dbTotals.mixmindCapturedRevenue || 0).toFixed(2)}</h3>
-                  <p>Captured revenue</p>
+                  <h3>£{Number(revenueSectionData.dbTotals.mixmindCapturedRevenue || 0).toFixed(2)}</h3>
+                  <p>Captured MixMind revenue</p>
                 </div>
               </div>
               <div className="summary-card revenue-card">
                 <div className="card-header">
                   <Music size={22} />
-                  <span className="badge">Jukebox</span>
+                  <span className="badge">DB</span>
                 </div>
                 <div className="card-content">
-                  <h3>£{Number(funnel.dbTotals.jukeboxSucceededRevenue || 0).toFixed(2)}</h3>
-                  <p>Succeeded jukebox revenue</p>
+                  <h3>£{Number(revenueSectionData.dbTotals.jukeboxSucceededRevenue || 0).toFixed(2)}</h3>
+                  <p>Succeeded Jukebox revenue</p>
                 </div>
               </div>
               <div className="summary-card approval-card">
                 <div className="card-header">
                   <TrendingUp size={22} />
-                  <span className="badge">Total</span>
+                  <span className="badge">DB</span>
                 </div>
                 <div className="card-content">
-                  <h3>£{Number(funnel.dbTotals.totalTrueRevenue || 0).toFixed(2)}</h3>
-                  <p>Total true revenue</p>
+                  <h3>£{Number(revenueSectionData.dbTotals.totalTrueRevenue || 0).toFixed(2)}</h3>
+                  <p>True revenue</p>
                 </div>
               </div>
               <div className="summary-card requests-card">
@@ -434,102 +582,93 @@ const AdminDashboard = () => {
                 </div>
                 <div className="card-content">
                   <h3>
-                    {(funnel.dbTotals.mixmindRequestCount || 0) +
-                      (funnel.dbTotals.jukeboxRequestCount || 0)}
+                    {(revenueSectionData.dbTotals.mixmindRequestCount || 0) +
+                      (revenueSectionData.dbTotals.jukeboxRequestCount || 0)}
                   </h3>
-                  <p>Total DB requests</p>
+                  <p>DB requests</p>
                 </div>
               </div>
             </div>
+          </>
+        )}
+      </section>
 
-            <div className="venues-table-container" style={{ marginTop: "28px" }}>
-              <h3 style={{ marginBottom: "12px" }}>Venues</h3>
-              <p className="subtitle" style={{ fontSize: "0.85rem", opacity: 0.75, marginBottom: "12px" }}>
-                Tap a venue for details (same date range).
-              </p>
-              {(funnel.venues || []).length === 0 ? (
-                <p style={{ textAlign: "center", opacity: 0.7 }}>No venues with activity in this range.</p>
-              ) : (
-                <div className="admin-venue-grid">
-                  {funnel.venues.map((row) => {
-                    const active = row.isActive !== false;
-                    const rev = row.totalTrueRevenue ?? 0;
-                    const conv = row.venueFunnelConversionPct ?? row.visitToPaymentConversion ?? 0;
-                    return (
-                      <button
-                        type="button"
-                        key={row.venueId}
-                        className="admin-venue-card"
-                        onClick={() => setDetailVenueId(row.venueId)}
-                      >
-                        <div className="admin-venue-card-title-row">
-                          <span className="admin-venue-card-title">{row.venueName || row.venueId}</span>
-                          <span className={`admin-venue-status-badge ${active ? "active" : "inactive"}`}>
-                            {active ? "Active" : "Inactive"}
-                          </span>
-                        </div>
-                        <div className="admin-venue-card-stat">
-                          <span>Page visits</span>
-                          <strong>{row.venuePageVisits ?? 0}</strong>
-                        </div>
-                        <div className="admin-venue-card-stat">
-                          <span>DB requests</span>
-                          <strong>{row.dbRequestCount ?? 0}</strong>
-                        </div>
-                        <div className="admin-venue-card-stat">
-                          <span>True revenue</span>
-                          <strong>£{rev.toFixed(2)}</strong>
-                        </div>
-                        <div className="admin-venue-card-stat">
-                          <span>Funnel conversion %</span>
-                          <strong>{conv}%</strong>
-                        </div>
-                      </button>
-                    );
-                  })}
-                </div>
-              )}
-            </div>
-
-            <div className="venues-table-container" style={{ marginTop: "28px" }}>
-              <h3 style={{ marginBottom: "12px" }}>Source breakdown (analytics)</h3>
-              <p className="subtitle" style={{ fontSize: "0.85rem", opacity: 0.75, marginBottom: "10px" }}>
-                Visits = QR scans with <code>src</code>; selections = venue picks; completions = analytics checkout
-                completions.
-              </p>
-              <table className="data-table">
-                <thead>
-                  <tr>
-                    <th>Source</th>
-                    <th>Visits</th>
-                    <th>Venue selected</th>
-                    <th>Analytics checkout completions</th>
-                    <th>Conv %</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {Object.entries(funnel.sources || {}).length === 0 ? (
-                    <tr>
-                      <td colSpan={5} style={{ textAlign: "center", opacity: 0.7 }}>
-                        No source tags recorded in this range.
-                      </td>
-                    </tr>
-                  ) : (
-                    Object.entries(funnel.sources || {})
-                      .sort((a, b) => (b[1].visits || 0) - (a[1].visits || 0))
-                      .map(([src, s]) => (
-                        <tr key={src}>
-                          <td>{src}</td>
-                          <td>{s.visits}</td>
-                          <td>{s.selections}</td>
-                          <td>{s.analyticsCheckoutCompletions ?? 0}</td>
-                          <td>{s.conversion}%</td>
-                        </tr>
-                      ))
-                  )}
-                </tbody>
-              </table>
-            </div>
+      {/* C) Venue performance */}
+      <section className="summary-section funnel-section admin-insights-block">
+        <div className="admin-insights-block-header">
+          <h2 style={{ margin: "0 0 6px" }}>C. Venue performance</h2>
+          <p className="subtitle admin-range-label" style={{ margin: 0, fontSize: "0.95rem" }}>
+            {venueSectionData?.appliedRange?.label || "—"}
+          </p>
+          <p className="subtitle" style={{ marginTop: 6, opacity: 0.75, fontSize: "0.82rem" }}>
+            {venueSectionData?.dateRange?.timezone || ""}
+          </p>
+        </div>
+        <SectionFilterControls value={venueFilter} onChange={setVenueFilter} />
+        {venueSectionError && (
+          <p style={{ color: "#f87171", marginBottom: "12px" }}>{venueSectionError}</p>
+        )}
+        {venueSectionData?.venues && (
+          <>
+            <p className="subtitle" style={{ fontSize: "0.82rem", opacity: 0.78, marginBottom: "14px" }}>
+              Cards use <strong>this section&apos;s date range</strong> only. Traffic and conversion are{" "}
+              <strong>event-based</strong>; requests, rejected, and revenue are <strong>DB-based</strong>.
+            </p>
+            {(venueSectionData.venues || []).length === 0 ? (
+              <p style={{ textAlign: "center", opacity: 0.75 }}>No venues with activity in this range.</p>
+            ) : (
+              <div className="admin-venue-grid">
+                {venueSectionData.venues.map((row) => {
+                  const active = row.isActive !== false;
+                  const rev = row.totalTrueRevenue ?? 0;
+                  const conv = row.venueFunnelConversionPct ?? row.visitToPaymentConversion ?? 0;
+                  const taggedQr = row.venueTaggedQrScans ?? 0;
+                  const rejected = row.dbRejectedCount ?? 0;
+                  return (
+                    <button
+                      type="button"
+                      key={row.venueId}
+                      className="admin-venue-card admin-venue-card-blue"
+                      onClick={() => setDetailVenueId(row.venueId)}
+                    >
+                      <div className="admin-venue-card-title-row">
+                        <span className="admin-venue-card-title">{row.venueName || row.venueId}</span>
+                        <span className={`admin-venue-status-badge ${active ? "active" : "inactive"}`}>
+                          {active ? "Active" : "Inactive"}
+                        </span>
+                      </div>
+                      <div className="admin-venue-card-metric">
+                        <span className="admin-venue-card-metric-label">Page visits</span>
+                        <span className="admin-venue-card-metric-value">{row.venuePageVisits ?? 0}</span>
+                        <span className="admin-venue-card-metric-hint">events</span>
+                      </div>
+                      {taggedQr > 0 && (
+                        <p className="admin-venue-card-secondary">Tagged QR scans (this venue): {taggedQr}</p>
+                      )}
+                      <div className="admin-venue-card-stat">
+                        <span>Conversion (events)</span>
+                        <strong>{conv}%</strong>
+                      </div>
+                      <div className="admin-venue-card-stat admin-venue-card-stat-hint">
+                        <span>page visits → payment completions</span>
+                      </div>
+                      <div className="admin-venue-card-stat">
+                        <span>DB requests</span>
+                        <strong>{row.dbRequestCount ?? 0}</strong>
+                      </div>
+                      <div className="admin-venue-card-stat">
+                        <span>Rejected (DB)</span>
+                        <strong>{rejected}</strong>
+                      </div>
+                      <div className="admin-venue-card-stat">
+                        <span>True revenue (DB)</span>
+                        <strong>£{rev.toFixed(2)}</strong>
+                      </div>
+                    </button>
+                  );
+                })}
+              </div>
+            )}
           </>
         )}
       </section>
@@ -952,22 +1091,66 @@ const AdminDashboard = () => {
                 Close
               </button>
             </div>
-            <p className="subtitle admin-range-label" style={{ marginBottom: "12px" }}>
-              {detailData?.appliedRange?.label || funnel?.appliedRange?.label}
+            <p className="subtitle admin-range-label" style={{ marginBottom: 4 }}>
+              {detailData?.appliedRange?.label || "—"}
             </p>
-            <div className="admin-detail-tabs">
-              {["funnel", "revenue", "requests", "sources", "hourly"].map((tab) => (
+            <p className="subtitle" style={{ fontSize: "0.78rem", opacity: 0.75, marginBottom: "10px" }}>
+              Uses the <strong>Venue performance</strong> date range only.
+            </p>
+            {!detailLoading && detailData && (
+              <div className="admin-modal-downloads">
                 <button
-                  key={tab}
                   type="button"
-                  className={`admin-detail-tab ${detailTab === tab ? "active" : ""}`}
-                  onClick={() => setDetailTab(tab)}
+                  className="admin-download-btn"
+                  onClick={() => {
+                    const payload = buildVenueReportPayload(detailData);
+                    const base = (detailData.venue?.name || "venue")
+                      .replace(/[^\w-]+/g, "_")
+                      .slice(0, 64);
+                    downloadBlob(
+                      `${base}-report.json`,
+                      "application/json;charset=utf-8",
+                      JSON.stringify(payload, null, 2)
+                    );
+                  }}
                 >
-                  {tab === "funnel" && "Funnel"}
-                  {tab === "revenue" && "Revenue"}
-                  {tab === "requests" && "Requests"}
-                  {tab === "sources" && "Sources"}
-                  {tab === "hourly" && "Hourly"}
+                  Download JSON
+                </button>
+                <button
+                  type="button"
+                  className="admin-download-btn"
+                  onClick={() => {
+                    const payload = buildVenueReportPayload(detailData);
+                    const base = (detailData.venue?.name || "venue")
+                      .replace(/[^\w-]+/g, "_")
+                      .slice(0, 64);
+                    downloadBlob(
+                      `${base}-report.csv`,
+                      "text/csv;charset=utf-8",
+                      venueReportToCsv(payload)
+                    );
+                  }}
+                >
+                  Download CSV
+                </button>
+              </div>
+            )}
+            <div className="admin-detail-tabs">
+              {[
+                { id: "overview", label: "Overview" },
+                { id: "scans", label: "Scans & conversion" },
+                { id: "revenue", label: "Revenue" },
+                { id: "requests", label: "Requests" },
+                { id: "sources", label: "Sources" },
+                { id: "hourly", label: "Hourly" },
+              ].map(({ id, label }) => (
+                <button
+                  key={id}
+                  type="button"
+                  className={`admin-detail-tab ${detailTab === id ? "active" : ""}`}
+                  onClick={() => setDetailTab(id)}
+                >
+                  {label}
                 </button>
               ))}
             </div>
@@ -975,13 +1158,80 @@ const AdminDashboard = () => {
             {detailError && <p style={{ color: "#f87171" }}>{detailError}</p>}
             {!detailLoading && detailData && (
               <div className="admin-modal-body">
-                {detailTab === "funnel" && (
+                {detailTab === "overview" && (
                   <section className="admin-modal-section">
-                    <h3>Funnel (analytics)</h3>
+                    <h3>At a glance</h3>
+                    <p className="subtitle" style={{ marginBottom: "12px", lineHeight: 1.45 }}>
+                      Revenue uses captured (MixMind) and succeeded (Jukebox) payments only. Event numbers are not
+                      money.
+                    </p>
                     <ul className="admin-modal-kv">
                       <li>
-                        <span>Venue page visits</span>
+                        <span>Page visits (events)</span>
                         <strong>{detailData.funnel?.venuePageVisits ?? 0}</strong>
+                      </li>
+                      {(detailData.funnel?.venueTaggedQrScans ?? 0) > 0 && (
+                        <li>
+                          <span>Tagged QR scans (events)</span>
+                          <strong>{detailData.funnel?.venueTaggedQrScans}</strong>
+                        </li>
+                      )}
+                      <li>
+                        <span>Conversion (events)</span>
+                        <strong>
+                          {detailData.funnel?.venueFunnelConversionPct ??
+                            detailData.funnel?.visitToPaymentConversion ??
+                            0}
+                          %
+                        </strong>
+                      </li>
+                      <li>
+                        <span>Analytics payment completions (events)</span>
+                        <strong>{detailData.funnel?.analyticsCheckoutCompletions ?? 0}</strong>
+                      </li>
+                      <li>
+                        <span>DB requests</span>
+                        <strong>
+                          {(detailData.mixmind?.total ?? 0) + (detailData.jukebox?.total ?? 0)}
+                        </strong>
+                      </li>
+                      <li>
+                        <span>Rejected (DB)</span>
+                        <strong>
+                          {(detailData.mixmind?.rejectedFailed ?? 0) + (detailData.jukebox?.rejected ?? 0)}
+                        </strong>
+                      </li>
+                      <li>
+                        <span>Pending (DB)</span>
+                        <strong>
+                          {(detailData.mixmind?.pending ?? 0) + (detailData.jukebox?.pending ?? 0)}
+                        </strong>
+                      </li>
+                      <li>
+                        <span>True revenue (DB)</span>
+                        <strong>
+                          £
+                          {(
+                            (detailData.mixmind?.capturedRevenue ?? 0) +
+                            (detailData.jukebox?.revenue ?? 0)
+                          ).toFixed(2)}
+                        </strong>
+                      </li>
+                    </ul>
+                  </section>
+                )}
+
+                {detailTab === "scans" && (
+                  <section className="admin-modal-section">
+                    <h3>Scans & conversion (events)</h3>
+                    <ul className="admin-modal-kv">
+                      <li>
+                        <span>Page visits</span>
+                        <strong>{detailData.funnel?.venuePageVisits ?? 0}</strong>
+                      </li>
+                      <li>
+                        <span>Tagged QR scans (this venue only)</span>
+                        <strong>{detailData.funnel?.venueTaggedQrScans ?? 0}</strong>
                       </li>
                       <li>
                         <span>Venue selections</span>
@@ -1000,11 +1250,11 @@ const AdminDashboard = () => {
                         <strong>{detailData.funnel?.checkoutsStarted ?? 0}</strong>
                       </li>
                       <li>
-                        <span>Analytics checkout completions</span>
+                        <span>Analytics payment completions</span>
                         <strong>{detailData.funnel?.analyticsCheckoutCompletions ?? 0}</strong>
                       </li>
                       <li>
-                        <span>Funnel conversion %</span>
+                        <span>Conversion (page visits → completions)</span>
                         <strong>
                           {detailData.funnel?.venueFunnelConversionPct ??
                             detailData.funnel?.visitToPaymentConversion ??
@@ -1013,7 +1263,7 @@ const AdminDashboard = () => {
                         </strong>
                       </li>
                       <li>
-                        <span>Hottest hour (page visits)</span>
+                        <span>Busiest hour (page visits)</span>
                         <strong>{detailData.funnel?.hottestHour || "—"}</strong>
                       </li>
                     </ul>
@@ -1022,18 +1272,21 @@ const AdminDashboard = () => {
 
                 {detailTab === "revenue" && (
                   <section className="admin-modal-section">
-                    <h3>True revenue (database)</h3>
+                    <h3>Revenue (database)</h3>
+                    <p className="subtitle" style={{ marginBottom: "10px", lineHeight: 1.45 }}>
+                      Revenue uses captured (MixMind) and succeeded (Jukebox) payments only.
+                    </p>
                     <ul className="admin-modal-kv">
                       <li>
-                        <span>Captured revenue</span>
+                        <span>Captured MixMind revenue</span>
                         <strong>£{(detailData.mixmind?.capturedRevenue ?? 0).toFixed(2)}</strong>
                       </li>
                       <li>
-                        <span>Succeeded jukebox revenue</span>
+                        <span>Succeeded Jukebox revenue</span>
                         <strong>£{(detailData.jukebox?.revenue ?? 0).toFixed(2)}</strong>
                       </li>
                       <li>
-                        <span>Total true revenue</span>
+                        <span>True revenue</span>
                         <strong>
                           £
                           {(
@@ -1068,10 +1321,10 @@ const AdminDashboard = () => {
                       </ul>
                     </section>
                     <section className="admin-modal-section">
-                      <h3>MixMind breakdown</h3>
+                      <h3>MixMind (DB)</h3>
                       <ul className="admin-modal-kv">
                         <li>
-                          <span>Accepted / pipeline</span>
+                          <span>Accepted / in pipeline</span>
                           <strong>{detailData.mixmind?.acceptedCompleted ?? 0}</strong>
                         </li>
                         <li>
@@ -1085,7 +1338,7 @@ const AdminDashboard = () => {
                       </ul>
                     </section>
                     <section className="admin-modal-section">
-                      <h3>Jukebox breakdown</h3>
+                      <h3>Jukebox (DB)</h3>
                       <ul className="admin-modal-kv">
                         <li>
                           <span>Queued (success path)</span>
@@ -1136,7 +1389,7 @@ const AdminDashboard = () => {
 
                 {detailTab === "sources" && (
                   <section className="admin-modal-section">
-                    <h3>Sources (analytics)</h3>
+                    <h3>Sources (events)</h3>
                     {Object.keys(detailData.sources || {}).length === 0 ? (
                       <p className="subtitle">No sources for this venue in range.</p>
                     ) : (
@@ -1146,7 +1399,7 @@ const AdminDashboard = () => {
                             <th>Source</th>
                             <th>Visits</th>
                             <th>Selected</th>
-                            <th>Analytics checkout completions</th>
+                            <th>Analytics payment completions</th>
                             <th>Conv %</th>
                           </tr>
                         </thead>

@@ -238,6 +238,24 @@ function resolveAnalyticsWindow(query = {}) {
     };
   }
 
+  if (range === "last6months") {
+    const todayStart = startOfLondonDay(now);
+    let from = todayStart;
+    for (let i = 0; i < 179; i++) {
+      from = startOfLondonDay(new Date(from.getTime() - 1));
+    }
+    const toExclusive = startOfNextLondonDay(todayStart);
+    const endDay = new Date(toExclusive.getTime() - 1);
+    return {
+      from,
+      toExclusive,
+      appliedRange: {
+        kind: "last6months",
+        label: `Showing: Last 6 months / 180 days (${formatLondonLong(from)} – ${formatLondonLong(endDay)})`
+      }
+    };
+  }
+
   const from = startOfLondonDay(now);
   const toExclusive = startOfNextLondonDay(from);
   return {
@@ -280,7 +298,7 @@ function ensureVenue(venueMap, id, name) {
     venueMap.set(k, {
       venueId: k,
       venueName: name || "Unknown venue",
-      qrScans: 0,
+      venueTaggedQrScans: 0,
       venueSelections: 0,
       venuePageVisits: 0,
       songSearches: 0,
@@ -331,6 +349,10 @@ function processEventsToFunnelData(events) {
         const hlQr = hourLabelLondon(created);
         scanVisitHourCounts[hlQr] = (scanVisitHourCounts[hlQr] || 0) + 1;
         ensureSource(globalSources, src).visits++;
+        if (vid) {
+          const vrow = ensureVenue(venueMap, vid, e.venueName);
+          vrow.venueTaggedQrScans++;
+        }
         break;
       }
       case "venue_selected":
@@ -390,6 +412,7 @@ function processEventsToFunnelData(events) {
   }
 
   totals.overallFunnelConversionPct = pct(totals.analyticsCheckoutCompletions, totals.qrScans);
+  totals.visitToPaymentConversionPct = pct(totals.analyticsCheckoutCompletions, totals.venuePageVisits);
 
   return { totals, venueMap, scanVisitHourCounts, globalSources };
 }
@@ -532,7 +555,7 @@ async function mergeVenuesFromDbActivity(venues, from, toExclusive) {
       venueId: sid,
       venueName: vdoc?.name || "Unknown venue",
       isActive: vdoc?.isActive !== undefined ? !!vdoc.isActive : true,
-      qrScans: 0,
+      venueTaggedQrScans: 0,
       venueSelections: 0,
       venuePageVisits: 0,
       songSearches: 0,
@@ -624,6 +647,8 @@ async function enrichVenuesWithDbStats(venues, from, toExclusive) {
     const totalRev = row.mixmindCapturedRevenue + row.jukeboxRevenue;
     row.totalTrueRevenue = Math.round(totalRev * 100) / 100;
     row.dbRequestCount = (row.mixmindTotalRequests || 0) + (row.jukeboxTotalRequests || 0);
+    row.dbRejectedCount = (m.rejectedFailed || 0) + (j.rejected || 0);
+    row.dbPendingCount = (m.pending || 0) + (j.pending || 0);
     row.visitToPaymentConversion = row.venueFunnelConversionPct;
   }
 }
@@ -685,6 +710,7 @@ async function buildAnalyticsFunnel(query = {}) {
     venuePageVisits: totals.venuePageVisits,
     analyticsCheckoutCompletions: totals.analyticsCheckoutCompletions,
     overallFunnelConversionPct: totals.overallFunnelConversionPct,
+    visitToPaymentConversionPct: totals.visitToPaymentConversionPct,
     venueSelections: totals.venueSelections,
     songSearches: totals.songSearches,
     checkoutsStarted: totals.checkoutsStarted,
@@ -721,6 +747,9 @@ function venueFunnelRowFromEvents(events, venueId, venueName) {
     const created = e.createdAt ? new Date(e.createdAt) : new Date();
     if (e.venueName && vrow.venueName === "Unknown venue") vrow.venueName = e.venueName;
     switch (e.eventType) {
+      case "qr_scan_landing":
+        vrow.venueTaggedQrScans++;
+        break;
       case "venue_selected":
         vrow.venueSelections++;
         ensureSource(vrow.sources, src).selections++;
