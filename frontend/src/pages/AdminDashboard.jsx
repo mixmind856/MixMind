@@ -227,28 +227,45 @@ const AdminDashboard = () => {
     const qr = sectionFilterToQuery(revenueFilter);
     const qv = sectionFilterToQuery(venueFilter);
     (async () => {
-      try {
-        setAnalyticsSectionError(null);
-        setRevenueSectionError(null);
-        setVenueSectionError(null);
-        const [a, r, v] = await Promise.all([
-          getAnalyticsFunnel(qa),
-          getAnalyticsFunnel(qr),
-          getAnalyticsFunnel(qv),
-        ]);
-        if (!cancelled) {
-          setAnalyticsSectionData(a);
-          setRevenueSectionData(r);
-          setVenueSectionData(v);
+      setAnalyticsSectionError(null);
+      setRevenueSectionError(null);
+      setVenueSectionError(null);
+      const results = await Promise.allSettled([
+        getAnalyticsFunnel(qa),
+        getAnalyticsFunnel(qr),
+        getAnalyticsFunnel(qv),
+      ]);
+      if (cancelled) return;
+      const meta = [
+        {
+          setter: setAnalyticsSectionData,
+          errSetter: setAnalyticsSectionError,
+          msg: "Could not load analytics funnel.",
+          label: "analytics",
+        },
+        {
+          setter: setRevenueSectionData,
+          errSetter: setRevenueSectionError,
+          msg: "Could not load true revenue.",
+          label: "revenue",
+        },
+        {
+          setter: setVenueSectionData,
+          errSetter: setVenueSectionError,
+          msg: "Could not load venue performance.",
+          label: "venue",
+        },
+      ];
+      results.forEach((res, i) => {
+        const { setter, errSetter, msg, label } = meta[i];
+        if (res.status === "fulfilled") {
+          setter(res.value);
+          errSetter(null);
+        } else {
+          console.error(`[admin analytics/${label}]`, res.reason);
+          errSetter(msg);
         }
-      } catch (err) {
-        console.error(err);
-        if (!cancelled) {
-          setAnalyticsSectionError("Could not load analytics funnel.");
-          setRevenueSectionError("Could not load true revenue.");
-          setVenueSectionError("Could not load venue performance.");
-        }
-      }
+      });
     })();
     return () => {
       cancelled = true;
@@ -338,18 +355,40 @@ const AdminDashboard = () => {
     setAnalyticsSectionError(null);
     setRevenueSectionError(null);
     setVenueSectionError(null);
-    Promise.all([getAnalyticsFunnel(qa), getAnalyticsFunnel(qr), getAnalyticsFunnel(qv)])
-      .then(([a, r, v]) => {
-        setAnalyticsSectionData(a);
-        setRevenueSectionData(r);
-        setVenueSectionData(v);
-      })
-      .catch((err) => {
-        console.error(err);
-        setAnalyticsSectionError("Could not load analytics funnel.");
-        setRevenueSectionError("Could not load true revenue.");
-        setVenueSectionError("Could not load venue performance.");
-      });
+    Promise.allSettled([getAnalyticsFunnel(qa), getAnalyticsFunnel(qr), getAnalyticsFunnel(qv)]).then(
+      (results) => {
+        const meta = [
+          {
+            setter: setAnalyticsSectionData,
+            errSetter: setAnalyticsSectionError,
+            msg: "Could not load analytics funnel.",
+            label: "analytics",
+          },
+          {
+            setter: setRevenueSectionData,
+            errSetter: setRevenueSectionError,
+            msg: "Could not load true revenue.",
+            label: "revenue",
+          },
+          {
+            setter: setVenueSectionData,
+            errSetter: setVenueSectionError,
+            msg: "Could not load venue performance.",
+            label: "venue",
+          },
+        ];
+        results.forEach((res, i) => {
+          const { setter, errSetter, msg, label } = meta[i];
+          if (res.status === "fulfilled") {
+            setter(res.value);
+            errSetter(null);
+          } else {
+            console.error(`[admin analytics/${label}]`, res.reason);
+            errSetter(msg);
+          }
+        });
+      }
+    );
   };
 
   if (!isAuthenticated) {
@@ -418,6 +457,12 @@ const AdminDashboard = () => {
   }
 
   const { summary, venues, revenue, requests } = dashboardData;
+  const venueRows =
+    venueSectionData == null
+      ? null
+      : Array.isArray(venueSectionData.venues)
+        ? venueSectionData.venues
+        : [];
 
   return (
     <div className="admin-dashboard">
@@ -608,17 +653,22 @@ const AdminDashboard = () => {
         {venueSectionError && (
           <p style={{ color: "#f87171", marginBottom: "12px" }}>{venueSectionError}</p>
         )}
-        {venueSectionData?.venues && (
+        {venueSectionData === null && !venueSectionError && (
+          <p className="subtitle" style={{ fontSize: "0.85rem", opacity: 0.8, marginBottom: "12px" }}>
+            Loading venue performance…
+          </p>
+        )}
+        {venueSectionData !== null && (
           <>
             <p className="subtitle" style={{ fontSize: "0.82rem", opacity: 0.78, marginBottom: "14px" }}>
               Cards use <strong>this section&apos;s date range</strong> only. Traffic and conversion are{" "}
               <strong>event-based</strong>; requests, rejected, and revenue are <strong>DB-based</strong>.
             </p>
-            {(venueSectionData.venues || []).length === 0 ? (
+            {venueRows.length === 0 ? (
               <p style={{ textAlign: "center", opacity: 0.75 }}>No venues with activity in this range.</p>
             ) : (
               <div className="admin-venue-grid">
-                {venueSectionData.venues.map((row) => {
+                {venueRows.map((row) => {
                   const active = row.isActive !== false;
                   const rev = row.totalTrueRevenue ?? 0;
                   const conv = row.venueFunnelConversionPct ?? row.visitToPaymentConversion ?? 0;
@@ -1097,67 +1147,85 @@ const AdminDashboard = () => {
             <p className="subtitle" style={{ fontSize: "0.78rem", opacity: 0.75, marginBottom: "10px" }}>
               Uses the <strong>Venue performance</strong> date range only.
             </p>
-            {!detailLoading && detailData && (
-              <div className="admin-modal-downloads">
-                <button
-                  type="button"
-                  className="admin-download-btn"
-                  onClick={() => {
-                    const payload = buildVenueReportPayload(detailData);
-                    const base = (detailData.venue?.name || "venue")
-                      .replace(/[^\w-]+/g, "_")
-                      .slice(0, 64);
-                    downloadBlob(
-                      `${base}-report.json`,
-                      "application/json;charset=utf-8",
-                      JSON.stringify(payload, null, 2)
-                    );
-                  }}
-                >
-                  Download JSON
-                </button>
-                <button
-                  type="button"
-                  className="admin-download-btn"
-                  onClick={() => {
-                    const payload = buildVenueReportPayload(detailData);
-                    const base = (detailData.venue?.name || "venue")
-                      .replace(/[^\w-]+/g, "_")
-                      .slice(0, 64);
-                    downloadBlob(
-                      `${base}-report.csv`,
-                      "text/csv;charset=utf-8",
-                      venueReportToCsv(payload)
-                    );
-                  }}
-                >
-                  Download CSV
-                </button>
+            {detailLoading && (
+              <p className="subtitle" style={{ marginBottom: "12px", opacity: 0.85 }}>
+                Loading venue details…
+              </p>
+            )}
+            {!detailLoading && detailError && (
+              <div
+                role="alert"
+                style={{
+                  marginBottom: "12px",
+                  padding: "12px 14px",
+                  borderRadius: "8px",
+                  border: "1px solid rgba(248, 113, 113, 0.5)",
+                  background: "rgba(127, 29, 29, 0.25)",
+                  color: "#fecaca",
+                  fontSize: "0.9rem",
+                }}
+              >
+                {detailError}
               </div>
             )}
-            <div className="admin-detail-tabs">
-              {[
-                { id: "overview", label: "Overview" },
-                { id: "scans", label: "Scans & conversion" },
-                { id: "revenue", label: "Revenue" },
-                { id: "requests", label: "Requests" },
-                { id: "sources", label: "Sources" },
-                { id: "hourly", label: "Hourly" },
-              ].map(({ id, label }) => (
-                <button
-                  key={id}
-                  type="button"
-                  className={`admin-detail-tab ${detailTab === id ? "active" : ""}`}
-                  onClick={() => setDetailTab(id)}
-                >
-                  {label}
-                </button>
-              ))}
-            </div>
-            {detailLoading && <p>Loading…</p>}
-            {detailError && <p style={{ color: "#f87171" }}>{detailError}</p>}
-            {!detailLoading && detailData && (
-              <div className="admin-modal-body">
+            {!detailLoading && detailData && !detailError && (
+              <>
+                <div className="admin-modal-downloads">
+                  <button
+                    type="button"
+                    className="admin-download-btn"
+                    onClick={() => {
+                      const payload = buildVenueReportPayload(detailData);
+                      const base = (detailData.venue?.name || "venue")
+                        .replace(/[^\w-]+/g, "_")
+                        .slice(0, 64);
+                      downloadBlob(
+                        `${base}-report.json`,
+                        "application/json;charset=utf-8",
+                        JSON.stringify(payload, null, 2)
+                      );
+                    }}
+                  >
+                    Download JSON
+                  </button>
+                  <button
+                    type="button"
+                    className="admin-download-btn"
+                    onClick={() => {
+                      const payload = buildVenueReportPayload(detailData);
+                      const base = (detailData.venue?.name || "venue")
+                        .replace(/[^\w-]+/g, "_")
+                        .slice(0, 64);
+                      downloadBlob(
+                        `${base}-report.csv`,
+                        "text/csv;charset=utf-8",
+                        venueReportToCsv(payload)
+                      );
+                    }}
+                  >
+                    Download CSV
+                  </button>
+                </div>
+                <div className="admin-detail-tabs">
+                  {[
+                    { id: "overview", label: "Overview" },
+                    { id: "scans", label: "Scans & conversion" },
+                    { id: "revenue", label: "Revenue" },
+                    { id: "requests", label: "Requests" },
+                    { id: "sources", label: "Sources" },
+                    { id: "hourly", label: "Hourly" },
+                  ].map(({ id, label }) => (
+                    <button
+                      key={id}
+                      type="button"
+                      className={`admin-detail-tab ${detailTab === id ? "active" : ""}`}
+                      onClick={() => setDetailTab(id)}
+                    >
+                      {label}
+                    </button>
+                  ))}
+                </div>
+                <div className="admin-modal-body">
                 {detailTab === "overview" && (
                   <section className="admin-modal-section">
                     <h3>At a glance</h3>
@@ -1447,6 +1515,7 @@ const AdminDashboard = () => {
                   </section>
                 )}
               </div>
+              </>
             )}
           </div>
         </div>
