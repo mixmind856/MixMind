@@ -1,6 +1,11 @@
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { MapPin, Building2, ArrowRight, Loader } from "lucide-react";
+import {
+  getDjSession,
+  clearDjSession,
+  hasDjSession
+} from "../services/djAuthStorage";
 
 export default function DJVenueSelection() {
   const navigate = useNavigate();
@@ -13,9 +18,13 @@ export default function DJVenueSelection() {
   const [error, setError] = useState("");
 
   useEffect(() => {
+    if (!hasDjSession()) {
+      navigate("/dj/auth", { replace: true });
+      return;
+    }
     fetchVenuesWithDJMode();
     fetchDJAccessStatus();
-  }, []);
+  }, [navigate]);
 
   const fetchVenuesWithDJMode = async () => {
     try {
@@ -40,8 +49,8 @@ export default function DJVenueSelection() {
   const fetchDJAccessStatus = async () => {
     try {
       setAccessLoading(true);
-      const token = localStorage.getItem("djToken");
-      if (!token) {
+      const { djToken } = getDjSession();
+      if (!djToken) {
         setAcceptedVenues([]);
         return;
       }
@@ -50,7 +59,7 @@ export default function DJVenueSelection() {
         `${import.meta.env.VITE_API_URL}/dj/access-status`,
         {
           headers: {
-            Authorization: `Bearer ${token}`
+            Authorization: `Bearer ${djToken}`
           }
         }
       );
@@ -84,7 +93,12 @@ export default function DJVenueSelection() {
 
     try {
       setSubmitting(true);
-      const token = localStorage.getItem("djToken");
+      const { djToken } = getDjSession();
+      if (!djToken) {
+        navigate("/dj/auth", { replace: true });
+        return;
+      }
+
       const alreadyAccepted = acceptedVenues.some(
         (item) => item.venue?._id === selectedVenue._id
       );
@@ -100,7 +114,7 @@ export default function DJVenueSelection() {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
-            Authorization: `Bearer ${token}`
+            Authorization: `Bearer ${djToken}`
           },
           body: JSON.stringify({ venueId: selectedVenue._id })
         }
@@ -113,9 +127,8 @@ export default function DJVenueSelection() {
         if (data.requiresDJAccount) {
           setError("Please sign up or log in with your DJ account to request venue access. Venue password login is for existing venue DJs only.");
           setSubmitting(false);
-          // Optionally redirect to signup/login after a delay
           setTimeout(() => {
-            localStorage.clear();
+            clearDjSession();
             window.location.href = "/dj/auth";
           }, 3000);
           return;
@@ -139,9 +152,8 @@ export default function DJVenueSelection() {
   };
 
   const handleLogout = () => {
-    localStorage.removeItem("djToken");
-    localStorage.removeItem("djInfo");
-    navigate("/");
+    clearDjSession();
+    navigate("/dj/auth", { replace: true });
   };
 
   return (

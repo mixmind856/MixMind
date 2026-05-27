@@ -1,13 +1,28 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { Music, Mail, Lock, User, Phone } from "lucide-react";
 import logo from "../assets/Mixmind.jpeg";
+import { getDjSession, setDjSession, hasDjSession } from "../services/djAuthStorage";
 
 export default function DJAuth() {
   const navigate = useNavigate();
   const [isSignup, setIsSignup] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [checkingSession, setCheckingSession] = useState(true);
   const [error, setError] = useState("");
+
+  useEffect(() => {
+    if (hasDjSession()) {
+      const { djLastVenueId } = getDjSession();
+      if (djLastVenueId) {
+        navigate(`/dj/dashboard/${djLastVenueId}`, { replace: true });
+      } else {
+        navigate("/dj/select-venue", { replace: true });
+      }
+      return;
+    }
+    setCheckingSession(false);
+  }, [navigate]);
 
   const [formData, setFormData] = useState({
     name: "",
@@ -84,20 +99,28 @@ export default function DJAuth() {
         return;
       }
 
-      // Save token and dj info
-      localStorage.setItem("djToken", data.djToken);
-      localStorage.setItem("djId", data.djId);
-      localStorage.setItem("djEmail", data.email);
-      localStorage.setItem("djName", data.name);
+      setDjSession({
+        djToken: data.djToken,
+        djId: data.djId,
+        djEmail: data.email,
+        djName: data.name
+      });
 
-      // Redirect to venue selection
-      navigate("/dj/select-venue/");
+      navigate("/dj/select-venue", { replace: true });
     } catch (err) {
       setError(err.message || "An error occurred");
     } finally {
       setLoading(false);
     }
   };
+
+  if (checkingSession) {
+    return (
+      <div className="min-h-screen bg-[#07070B] text-white flex items-center justify-center px-4">
+        <p style={{ color: "rgba(255,255,255,0.72)" }}>Loading...</p>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-[#07070B] text-white flex items-center justify-center px-4">

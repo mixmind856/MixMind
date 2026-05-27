@@ -9,6 +9,11 @@ import {
   unsubscribeFromPush,
   setPushAvailability
 } from "../services/djPushService";
+import {
+  getDjSession,
+  clearDjSession,
+  setDjLastVenueId
+} from "../services/djAuthStorage";
 
 /**
  * DJ Dashboard for approved DJ user accounts
@@ -31,27 +36,36 @@ const [selectedRequest, setSelectedRequest] = useState(null);
   const [notificationOnline, setNotificationOnline] = useState(false);
   const [pushLoading, setPushLoading] = useState(false);
   const [pushMessage, setPushMessage] = useState("");
+  const [djName, setDjName] = useState("");
 
-  const djToken = localStorage.getItem("djToken");
-  const djName = localStorage.getItem("djName");
+  const redirectToDjAuth = () => {
+    clearDjSession();
+    navigate("/dj/auth", { replace: true });
+  };
 
   useEffect(() => {
-    if (!djToken) {
-      setError("DJ authentication required. Please log in.");
-      navigate("/dj/auth");
+    const session = getDjSession();
+    if (!session.djToken || !session.djId) {
+      redirectToDjAuth();
       return;
+    }
+
+    setDjName(session.djName || "");
+
+    if (venueId) {
+      setDjLastVenueId(venueId);
     }
 
     fetchApprovedVenueRequests();
     loadPushStatus();
-    // Refresh every 30 seconds
     const interval = setInterval(fetchApprovedVenueRequests, 30000);
     return () => clearInterval(interval);
-  }, [venueId, djToken]);
+  }, [venueId]);
 
   const loadPushStatus = async () => {
-    if (!djToken || !venueId || !isPushSupported()) return;
-    const status = await fetchPushStatus(venueId, djToken);
+    const token = getDjSession().djToken;
+    if (!token || !venueId || !isPushSupported()) return;
+    const status = await fetchPushStatus(venueId, token);
     if (status) {
       setNotificationsEnabled(!!status.hasPushSubscription);
       setNotificationOnline(!!status.notificationOnline);
@@ -65,8 +79,14 @@ const [selectedRequest, setSelectedRequest] = useState(null);
     }
     setPushLoading(true);
     setPushMessage("");
+    const token = getDjSession().djToken;
+    if (!token) {
+      redirectToDjAuth();
+      return;
+    }
+
     try {
-      await subscribeToPush(venueId, djToken);
+      await subscribeToPush(venueId, token);
       setNotificationsEnabled(true);
       setNotificationOnline(false);
       setPushMessage(
@@ -82,11 +102,17 @@ const [selectedRequest, setSelectedRequest] = useState(null);
   const handleDisableNotifications = async () => {
     setPushLoading(true);
     setPushMessage("");
+    const token = getDjSession().djToken;
+    if (!token) {
+      redirectToDjAuth();
+      return;
+    }
+
     try {
       if (notificationOnline) {
-        await setPushAvailability(venueId, false, djToken);
+        await setPushAvailability(venueId, false, token);
       }
-      await unsubscribeFromPush(venueId, djToken);
+      await unsubscribeFromPush(venueId, token);
       setNotificationsEnabled(false);
       setNotificationOnline(false);
       setPushMessage("");
@@ -104,8 +130,14 @@ const [selectedRequest, setSelectedRequest] = useState(null);
     }
     setPushLoading(true);
     setPushMessage("");
+    const token = getDjSession().djToken;
+    if (!token) {
+      redirectToDjAuth();
+      return;
+    }
+
     try {
-      const result = await setPushAvailability(venueId, online, djToken);
+      const result = await setPushAvailability(venueId, online, token);
       setNotificationOnline(!!result.notificationOnline);
       setPushMessage(
         result.notificationOnline
@@ -120,13 +152,19 @@ const [selectedRequest, setSelectedRequest] = useState(null);
   };
 
   const fetchApprovedVenueRequests = async () => {
+    const token = getDjSession().djToken;
+    if (!token) {
+      redirectToDjAuth();
+      return;
+    }
+
     try {
       setLoading(true);
       setError("");
 
       const headers = {
         "Content-Type": "application/json",
-        Authorization: `Bearer ${djToken}`
+        Authorization: `Bearer ${token}`
       };
 
       // Get venue details and requests
@@ -143,7 +181,8 @@ const [selectedRequest, setSelectedRequest] = useState(null);
         if (response.status === 403) {
           throw new Error("You don't have access to this venue. Request approval first.");
         } else if (response.status === 401) {
-          throw new Error("Session expired. Please log in again.");
+          redirectToDjAuth();
+          return;
         } else {
           throw new Error(errorData.error || "Failed to load requests");
         }
@@ -187,6 +226,12 @@ setRequests(Array.isArray(requestsData) ? requestsData : []);
   const previousRequests = requests;
   setRequests(prev => prev.filter(r => r._id !== requestId));
 
+  const token = getDjSession().djToken;
+  if (!token) {
+    redirectToDjAuth();
+    return;
+  }
+
   try {
     const response = await fetch(
       `${import.meta.env.VITE_API_URL}/dj/requests/${requestId}/accept`,
@@ -194,10 +239,15 @@ setRequests(Array.isArray(requestsData) ? requestsData : []);
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          Authorization: `Bearer ${djToken}`
+          Authorization: `Bearer ${token}`
         }
       }
     );
+
+    if (response.status === 401) {
+      redirectToDjAuth();
+      return;
+    }
 
     if (!response.ok) {
       const errorData = await response.json();
@@ -220,6 +270,12 @@ setRequests(Array.isArray(requestsData) ? requestsData : []);
   const previousRequests = requests;
   setRequests(prev => prev.filter(r => r._id !== requestId));
 
+  const token = getDjSession().djToken;
+  if (!token) {
+    redirectToDjAuth();
+    return;
+  }
+
   try {
     const response = await fetch(
       `${import.meta.env.VITE_API_URL}/dj/requests/${requestId}/reject`,
@@ -227,10 +283,15 @@ setRequests(Array.isArray(requestsData) ? requestsData : []);
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          Authorization: `Bearer ${djToken}`
+          Authorization: `Bearer ${token}`
         }
       }
     );
+
+    if (response.status === 401) {
+      redirectToDjAuth();
+      return;
+    }
 
     if (!response.ok) {
       const errorData = await response.json();
@@ -247,11 +308,8 @@ setRequests(Array.isArray(requestsData) ? requestsData : []);
 };
 
   const handleLogout = () => {
-    localStorage.removeItem("djToken");
-    localStorage.removeItem("djId");
-    localStorage.removeItem("djEmail");
-    localStorage.removeItem("djName");
-    navigate("/dj/auth");
+    clearDjSession();
+    navigate("/dj/auth", { replace: true });
   };
 
   const handleConfirmAction = async () => {

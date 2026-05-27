@@ -734,7 +734,7 @@ async function djSignup(req, res) {
     const djToken = jwt.sign(
       { djId: newDJ._id, email: newDJ.email, role: "dj" },
       process.env.JWT_SECRET || "your-secret-key",
-      { expiresIn: "24h" }
+      { expiresIn: "30d" }
     );
 
     console.log(`   ✅ Token generated`);
@@ -785,7 +785,7 @@ async function djUserLogin(req, res) {
     const djToken = jwt.sign(
       { djId: dj._id, email: dj.email, role: "dj" },
       process.env.JWT_SECRET || "your-secret-key",
-      { expiresIn: "24h" }
+      { expiresIn: "30d" }
     );
 
     console.log(`   ✅ Token generated`);
