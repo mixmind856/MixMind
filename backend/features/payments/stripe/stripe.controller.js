@@ -6,7 +6,7 @@ const User = require("../../../models/User");
 const couponService = require("../../../services/couponService");
 const { createSplitTransfers } = require("./stripe.service");
 const { pushToStack } = require("../../../services/stackService");
-const { notifyDJsForNewRequest } = require("../../../services/djPushService");
+const { notifyDJsIfPendingAuthorized } = require("../../../services/djPushService");
 
 const DEMO_MODE = process.env.DEMO_MODE === "true" || !process.env.STRIPE_SECRET_KEY;
 const stripe = !DEMO_MODE ? new Stripe(process.env.STRIPE_SECRET_KEY, {
@@ -123,17 +123,9 @@ async function handleWebhook(req, res) {
       await Request.findByIdAndUpdate(requestId, requestUpdateData, { new: true });
       console.log(`✅ Request updated`);
 
-      if (
-        isDJMode &&
-        request.status === "pending_dj_approval" &&
-        requestUpdateData.paymentStatus === "authorized"
-      ) {
-        void notifyDJsForNewRequest({
-          venueId: request.venueId || venueId,
-          songTitle: request.title || request.songTitle,
-          artist: request.artist || request.artistName,
-          requestId: request._id
-        }).catch(() => {});
+      if (isDJMode && requestUpdateData.paymentStatus === "authorized") {
+        const requestForPush = await Request.findById(requestId);
+        void notifyDJsIfPendingAuthorized(requestForPush).catch(() => {});
       }
 
       // Only process transfers in LIVE mode
@@ -231,12 +223,18 @@ async function handleWebhook(req, res) {
       );
       
       // Update Request
-      await Request.findByIdAndUpdate(requestId, { 
-        paymentStatus: "authorized",
-        paymentIntentId: obj.id
-      });
+      const authorizedRequest = await Request.findByIdAndUpdate(
+        requestId,
+        {
+          paymentStatus: "authorized",
+          paymentIntentId: obj.id
+        },
+        { new: true }
+      );
 
       console.log(`✅ Payment authorized: ${requestId}`);
+
+      void notifyDJsIfPendingAuthorized(authorizedRequest).catch(() => {});
     }
 
     /* ========== PAYMENT INTENT SUCCEEDED (DJ MODE - CAPTURED) ========== */

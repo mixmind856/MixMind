@@ -224,6 +224,13 @@ const [selectedRequest, setSelectedRequest] = useState(null);
     }
   };
 
+  const scheduleSilentRefetch = () => {
+    fetchGenerationRef.current += 1;
+    setTimeout(() => {
+      void fetchApprovedVenueRequests({ silent: true });
+    }, 300);
+  };
+
   const handleAccept = async (requestId, requestTitle) => {
   setProcessingId(requestId);
   setError("");
@@ -262,7 +269,7 @@ const [selectedRequest, setSelectedRequest] = useState(null);
     }
 
     console.log(`✅ Request accepted: ${requestTitle}`);
-    void fetchApprovedVenueRequests({ silent: true });
+    scheduleSilentRefetch();
   } catch (err) {
     setRequests(previousRequests);
     setError(err.message);
@@ -309,7 +316,7 @@ const [selectedRequest, setSelectedRequest] = useState(null);
     }
 
     console.log(`✅ Request rejected: ${requestTitle}`);
-    void fetchApprovedVenueRequests({ silent: true });
+    scheduleSilentRefetch();
   } catch (err) {
     setRequests(previousRequests);
     setError(err.message);
@@ -731,13 +738,8 @@ const handleCancelConfirm = () => {
           justifyContent: "flex-end"
         }}
       >
-        {/* LEFT BUTTON */}
-<button
-  onClick={
-    confirmAction === "accept"
-      ? handleCancelConfirm
-      : handleConfirmAction
-  }
+        <button
+  onClick={handleCancelConfirm}
   style={{
     padding: "8px 14px",
     borderRadius: "8px",
@@ -750,13 +752,8 @@ const handleCancelConfirm = () => {
   Cancel
 </button>
 
-        {/* RIGHT BUTTON */}
-<button
-  onClick={
-    confirmAction === "accept"
-      ? handleConfirmAction
-      : handleCancelConfirm
-  }
+        <button
+  onClick={handleConfirmAction}
   style={{
     padding: "8px 14px",
     borderRadius: "8px",

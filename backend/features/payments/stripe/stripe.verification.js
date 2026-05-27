@@ -10,6 +10,14 @@ const User = require("../../../models/User");
 const { createSplitTransfers } = require("./stripe.service");
 const { pushToStack } = require("../../../services/stackService");
 const couponService = require("../../../services/couponService");
+const { notifyDJsIfPendingAuthorized } = require("../../../services/djPushService");
+
+function paymentIntentIdFromSession(session) {
+  if (!session?.payment_intent) return null;
+  return typeof session.payment_intent === "string"
+    ? session.payment_intent
+    : session.payment_intent.id;
+}
 
 /**
  * Verify a Stripe checkout session and complete the payment
@@ -144,12 +152,23 @@ console.log(`   Venue.djMode current toggle: ${venue?.djMode}`);
         console.log(`   ⚠️  Request paymentStatus mismatch: ${request.paymentStatus} vs ${expectedRequestStatus}`);
         console.log(`   Updating Request to match Payment status...`);
         
+        const piId = paymentIntentIdFromSession(session);
         const requestUpdateData = isDJMode
-          ? { paymentStatus: "authorized", checkoutSessionId: checkoutSessionId }
+          ? {
+              paymentStatus: "authorized",
+              checkoutSessionId: checkoutSessionId,
+              ...(piId ? { paymentIntentId: piId } : {})
+            }
           : { paymentStatus: "captured", paidAmount: payment.amount, paidAt: new Date(), checkoutSessionId: checkoutSessionId };
         
-        await Request.findByIdAndUpdate(request._id, requestUpdateData, { new: true });
+        const syncedRequest = await Request.findByIdAndUpdate(request._id, requestUpdateData, { new: true });
         console.log(`   ✅ Request updated to match Payment status`);
+
+        if (isDJMode && syncedRequest) {
+          void notifyDJsIfPendingAuthorized(syncedRequest).catch(() => {});
+        }
+      } else if (isDJMode && request.status === "pending_dj_approval" && request.paymentStatus === "authorized") {
+        void notifyDJsIfPendingAuthorized(request).catch(() => {});
       }
       
       console.log(`\n📍 IDEMPOTENCY CHECK RESPONSE:`);
@@ -252,10 +271,12 @@ console.log(`   Venue.djMode current toggle: ${venue?.djMode}`);
     console.log(`\n📝 UPDATING REQUEST RECORD`);
     console.log(`   Request._id: ${request._id.toString()}`);
     
+    const piId = paymentIntentIdFromSession(session);
     const requestUpdateData = isDJMode
       ? {
           paymentStatus: "authorized",
-          checkoutSessionId: checkoutSessionId
+          checkoutSessionId: checkoutSessionId,
+          ...(piId ? { paymentIntentId: piId } : {})
         }
       : {
           paymentStatus: "captured",
@@ -311,6 +332,12 @@ console.log(`   Venue.djMode current toggle: ${venue?.djMode}`);
         console.log(`   paidAt: ${updatedRequest.paidAt}`);
       }
       console.log(`   Updated at: ${updatedRequest.updatedAt}`);
+    }
+
+    if (isDJMode) {
+      const requestForPush =
+        updatedRequest || (await Request.findById(request._id));
+      void notifyDJsIfPendingAuthorized(requestForPush).catch(() => {});
     }
 
     // Only process transfers for LIVE mode

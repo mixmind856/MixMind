@@ -5,6 +5,9 @@ const Venue = require("../models/Venue");
 
 let vapidConfigured = false;
 
+/** In-process idempotency: one push campaign per requestId */
+const notifiedRequestIds = new Set();
+
 function configureVapid() {
   if (vapidConfigured) return true;
 
@@ -144,12 +147,38 @@ async function sendPushToSubscription(subscriptionDoc, payload) {
   }
 }
 
+async function notifyDJsIfPendingAuthorized(requestDoc) {
+  if (!requestDoc) return;
+
+  const rid = String(requestDoc._id);
+  if (
+    requestDoc.status !== "pending_dj_approval" ||
+    requestDoc.paymentStatus !== "authorized"
+  ) {
+    return;
+  }
+
+  if (notifiedRequestIds.has(rid)) {
+    console.log(`[DJ Push] Duplicate skipped for request ${rid}`);
+    return;
+  }
+
+  notifiedRequestIds.add(rid);
+
+  return notifyDJsForNewRequest({
+    venueId: requestDoc.venueId,
+    songTitle: requestDoc.title || requestDoc.songTitle,
+    artist: requestDoc.artist || requestDoc.artistName,
+    requestId: requestDoc._id
+  });
+}
+
 async function notifyDJsForNewRequest({ venueId, songTitle, artist, requestId }) {
   try {
     if (!venueId) return;
 
     if (!configureVapid()) {
-      console.warn("[DJ Push] Skipped: VAPID env not configured (VAPID_PUBLIC_KEY, VAPID_PRIVATE_KEY, VAPID_SUBJECT)");
+      console.warn("[DJ Push] VAPID missing — not configured (VAPID_PUBLIC_KEY, VAPID_PRIVATE_KEY, VAPID_SUBJECT)");
       return;
     }
 
@@ -170,7 +199,7 @@ async function notifyDJsForNewRequest({ venueId, songTitle, artist, requestId })
     }).select("djId");
 
     if (!onlineAccess.length) {
-      console.log(`[DJ Push] Skipped request ${requestId || "n/a"}: 0 online DJs for venue ${venueId}`);
+      console.log(`[DJ Push] No online DJs for venue ${venueId} (request ${requestId || "n/a"})`);
       return;
     }
 
@@ -182,7 +211,7 @@ async function notifyDJsForNewRequest({ venueId, songTitle, artist, requestId })
 
     if (!subscriptions.length) {
       console.log(
-        `[DJ Push] Skipped request ${requestId || "n/a"}: 0 push subscriptions (${onlineAccess.length} online DJ(s))`
+        `[DJ Push] No subscriptions for venue ${venueId} (${onlineAccess.length} online DJ(s), request ${requestId || "n/a"})`
       );
       return;
     }
@@ -203,7 +232,7 @@ async function notifyDJsForNewRequest({ venueId, songTitle, artist, requestId })
     const failureCount = results.length - successCount;
 
     console.log(
-      `[DJ Push] Request ${requestId || "n/a"} venue ${venueId}: sent ${successCount}/${subscriptions.length}`
+      `[DJ Push] Push sent — request ${requestId || "n/a"} venue ${venueId}: ${successCount}/${subscriptions.length}`
     );
 
     if (failureCount > 0) {
@@ -225,5 +254,6 @@ module.exports = {
   removeSubscription,
   setNotificationAvailability,
   getNotificationStatus,
-  notifyDJsForNewRequest
+  notifyDJsForNewRequest,
+  notifyDJsIfPendingAuthorized
 };
