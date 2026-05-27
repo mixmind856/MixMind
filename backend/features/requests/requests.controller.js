@@ -11,7 +11,6 @@ const axios = require("axios");
 const { pushToStack, getStackSize } = require("../../services/stackService");
 const { createCheckoutSession, createCheckoutSessionDJ, createPaymentIntentDJ } = require("../../features/payments/stripe/stripe.service");
 const couponService = require("../../services/couponService");
-const { notifyDJsForNewRequest } = require("../../services/djPushService");
 
 /* -------------------- UTILITY: SLEEP -------------------- */
 function sleep(ms) {
@@ -169,15 +168,6 @@ if (venueId && venue) {
     console.log(`📝 About to save request with data:`, requestData);
 
     const request = await Request.create(requestData);
-
-    if (venueId) {
-      void notifyDJsForNewRequest({
-        venueId,
-        songTitle: songName,
-        artist: artistName_,
-        requestId: request._id
-      }).catch(() => {});
-    }
     
     console.log(`✅ Request.create() returned:`);
     console.log(`   ID: ${request._id}`);

@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { Check, X, Loader, Bell, BellOff } from "lucide-react";
 import logo from "../assets/Mixmind.jpeg";
@@ -37,6 +37,7 @@ const [selectedRequest, setSelectedRequest] = useState(null);
   const [pushLoading, setPushLoading] = useState(false);
   const [pushMessage, setPushMessage] = useState("");
   const [djName, setDjName] = useState("");
+  const fetchGenerationRef = useRef(0);
 
   const redirectToDjAuth = () => {
     clearDjSession();
@@ -58,7 +59,10 @@ const [selectedRequest, setSelectedRequest] = useState(null);
 
     fetchApprovedVenueRequests();
     loadPushStatus();
-    const interval = setInterval(fetchApprovedVenueRequests, 30000);
+    const interval = setInterval(
+      () => fetchApprovedVenueRequests({ silent: true }),
+      30000
+    );
     return () => clearInterval(interval);
   }, [venueId]);
 
@@ -151,33 +155,38 @@ const [selectedRequest, setSelectedRequest] = useState(null);
     }
   };
 
-  const fetchApprovedVenueRequests = async () => {
+  const fetchApprovedVenueRequests = async ({ silent = false } = {}) => {
     const token = getDjSession().djToken;
     if (!token) {
       redirectToDjAuth();
       return;
     }
 
+    const generation = ++fetchGenerationRef.current;
+
     try {
-      setLoading(true);
-      setError("");
+      if (!silent) {
+        setLoading(true);
+        setError("");
+      }
 
       const headers = {
         "Content-Type": "application/json",
         Authorization: `Bearer ${token}`
       };
 
-      // Get venue details and requests
-      // Using the venue ID passed in the URL
       const response = await fetch(
         `${import.meta.env.VITE_API_URL}/dj/requests/${venueId}`,
         { headers }
       );
 
+      if (generation !== fetchGenerationRef.current) {
+        return;
+      }
+
       if (!response.ok) {
         const errorData = await response.json();
-        
-        // Handle specific errors
+
         if (response.status === 403) {
           throw new Error("You don't have access to this venue. Request approval first.");
         } else if (response.status === 401) {
@@ -189,33 +198,29 @@ const [selectedRequest, setSelectedRequest] = useState(null);
       }
 
       const requestsData = await response.json();
-console.log("✅ DJ Dashboard loaded requests:", requestsData);
 
-if (Array.isArray(requestsData)) {
-  requestsData.forEach((request) => {
-    console.log("REQUEST DEBUG:", {
-      id: request._id,
-      title: request.title,
-      priorityRequest: request.priorityRequest,
-      priorityType: request.priorityType,
-      price: request.price,
-      status: request.status
-    });
-  });
-}
+      if (generation !== fetchGenerationRef.current) {
+        return;
+      }
 
-setRequests(Array.isArray(requestsData) ? requestsData : []);
-      
-      // Set venue name if available from first request
+      setRequests(Array.isArray(requestsData) ? requestsData : []);
+
       if (requestsData.length > 0 && requestsData[0].venueId?.name) {
         setVenueName(requestsData[0].venueId.name);
       }
     } catch (err) {
+      if (generation !== fetchGenerationRef.current) {
+        return;
+      }
       const errorMsg = err.message || "Failed to load song requests";
-      setError(errorMsg);
+      if (!silent) {
+        setError(errorMsg);
+      }
       console.error("Error fetching requests:", err);
     } finally {
-      setLoading(false);
+      if (generation === fetchGenerationRef.current && !silent) {
+        setLoading(false);
+      }
     }
   };
 
@@ -224,7 +229,9 @@ setRequests(Array.isArray(requestsData) ? requestsData : []);
   setError("");
 
   const previousRequests = requests;
-  setRequests(prev => prev.filter(r => r._id !== requestId));
+  setRequests((prev) =>
+    prev.filter((r) => String(r._id) !== String(requestId))
+  );
 
   const token = getDjSession().djToken;
   if (!token) {
@@ -255,6 +262,7 @@ setRequests(Array.isArray(requestsData) ? requestsData : []);
     }
 
     console.log(`✅ Request accepted: ${requestTitle}`);
+    void fetchApprovedVenueRequests({ silent: true });
   } catch (err) {
     setRequests(previousRequests);
     setError(err.message);
@@ -268,7 +276,9 @@ setRequests(Array.isArray(requestsData) ? requestsData : []);
   setError("");
 
   const previousRequests = requests;
-  setRequests(prev => prev.filter(r => r._id !== requestId));
+  setRequests((prev) =>
+    prev.filter((r) => String(r._id) !== String(requestId))
+  );
 
   const token = getDjSession().djToken;
   if (!token) {
@@ -299,6 +309,7 @@ setRequests(Array.isArray(requestsData) ? requestsData : []);
     }
 
     console.log(`✅ Request rejected: ${requestTitle}`);
+    void fetchApprovedVenueRequests({ silent: true });
   } catch (err) {
     setRequests(previousRequests);
     setError(err.message);

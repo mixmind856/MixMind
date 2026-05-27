@@ -121,7 +121,7 @@ async function getNotificationStatus(djId, venueId) {
 
 async function sendPushToSubscription(subscriptionDoc, payload) {
   if (!configureVapid()) {
-    return;
+    return { ok: false, reason: "vapid_not_configured" };
   }
 
   const pushSubscription = {
@@ -134,18 +134,24 @@ async function sendPushToSubscription(subscriptionDoc, payload) {
 
   try {
     await webpush.sendNotification(pushSubscription, JSON.stringify(payload));
+    return { ok: true };
   } catch (err) {
     const statusCode = err?.statusCode;
     if (statusCode === 404 || statusCode === 410) {
       await DJPushSubscription.deleteOne({ _id: subscriptionDoc._id }).catch(() => {});
     }
+    return { ok: false, reason: err.message, statusCode };
   }
 }
 
 async function notifyDJsForNewRequest({ venueId, songTitle, artist, requestId }) {
   try {
     if (!venueId) return;
-    if (!configureVapid()) return;
+
+    if (!configureVapid()) {
+      console.warn("[DJ Push] Skipped: VAPID env not configured (VAPID_PUBLIC_KEY, VAPID_PRIVATE_KEY, VAPID_SUBJECT)");
+      return;
+    }
 
     const venue = await Venue.findById(venueId).select("name");
     const venueName = venue?.name || "Venue";
@@ -163,13 +169,23 @@ async function notifyDJsForNewRequest({ venueId, songTitle, artist, requestId })
       notificationOnline: true
     }).select("djId");
 
-    if (!onlineAccess.length) return;
+    if (!onlineAccess.length) {
+      console.log(`[DJ Push] Skipped request ${requestId || "n/a"}: 0 online DJs for venue ${venueId}`);
+      return;
+    }
 
     const djIds = onlineAccess.map((a) => a.djId);
     const subscriptions = await DJPushSubscription.find({
       venueId,
       djId: { $in: djIds }
     });
+
+    if (!subscriptions.length) {
+      console.log(
+        `[DJ Push] Skipped request ${requestId || "n/a"}: 0 push subscriptions (${onlineAccess.length} online DJ(s))`
+      );
+      return;
+    }
 
     const payload = {
       title: "New song request",
@@ -179,11 +195,26 @@ async function notifyDJsForNewRequest({ venueId, songTitle, artist, requestId })
       requestId: requestId ? String(requestId) : null
     };
 
-    await Promise.allSettled(
+    const results = await Promise.all(
       subscriptions.map((sub) => sendPushToSubscription(sub, payload))
     );
+
+    const successCount = results.filter((r) => r.ok).length;
+    const failureCount = results.length - successCount;
+
+    console.log(
+      `[DJ Push] Request ${requestId || "n/a"} venue ${venueId}: sent ${successCount}/${subscriptions.length}`
+    );
+
+    if (failureCount > 0) {
+      const failures = results.filter((r) => !r.ok);
+      console.warn(
+        `[DJ Push] ${failureCount} failure(s):`,
+        failures.map((f) => f.reason || "unknown").join("; ")
+      );
+    }
   } catch (err) {
-    console.warn("DJ push notify failed (silent):", err.message);
+    console.warn("[DJ Push] notify failed (silent):", err.message);
   }
 }
 
