@@ -4,6 +4,7 @@ const authController = require("./dj.controller");
 const verifyVenueToken = require("../../middleware/verifyVenueToken");
 const verifyDJToken = require("../../middleware/verifyDJToken");
 const verifyDJUserToken = require("../../middleware/verifyDJUserToken");
+const djPushController = require("./dj.push.controller");
 
 const router = express.Router();
 
@@ -49,6 +50,13 @@ router.get("/access-status", verifyDJUserToken, authController.getDJAccessStatus
  * Requires DJ user JWT token
  */
 router.get("/active-venue", verifyDJUserToken, authController.getActiveVenue);
+
+/* ========== DJ WEB PUSH ========== */
+router.get("/push/public-key", djPushController.getPublicKey);
+router.get("/push/status", verifyDJUserToken, djPushController.getStatus);
+router.post("/push/subscribe", verifyDJUserToken, djPushController.subscribe);
+router.post("/push/unsubscribe", verifyDJUserToken, djPushController.unsubscribe);
+router.post("/push/availability", verifyDJUserToken, djPushController.setAvailability);
 
 /* ========== EXISTING DJ MODE ROUTES (VENUE PASSWORD SYSTEM) ========== */
 /**

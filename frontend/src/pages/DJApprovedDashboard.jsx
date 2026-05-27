@@ -1,7 +1,14 @@
 import { useState, useEffect } from "react";
 import { useParams, useNavigate } from "react-router-dom";
-import { Check, X, Loader } from "lucide-react";
+import { Check, X, Loader, Bell, BellOff } from "lucide-react";
 import logo from "../assets/Mixmind.jpeg";
+import {
+  isPushSupported,
+  fetchPushStatus,
+  subscribeToPush,
+  unsubscribeFromPush,
+  setPushAvailability
+} from "../services/djPushService";
 
 /**
  * DJ Dashboard for approved DJ user accounts
@@ -20,6 +27,10 @@ export default function DJApprovedDashboard() {
   const [confirmModalOpen, setConfirmModalOpen] = useState(false);
 const [confirmAction, setConfirmAction] = useState(null);
 const [selectedRequest, setSelectedRequest] = useState(null);
+  const [notificationsEnabled, setNotificationsEnabled] = useState(false);
+  const [notificationOnline, setNotificationOnline] = useState(false);
+  const [pushLoading, setPushLoading] = useState(false);
+  const [pushMessage, setPushMessage] = useState("");
 
   const djToken = localStorage.getItem("djToken");
   const djName = localStorage.getItem("djName");
@@ -32,10 +43,81 @@ const [selectedRequest, setSelectedRequest] = useState(null);
     }
 
     fetchApprovedVenueRequests();
+    loadPushStatus();
     // Refresh every 30 seconds
     const interval = setInterval(fetchApprovedVenueRequests, 30000);
     return () => clearInterval(interval);
   }, [venueId, djToken]);
+
+  const loadPushStatus = async () => {
+    if (!djToken || !venueId || !isPushSupported()) return;
+    const status = await fetchPushStatus(venueId, djToken);
+    if (status) {
+      setNotificationsEnabled(!!status.hasPushSubscription);
+      setNotificationOnline(!!status.notificationOnline);
+    }
+  };
+
+  const handleEnableNotifications = async () => {
+    if (!isPushSupported()) {
+      setPushMessage("Push notifications are not supported in this browser.");
+      return;
+    }
+    setPushLoading(true);
+    setPushMessage("");
+    try {
+      await subscribeToPush(venueId, djToken);
+      setNotificationsEnabled(true);
+      setNotificationOnline(false);
+      setPushMessage(
+        "Notifications enabled, but you are offline for this venue. Turn Online to receive alerts."
+      );
+    } catch (err) {
+      setPushMessage(err.message || "Failed to enable notifications");
+    } finally {
+      setPushLoading(false);
+    }
+  };
+
+  const handleDisableNotifications = async () => {
+    setPushLoading(true);
+    setPushMessage("");
+    try {
+      if (notificationOnline) {
+        await setPushAvailability(venueId, false, djToken);
+      }
+      await unsubscribeFromPush(venueId, djToken);
+      setNotificationsEnabled(false);
+      setNotificationOnline(false);
+      setPushMessage("");
+    } catch (err) {
+      setPushMessage(err.message || "Failed to disable notifications");
+    } finally {
+      setPushLoading(false);
+    }
+  };
+
+  const handleSetOnline = async (online) => {
+    if (!notificationsEnabled) {
+      setPushMessage("Enable notifications first.");
+      return;
+    }
+    setPushLoading(true);
+    setPushMessage("");
+    try {
+      const result = await setPushAvailability(venueId, online, djToken);
+      setNotificationOnline(!!result.notificationOnline);
+      setPushMessage(
+        result.notificationOnline
+          ? "You'll receive new request notifications."
+          : "Notifications enabled, but you are offline for this venue."
+      );
+    } catch (err) {
+      setPushMessage(err.message || "Failed to update availability");
+    } finally {
+      setPushLoading(false);
+    }
+  };
 
   const fetchApprovedVenueRequests = async () => {
     try {
@@ -304,6 +386,103 @@ const handleCancelConfirm = () => {
             </p>
             </div>
       </div>
+
+      {/* Push notifications */}
+      {isPushSupported() && (
+        <div className="max-w-6xl mx-auto mb-6">
+          <div
+            className="glass-card rounded-2xl p-4"
+            style={{
+              background: "linear-gradient(135deg, rgba(18,18,34,0.92) 0%, rgba(18,18,34,0.55) 100%)",
+              border: "1px solid rgba(255,255,255,0.08)"
+            }}
+          >
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <div>
+                <p className="font-semibold flex items-center gap-2">
+                  <Bell size={18} />
+                  Request notifications
+                </p>
+                <p className="text-sm mt-1" style={{ color: "rgba(255,255,255,0.65)" }}>
+                  {!notificationsEnabled &&
+                    "Get browser alerts for new song requests at this venue."}
+                  {notificationsEnabled && notificationOnline &&
+                    "You'll receive new request notifications."}
+                  {notificationsEnabled && !notificationOnline &&
+                    "Notifications enabled, but you are offline for this venue."}
+                </p>
+              </div>
+              <div className="flex flex-wrap items-center gap-2">
+                {!notificationsEnabled ? (
+                  <button
+                    type="button"
+                    onClick={handleEnableNotifications}
+                    disabled={pushLoading}
+                    className="btn-primary"
+                  >
+                    {pushLoading ? (
+                      <>
+                        <Loader size={16} className="animate-spin" />
+                        Enabling...
+                      </>
+                    ) : (
+                      <>
+                        <Bell size={16} />
+                        Enable notifications
+                      </>
+                    )}
+                  </button>
+                ) : (
+                  <>
+                    <button
+                      type="button"
+                      onClick={() => handleSetOnline(true)}
+                      disabled={pushLoading || notificationOnline}
+                      className="btn-primary"
+                      style={{
+                        opacity: notificationOnline ? 0.6 : 1
+                      }}
+                    >
+                      Online for this venue
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => handleSetOnline(false)}
+                      disabled={pushLoading || !notificationOnline}
+                      className="px-4 py-2 rounded-lg border border-gray-600 hover:border-gray-400 transition-colors flex items-center gap-2"
+                      style={{
+                        opacity: !notificationOnline ? 0.6 : 1
+                      }}
+                    >
+                      Offline
+                    </button>
+                    <button
+                      type="button"
+                      onClick={handleDisableNotifications}
+                      disabled={pushLoading}
+                      className="btn-danger"
+                    >
+                      {pushLoading ? (
+                        <Loader size={16} className="animate-spin" />
+                      ) : (
+                        <>
+                          <BellOff size={16} />
+                          Disable
+                        </>
+                      )}
+                    </button>
+                  </>
+                )}
+              </div>
+            </div>
+            {pushMessage && (
+              <p className="text-sm mt-3" style={{ color: "rgba(255,255,255,0.72)" }}>
+                {pushMessage}
+              </p>
+            )}
+          </div>
+        </div>
+      )}
 
       {/* Error Message */}
       {error && (

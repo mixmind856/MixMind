@@ -15,7 +15,9 @@ const DJVenueAccessSchema = new Schema(
     currentlyActive: { type: Boolean, default: false },
     activeSince: { type: Date },
     revokedAt: { type: Date },
-    rejectionReason: { type: String }
+    rejectionReason: { type: String },
+    notificationOnline: { type: Boolean, default: false },
+    notificationOnlineAt: { type: Date }
   },
   { timestamps: true }
 );
