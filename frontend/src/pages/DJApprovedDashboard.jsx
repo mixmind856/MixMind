@@ -4,9 +4,13 @@ import { Check, X, Loader, Bell, BellOff } from "lucide-react";
 import logo from "../assets/Mixmind.jpeg";
 import {
   isPushSupported,
+  isNotificationPermissionGranted,
+  shouldShowIosPwaWarning,
   fetchPushStatus,
   subscribeToPush,
   unsubscribeFromPush,
+  resetPushNotifications,
+  resolveNotificationsEnabled,
   setPushAvailability
 } from "../services/djPushService";
 import {
@@ -35,12 +39,16 @@ const [selectedRequest, setSelectedRequest] = useState(null);
   const [notificationsEnabled, setNotificationsEnabled] = useState(false);
   const [notificationOnline, setNotificationOnline] = useState(false);
   const [pushLoading, setPushLoading] = useState(false);
+  const [availabilityLoading, setAvailabilityLoading] = useState(false);
   const [pushMessage, setPushMessage] = useState("");
   const [notificationPermission, setNotificationPermission] = useState(() =>
     typeof Notification !== "undefined" ? Notification.permission : "default"
   );
+  const [showIosPwaWarning, setShowIosPwaWarning] = useState(false);
   const [djName, setDjName] = useState("");
   const fetchGenerationRef = useRef(0);
+  const pushStatusGenerationRef = useRef(0);
+  const pushOptimisticOnlineRef = useRef(null);
 
   const refreshNotificationPermission = () => {
     if (typeof Notification !== "undefined") {
@@ -88,23 +96,71 @@ const [selectedRequest, setSelectedRequest] = useState(null);
     }
 
     refreshNotificationPermission();
+    setShowIosPwaWarning(shouldShowIosPwaWarning());
     fetchApprovedVenueRequests();
     loadPushStatus();
+
+    const onVisibilityChange = () => {
+      refreshNotificationPermission();
+      setShowIosPwaWarning(shouldShowIosPwaWarning());
+      loadPushStatus({ silent: true });
+    };
+    document.addEventListener("visibilitychange", onVisibilityChange);
+
     const interval = setInterval(
       () => fetchApprovedVenueRequests({ silent: true }),
       30000
     );
-    return () => clearInterval(interval);
+    return () => {
+      clearInterval(interval);
+      document.removeEventListener("visibilitychange", onVisibilityChange);
+    };
   }, [venueId]);
+
+  const applyPushStatusFromServer = async (status, generation) => {
+    if (generation !== pushStatusGenerationRef.current) {
+      return;
+    }
+
+    refreshNotificationPermission();
+
+    const enabled = await resolveNotificationsEnabled(status);
+    if (generation !== pushStatusGenerationRef.current) {
+      return;
+    }
+
+    setNotificationsEnabled(enabled);
+
+    if (pushOptimisticOnlineRef.current === null) {
+      setNotificationOnline(!!status?.notificationOnline);
+    }
+  };
 
   const loadPushStatus = async () => {
     const token = getDjSession().djToken;
     if (!token || !venueId || !isPushSupported()) return;
-    const status = await fetchPushStatus(venueId, token);
-    if (status) {
-      setNotificationsEnabled(!!status.hasPushSubscription);
-      setNotificationOnline(!!status.notificationOnline);
+
+    const generation = ++pushStatusGenerationRef.current;
+
+    if (!isNotificationPermissionGranted()) {
+      if (generation === pushStatusGenerationRef.current) {
+        setNotificationsEnabled(false);
+        if (pushOptimisticOnlineRef.current === null) {
+          setNotificationOnline(false);
+        }
+      }
+      return;
     }
+
+    const status = await fetchPushStatus(venueId, token);
+    if (!status) {
+      if (generation === pushStatusGenerationRef.current) {
+        setNotificationsEnabled(false);
+      }
+      return;
+    }
+
+    await applyPushStatusFromServer(status, generation);
   };
 
   const handleEnableNotifications = async () => {
@@ -121,15 +177,57 @@ const [selectedRequest, setSelectedRequest] = useState(null);
     }
 
     try {
+      pushStatusGenerationRef.current += 1;
       await subscribeToPush(venueId, token);
       refreshNotificationPermission();
-      setNotificationsEnabled(true);
+      setNotificationsEnabled(isNotificationPermissionGranted());
       setNotificationOnline(false);
+      pushOptimisticOnlineRef.current = null;
+      await loadPushStatus({ silent: true });
       setPushMessage(
         "Notifications enabled, but you are offline for this venue. Turn Online to receive alerts."
       );
     } catch (err) {
+      setNotificationsEnabled(false);
       setPushMessage(err.message || "Failed to enable notifications");
+    } finally {
+      setPushLoading(false);
+    }
+  };
+
+  const handleResetNotifications = async () => {
+    if (!isPushSupported()) {
+      setPushMessage("Push notifications are not supported in this browser.");
+      return;
+    }
+    setPushLoading(true);
+    setPushMessage("");
+    const token = getDjSession().djToken;
+    if (!token) {
+      redirectToDjAuth();
+      return;
+    }
+
+    const previousOnline = notificationOnline;
+
+    try {
+      pushStatusGenerationRef.current += 1;
+      pushOptimisticOnlineRef.current = null;
+      setNotificationsEnabled(false);
+      setNotificationOnline(false);
+
+      await resetPushNotifications(venueId, token);
+      refreshNotificationPermission();
+      setNotificationsEnabled(isNotificationPermissionGranted());
+      setNotificationOnline(false);
+      await loadPushStatus({ silent: true });
+      setPushMessage(
+        "Notifications reset. Turn Online for this venue to receive new request alerts."
+      );
+    } catch (err) {
+      setNotificationsEnabled(false);
+      setNotificationOnline(previousOnline);
+      setPushMessage(err.message || "Failed to reset notifications");
     } finally {
       setPushLoading(false);
     }
@@ -144,15 +242,24 @@ const [selectedRequest, setSelectedRequest] = useState(null);
       return;
     }
 
+    const previousEnabled = notificationsEnabled;
+    const previousOnline = notificationOnline;
+
+    pushStatusGenerationRef.current += 1;
+    pushOptimisticOnlineRef.current = null;
+    setNotificationsEnabled(false);
+    setNotificationOnline(false);
+
     try {
-      if (notificationOnline) {
+      if (previousOnline) {
         await setPushAvailability(venueId, false, token);
       }
       await unsubscribeFromPush(venueId, token);
-      setNotificationsEnabled(false);
-      setNotificationOnline(false);
+      refreshNotificationPermission();
       setPushMessage("");
     } catch (err) {
+      setNotificationsEnabled(previousEnabled);
+      setNotificationOnline(previousOnline);
       setPushMessage(err.message || "Failed to disable notifications");
     } finally {
       setPushLoading(false);
@@ -164,13 +271,24 @@ const [selectedRequest, setSelectedRequest] = useState(null);
       setPushMessage("Enable notifications first.");
       return;
     }
-    setPushLoading(true);
+    if (!isNotificationPermissionGranted()) {
+      setPushMessage("Notifications blocked or disabled on this device.");
+      return;
+    }
+
+    setAvailabilityLoading(true);
     setPushMessage("");
+
     const token = getDjSession().djToken;
     if (!token) {
       redirectToDjAuth();
       return;
     }
+
+    const previousOnline = notificationOnline;
+    pushStatusGenerationRef.current += 1;
+    pushOptimisticOnlineRef.current = online;
+    setNotificationOnline(online);
 
     try {
       const result = await setPushAvailability(venueId, online, token);
@@ -181,9 +299,11 @@ const [selectedRequest, setSelectedRequest] = useState(null);
           : "Notifications enabled, but you are offline for this venue."
       );
     } catch (err) {
+      setNotificationOnline(previousOnline);
       setPushMessage(err.message || "Failed to update availability");
     } finally {
-      setPushLoading(false);
+      pushOptimisticOnlineRef.current = null;
+      setAvailabilityLoading(false);
     }
   };
 
@@ -524,7 +644,15 @@ const handleCancelConfirm = () => {
                     className="text-sm mt-2 font-medium"
                     style={{ color: "var(--error-red, #EF4444)" }}
                   >
-                    Browser notifications are blocked
+                    Notifications blocked or disabled on this device
+                  </p>
+                )}
+                {showIosPwaWarning && (
+                  <p
+                    className="text-sm mt-2"
+                    style={{ color: "rgba(251, 191, 36, 0.95)" }}
+                  >
+                    On iPhone, notifications only work from the installed Home Screen app.
                   </p>
                 )}
               </div>
@@ -532,16 +660,24 @@ const handleCancelConfirm = () => {
                 <button
                   type="button"
                   onClick={handleTestNotification}
-                  disabled={pushLoading}
+                  disabled={pushLoading || availabilityLoading}
                   className="px-4 py-2 rounded-lg border border-purple-500/40 hover:border-purple-400 transition-colors text-sm"
                 >
                   Test Notification
+                </button>
+                <button
+                  type="button"
+                  onClick={handleResetNotifications}
+                  disabled={pushLoading || availabilityLoading}
+                  className="px-4 py-2 rounded-lg border border-amber-500/40 hover:border-amber-400 transition-colors text-sm"
+                >
+                  Reset Notifications
                 </button>
                 {!notificationsEnabled ? (
                   <button
                     type="button"
                     onClick={handleEnableNotifications}
-                    disabled={pushLoading}
+                    disabled={pushLoading || availabilityLoading}
                     className="btn-primary"
                   >
                     {pushLoading ? (
@@ -561,7 +697,9 @@ const handleCancelConfirm = () => {
                     <button
                       type="button"
                       onClick={() => handleSetOnline(true)}
-                      disabled={pushLoading || notificationOnline}
+                      disabled={
+                        pushLoading || availabilityLoading || notificationOnline
+                      }
                       className="btn-primary"
                       style={{
                         opacity: notificationOnline ? 0.6 : 1
@@ -572,7 +710,9 @@ const handleCancelConfirm = () => {
                     <button
                       type="button"
                       onClick={() => handleSetOnline(false)}
-                      disabled={pushLoading || !notificationOnline}
+                      disabled={
+                        pushLoading || availabilityLoading || !notificationOnline
+                      }
                       className="px-4 py-2 rounded-lg border border-gray-600 hover:border-gray-400 transition-colors flex items-center gap-2"
                       style={{
                         opacity: !notificationOnline ? 0.6 : 1
@@ -583,7 +723,7 @@ const handleCancelConfirm = () => {
                     <button
                       type="button"
                       onClick={handleDisableNotifications}
-                      disabled={pushLoading}
+                      disabled={pushLoading || availabilityLoading}
                       className="btn-danger"
                     >
                       {pushLoading ? (

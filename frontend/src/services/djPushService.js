@@ -20,6 +20,62 @@ export function isPushSupported() {
   );
 }
 
+export function isNotificationPermissionGranted() {
+  return typeof Notification !== "undefined" && Notification.permission === "granted";
+}
+
+export function isIosDevice() {
+  if (typeof navigator === "undefined") return false;
+  return (
+    /iPad|iPhone|iPod/i.test(navigator.userAgent) ||
+    (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1)
+  );
+}
+
+export function isStandalonePwa() {
+  if (typeof window === "undefined") return false;
+  return (
+    window.matchMedia("(display-mode: standalone)").matches ||
+    window.navigator.standalone === true
+  );
+}
+
+export function shouldShowIosPwaWarning() {
+  return isIosDevice() && !isStandalonePwa();
+}
+
+export async function hasActiveBrowserPushSubscription() {
+  if (!isPushSupported() || !isNotificationPermissionGranted()) {
+    return false;
+  }
+
+  try {
+    const registration = await navigator.serviceWorker.ready;
+    const subscription = await registration.pushManager.getSubscription();
+    return !!subscription;
+  } catch {
+    return false;
+  }
+}
+
+/** Permission is primary; backend subscription alone is not enough. */
+export async function resolveNotificationsEnabled(backendStatus) {
+  if (!isNotificationPermissionGranted()) {
+    return false;
+  }
+
+  const hasLocalSubscription = await hasActiveBrowserPushSubscription();
+  if (!hasLocalSubscription) {
+    return false;
+  }
+
+  if (backendStatus && backendStatus.hasPushSubscription === false) {
+    return false;
+  }
+
+  return true;
+}
+
 export async function registerServiceWorker() {
   if (!("serviceWorker" in navigator)) {
     throw new Error("Service workers are not supported in this browser");
@@ -73,7 +129,7 @@ export async function subscribeToPush(venueId, djToken) {
 
   if (Notification.permission !== "granted") {
     throw new Error(
-      "Browser notifications are blocked. Allow notifications in your browser settings for this site."
+      "Notifications blocked or disabled on this device. Allow notifications in your browser settings for this site."
     );
   }
 
@@ -111,12 +167,19 @@ export async function subscribeToPush(venueId, djToken) {
 }
 
 export async function unsubscribeFromPush(venueId, djToken) {
-  const registration = await navigator.serviceWorker.ready;
-  const subscription = await registration.pushManager.getSubscription();
-  const endpoint = subscription?.endpoint;
+  let endpoint;
 
-  if (subscription) {
-    await subscription.unsubscribe();
+  if ("serviceWorker" in navigator) {
+    try {
+      const registration = await navigator.serviceWorker.ready;
+      const subscription = await registration.pushManager.getSubscription();
+      endpoint = subscription?.endpoint;
+      if (subscription) {
+        await subscription.unsubscribe();
+      }
+    } catch (err) {
+      console.warn("[dj-push] local unsubscribe failed:", err);
+    }
   }
 
   const res = await fetch(`${API}/dj/push/unsubscribe`, {
@@ -131,6 +194,71 @@ export async function unsubscribeFromPush(venueId, djToken) {
   if (!res.ok) {
     const data = await res.json().catch(() => ({}));
     throw new Error(data.error || "Failed to remove push subscription");
+  }
+
+  return res.json();
+}
+
+export async function resetPushNotifications(venueId, djToken) {
+  if (!isPushSupported()) {
+    throw new Error("Push notifications are not supported in this browser");
+  }
+
+  try {
+    await unsubscribeFromPush(venueId, djToken);
+  } catch (err) {
+    console.warn("[dj-push] reset: backend unsubscribe failed:", err);
+  }
+
+  if ("serviceWorker" in navigator) {
+    const registrations = await navigator.serviceWorker.getRegistrations();
+    await Promise.all(registrations.map((registration) => registration.unregister()));
+  }
+
+  await registerServiceWorker();
+  await navigator.serviceWorker.ready;
+
+  const permission = await Notification.requestPermission();
+  console.log("[dj-push] reset: permission after request:", permission);
+
+  if (Notification.permission !== "granted") {
+    throw new Error(
+      "Notifications blocked or disabled on this device. Allow notifications in Settings, then try again."
+    );
+  }
+
+  const registration = await navigator.serviceWorker.ready;
+  const existing = await registration.pushManager.getSubscription();
+  if (existing) {
+    await existing.unsubscribe();
+  }
+
+  const publicKey = await getVapidPublicKey();
+  const subscription = await registration.pushManager.subscribe({
+    userVisibleOnly: true,
+    applicationServerKey: urlBase64ToUint8Array(publicKey)
+  });
+
+  const subJson = subscription.toJSON();
+  const res = await fetch(`${API}/dj/push/subscribe`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${djToken}`
+    },
+    body: JSON.stringify({
+      venueId,
+      subscription: {
+        endpoint: subJson.endpoint,
+        keys: subJson.keys
+      },
+      userAgent: navigator.userAgent
+    })
+  });
+
+  if (!res.ok) {
+    const data = await res.json().catch(() => ({}));
+    throw new Error(data.error || "Failed to save push subscription");
   }
 
   return res.json();
