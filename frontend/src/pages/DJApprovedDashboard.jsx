@@ -36,8 +36,38 @@ const [selectedRequest, setSelectedRequest] = useState(null);
   const [notificationOnline, setNotificationOnline] = useState(false);
   const [pushLoading, setPushLoading] = useState(false);
   const [pushMessage, setPushMessage] = useState("");
+  const [notificationPermission, setNotificationPermission] = useState(() =>
+    typeof Notification !== "undefined" ? Notification.permission : "default"
+  );
   const [djName, setDjName] = useState("");
   const fetchGenerationRef = useRef(0);
+
+  const refreshNotificationPermission = () => {
+    if (typeof Notification !== "undefined") {
+      setNotificationPermission(Notification.permission);
+    }
+  };
+
+  const handleTestNotification = async () => {
+    setPushMessage("");
+    try {
+      if (Notification.permission !== "granted") {
+        const result = await Notification.requestPermission();
+        refreshNotificationPermission();
+        if (result !== "granted") {
+          setPushMessage("Browser notifications are blocked.");
+          return;
+        }
+      }
+      const registration = await navigator.serviceWorker.ready;
+      await registration.showNotification("MixMind Test", {
+        body: "DJ notifications are working"
+      });
+      setPushMessage("Test notification sent — check your system notification tray.");
+    } catch (err) {
+      setPushMessage(err.message || "Test notification failed");
+    }
+  };
 
   const redirectToDjAuth = () => {
     clearDjSession();
@@ -57,6 +87,7 @@ const [selectedRequest, setSelectedRequest] = useState(null);
       setDjLastVenueId(venueId);
     }
 
+    refreshNotificationPermission();
     fetchApprovedVenueRequests();
     loadPushStatus();
     const interval = setInterval(
@@ -91,6 +122,7 @@ const [selectedRequest, setSelectedRequest] = useState(null);
 
     try {
       await subscribeToPush(venueId, token);
+      refreshNotificationPermission();
       setNotificationsEnabled(true);
       setNotificationOnline(false);
       setPushMessage(
@@ -487,8 +519,24 @@ const handleCancelConfirm = () => {
                   {notificationsEnabled && !notificationOnline &&
                     "Notifications enabled, but you are offline for this venue."}
                 </p>
+                {notificationPermission !== "granted" && (
+                  <p
+                    className="text-sm mt-2 font-medium"
+                    style={{ color: "var(--error-red, #EF4444)" }}
+                  >
+                    Browser notifications are blocked
+                  </p>
+                )}
               </div>
               <div className="flex flex-wrap items-center gap-2">
+                <button
+                  type="button"
+                  onClick={handleTestNotification}
+                  disabled={pushLoading}
+                  className="px-4 py-2 rounded-lg border border-purple-500/40 hover:border-purple-400 transition-colors text-sm"
+                >
+                  Test Notification
+                </button>
                 {!notificationsEnabled ? (
                   <button
                     type="button"

@@ -24,7 +24,20 @@ export async function registerServiceWorker() {
   if (!("serviceWorker" in navigator)) {
     throw new Error("Service workers are not supported in this browser");
   }
-  return navigator.serviceWorker.register("/dj-sw.js");
+
+  const registration = await navigator.serviceWorker.register("/dj-sw.js");
+
+  console.log("[dj-push] registration.scope:", registration.scope);
+  console.log("[dj-push] registration.active?.state:", registration.active?.state);
+  console.log("[dj-push] Notification.permission:", Notification.permission);
+
+  try {
+    await registration.update();
+  } catch (err) {
+    console.warn("[dj-push] registration.update() failed:", err);
+  }
+
+  return registration;
 }
 
 export async function getVapidPublicKey() {
@@ -56,8 +69,12 @@ export async function subscribeToPush(venueId, djToken) {
   const registration = await navigator.serviceWorker.ready;
 
   const permission = await Notification.requestPermission();
-  if (permission !== "granted") {
-    throw new Error("Notification permission was denied");
+  console.log("[dj-push] Notification.permission after request:", permission);
+
+  if (Notification.permission !== "granted") {
+    throw new Error(
+      "Browser notifications are blocked. Allow notifications in your browser settings for this site."
+    );
   }
 
   let subscription = await registration.pushManager.getSubscription();
