@@ -886,7 +886,9 @@ async function buildVenueAnalyticsDeepDive(venueId, query = {}) {
 module.exports = {
   buildAnalyticsFunnel,
   buildVenueAnalyticsDeepDive,
+  resolveAnalyticsWindow,
   startOfLondonDay,
   startOfNextLondonDay,
-  londonYmd
+  londonYmd,
+  mixmindRequestAmount
 };

@@ -1311,3 +1311,164 @@
   padding: 6px 0;
   border-bottom: 1px solid rgba(255, 255, 255, 0.08);
 }
+
+/* ==================== MONEY REPORTING SECTION ==================== */
+
+.admin-money-section {
+  border: 2px solid rgba(250, 204, 21, 0.35);
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.2);
+}
+
+.admin-legacy-banner {
+  margin: 0 0 1.5rem;
+  padding: 12px 16px;
+  border-radius: 10px;
+  background: rgba(251, 191, 36, 0.15);
+  border: 1px solid rgba(251, 191, 36, 0.45);
+  color: #fef3c7;
+  font-size: 0.92rem;
+  line-height: 1.45;
+}
+
+.admin-money-top-cards {
+  margin-bottom: 1rem;
+}
+
+.money-value-blue {
+  color: #93c5fd !important;
+}
+
+.money-value-green {
+  color: #86efac !important;
+}
+
+.money-value-red {
+  color: #fca5a5 !important;
+}
+
+.money-value-yellow {
+  color: #fde047 !important;
+}
+
+.money-card-blue {
+  border-color: rgba(147, 197, 253, 0.35);
+}
+
+.money-card-green {
+  border-color: rgba(134, 239, 172, 0.35);
+}
+
+.money-card-red {
+  border-color: rgba(252, 165, 165, 0.35);
+}
+
+.money-card-yellow {
+  border-color: rgba(253, 224, 71, 0.35);
+}
+
+.money-badge-blue {
+  background: rgba(59, 130, 246, 0.35);
+}
+
+.money-badge-green {
+  background: rgba(34, 197, 94, 0.35);
+}
+
+.money-badge-red {
+  background: rgba(239, 68, 68, 0.35);
+}
+
+.money-badge-yellow {
+  background: rgba(234, 179, 8, 0.35);
+}
+
+.admin-money-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  align-items: center;
+  margin: 16px 0 12px;
+}
+
+.admin-money-search {
+  flex: 1 1 200px;
+  min-width: 180px;
+  padding: 8px 12px;
+  border-radius: 8px;
+  border: 1px solid rgba(255, 255, 255, 0.25);
+  background: rgba(0, 0, 0, 0.25);
+  color: #fff;
+  font-size: 0.9rem;
+}
+
+.admin-money-sort-label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.88rem;
+  color: rgba(255, 255, 255, 0.9);
+}
+
+.admin-money-sort {
+  padding: 8px 10px;
+  border-radius: 8px;
+  border: 1px solid rgba(255, 255, 255, 0.25);
+  background: rgba(0, 0, 0, 0.25);
+  color: #fff;
+  font-size: 0.88rem;
+}
+
+.admin-money-venue-grid {
+  margin-top: 8px;
+}
+
+.admin-money-venue-card {
+  min-width: 240px;
+}
+
+.admin-money-metric {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 8px;
+  font-size: 0.82rem;
+}
+
+.admin-money-metric span {
+  opacity: 0.85;
+}
+
+.admin-money-metric strong {
+  font-size: 0.95rem;
+}
+
+.admin-money-divider {
+  height: 1px;
+  background: rgba(255, 255, 255, 0.12);
+  margin: 4px 0;
+}
+
+.admin-money-modal {
+  max-width: 920px;
+}
+
+.admin-money-error {
+  margin-bottom: 12px;
+  padding: 12px 14px;
+  border-radius: 8px;
+  border: 1px solid rgba(248, 113, 113, 0.5);
+  background: rgba(127, 29, 29, 0.25);
+  color: #fecaca;
+  font-size: 0.9rem;
+}
+
+.admin-money-kv li span.money-value-blue,
+.admin-money-kv li span.money-value-green,
+.admin-money-kv li span.money-value-red,
+.admin-money-kv li span.money-value-yellow {
+  font-weight: 600;
+}
+
+.admin-money-recent-table {
+  min-width: 640px;
+}

@@ -14,7 +14,9 @@ const {
   getSongRequestDetails,
   getTopVenues,
   getAnalyticsFunnel,
-  getAnalyticsVenue
+  getAnalyticsVenue,
+  getMoneyVenues,
+  getMoneyVenue
 } = require("./admin.controller");
 
 const router = express.Router();
@@ -63,5 +65,9 @@ router.get("/venues/top", requireAdmin, getTopVenues);
 /* -------------------- QR / FUNNEL ANALYTICS -------------------- */
 router.get("/analytics/venue/:venueId", requireAdmin, getAnalyticsVenue);
 router.get("/analytics/funnel", requireAdmin, getAnalyticsFunnel);
+
+/* -------------------- MONEY / REVENUE REPORTING -------------------- */
+router.get("/money/venues", requireAdmin, getMoneyVenues);
+router.get("/money/venue/:venueId", requireAdmin, getMoneyVenue);
 
 module.exports = router;

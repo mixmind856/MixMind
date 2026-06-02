@@ -17,6 +17,7 @@ const {
   buildAnalyticsFunnel,
   buildVenueAnalyticsDeepDive
 } = require("../../services/analyticsFunnelService");
+const { buildMoneyVenues, buildMoneyVenue } = require("../../services/adminMoneyService");
 
 // Import models
 const Request = require("../../models/Request");
@@ -467,6 +468,37 @@ async function getAnalyticsVenue(req, res) {
   }
 }
 
+async function getMoneyVenues(req, res) {
+  try {
+    const data = await buildMoneyVenues(req.query);
+    res.json(data);
+  } catch (err) {
+    console.error("Get Money Venues Error:", err.message);
+    const code = err.statusCode || 500;
+    if (code === 400) {
+      return res.status(400).json({ error: err.message || "Bad request" });
+    }
+    res.status(500).json({ error: "Internal server error" });
+  }
+}
+
+async function getMoneyVenue(req, res) {
+  try {
+    const data = await buildMoneyVenue(req.params.venueId, req.query);
+    res.json(data);
+  } catch (err) {
+    console.error("Get Money Venue Error:", err.message);
+    const code = err.statusCode || 500;
+    if (code === 400) {
+      return res.status(400).json({ error: err.message || "Bad request" });
+    }
+    if (code === 404) {
+      return res.status(404).json({ error: err.message || "Not found" });
+    }
+    res.status(500).json({ error: "Internal server error" });
+  }
+}
+
 module.exports = {
   listVenueRequests,
   approveRequest,
@@ -482,5 +514,7 @@ module.exports = {
   getSongRequestDetails,
   getTopVenues,
   getAnalyticsFunnel,
-  getAnalyticsVenue
+  getAnalyticsVenue,
+  getMoneyVenues,
+  getMoneyVenue
 };

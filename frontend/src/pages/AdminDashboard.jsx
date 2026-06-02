@@ -1,8 +1,10 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useMemo } from "react";
 import {
   getDashboardSummary,
   getAnalyticsFunnel,
   getAnalyticsVenue,
+  getMoneyVenues,
+  getMoneyVenue,
 } from "../services/adminStatsService";
 import {
   BarChart3,
@@ -146,6 +148,69 @@ function downloadBlob(filename, mime, body) {
   URL.revokeObjectURL(url);
 }
 
+function formatGbp(n) {
+  return `£${Number(n || 0).toFixed(2)}`;
+}
+
+const MONEY_SORT_OPTIONS = [
+  { id: "earnedRevenue", label: "Earned Revenue" },
+  { id: "potentialRevenue", label: "Potential Revenue" },
+  { id: "lostRevenue", label: "Lost Revenue" },
+  { id: "acceptanceRatePct", label: "Acceptance Rate" },
+  { id: "totalRequests", label: "Total Requests" },
+];
+
+function moneyReportToCsv(rows) {
+  const headers = [
+    "Date",
+    "Venue",
+    "Mode",
+    "Song Title",
+    "Artist",
+    "Customer Name",
+    "Request Status",
+    "Payment Status",
+    "Potential Revenue",
+    "Earned Revenue",
+    "Lost Revenue",
+    "Pending Revenue",
+    "Created At",
+  ];
+  const lines = [headers.map(csvEscape).join(",")];
+  for (const row of rows) {
+    lines.push(
+      [
+        row.date,
+        row.venue,
+        row.mode,
+        row.songTitle,
+        row.artist,
+        row.requesterName,
+        row.status,
+        row.paymentStatus,
+        row.potentialRevenue,
+        row.earnedRevenue,
+        row.lostRevenue,
+        row.pendingRevenue,
+        row.createdAt,
+      ]
+        .map(csvEscape)
+        .join(",")
+    );
+  }
+  return lines.join("\n");
+}
+
+function buildMoneyReportJson(detail) {
+  return {
+    venue: detail?.venue ?? null,
+    appliedRange: detail?.appliedRange ?? null,
+    dateRange: detail?.dateRange ?? null,
+    totals: detail?.totals ?? null,
+    reportRows: detail?.reportRows ?? [],
+  };
+}
+
 const FILTER_CHIPS = [
   { preset: "today", label: "Today" },
   { preset: "week", label: "This week" },
@@ -214,6 +279,17 @@ const AdminDashboard = () => {
   const [detailLoading, setDetailLoading] = useState(false);
   const [detailError, setDetailError] = useState(null);
   const [detailTab, setDetailTab] = useState("overview");
+  const [moneyFilter, setMoneyFilter] = useState(() => defaultSectionFilter());
+  const [moneySectionData, setMoneySectionData] = useState(null);
+  const [moneySectionError, setMoneySectionError] = useState(null);
+  const [moneySectionLoading, setMoneySectionLoading] = useState(false);
+  const [moneyVenueSearch, setMoneyVenueSearch] = useState("");
+  const [moneyVenueSort, setMoneyVenueSort] = useState("earnedRevenue");
+  const [moneyDetailVenueId, setMoneyDetailVenueId] = useState(null);
+  const [moneyDetailData, setMoneyDetailData] = useState(null);
+  const [moneyDetailLoading, setMoneyDetailLoading] = useState(false);
+  const [moneyDetailError, setMoneyDetailError] = useState(null);
+  const [moneyDetailTab, setMoneyDetailTab] = useState("summary");
 
   useEffect(() => {
     if (!isAuthenticated) return;
@@ -278,6 +354,58 @@ const AdminDashboard = () => {
   ]);
 
   useEffect(() => {
+    if (!isAuthenticated) return;
+    let cancelled = false;
+    const qm = sectionFilterToQuery(moneyFilter);
+    (async () => {
+      setMoneySectionLoading(true);
+      setMoneySectionError(null);
+      try {
+        const data = await getMoneyVenues(qm);
+        if (!cancelled) setMoneySectionData(data);
+      } catch (err) {
+        console.error("[admin money/venues]", err);
+        if (!cancelled) setMoneySectionError("Could not load venue money stats.");
+      } finally {
+        if (!cancelled) setMoneySectionLoading(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [isAuthenticated, moneyFilter]);
+
+  useEffect(() => {
+    if (!isAuthenticated || !moneyDetailVenueId) {
+      setMoneyDetailData(null);
+      setMoneyDetailError(null);
+      return;
+    }
+    let cancelled = false;
+    const qm = sectionFilterToQuery(moneyFilter);
+    (async () => {
+      try {
+        setMoneyDetailLoading(true);
+        setMoneyDetailError(null);
+        const data = await getMoneyVenue(moneyDetailVenueId, qm);
+        if (!cancelled) setMoneyDetailData(data);
+      } catch (err) {
+        console.error("[admin money/venue]", err);
+        if (!cancelled) setMoneyDetailError("Could not load venue money details.");
+      } finally {
+        if (!cancelled) setMoneyDetailLoading(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [isAuthenticated, moneyDetailVenueId, moneyFilter]);
+
+  useEffect(() => {
+    if (moneyDetailVenueId) setMoneyDetailTab("summary");
+  }, [moneyDetailVenueId]);
+
+  useEffect(() => {
     if (!isAuthenticated || !detailVenueId) {
       setDetailData(null);
       setDetailError(null);
@@ -331,6 +459,11 @@ const AdminDashboard = () => {
     setDetailVenueId(null);
     setDetailData(null);
     setDetailError(null);
+    setMoneySectionData(null);
+    setMoneySectionError(null);
+    setMoneyDetailVenueId(null);
+    setMoneyDetailData(null);
+    setMoneyDetailError(null);
     setLoading(false);
   };
 
@@ -352,44 +485,66 @@ const AdminDashboard = () => {
     const qa = sectionFilterToQuery(analyticsFilter);
     const qr = sectionFilterToQuery(revenueFilter);
     const qv = sectionFilterToQuery(venueFilter);
+    const qm = sectionFilterToQuery(moneyFilter);
     setAnalyticsSectionError(null);
     setRevenueSectionError(null);
     setVenueSectionError(null);
-    Promise.allSettled([getAnalyticsFunnel(qa), getAnalyticsFunnel(qr), getAnalyticsFunnel(qv)]).then(
-      (results) => {
-        const meta = [
-          {
-            setter: setAnalyticsSectionData,
-            errSetter: setAnalyticsSectionError,
-            msg: "Could not load analytics funnel.",
-            label: "analytics",
-          },
-          {
-            setter: setRevenueSectionData,
-            errSetter: setRevenueSectionError,
-            msg: "Could not load true revenue.",
-            label: "revenue",
-          },
-          {
-            setter: setVenueSectionData,
-            errSetter: setVenueSectionError,
-            msg: "Could not load venue performance.",
-            label: "venue",
-          },
-        ];
-        results.forEach((res, i) => {
-          const { setter, errSetter, msg, label } = meta[i];
-          if (res.status === "fulfilled") {
-            setter(res.value);
-            errSetter(null);
-          } else {
-            console.error(`[admin analytics/${label}]`, res.reason);
-            errSetter(msg);
-          }
-        });
-      }
-    );
+    setMoneySectionError(null);
+    Promise.allSettled([
+      getAnalyticsFunnel(qa),
+      getAnalyticsFunnel(qr),
+      getAnalyticsFunnel(qv),
+      getMoneyVenues(qm),
+    ]).then((results) => {
+      const meta = [
+        {
+          setter: setAnalyticsSectionData,
+          errSetter: setAnalyticsSectionError,
+          msg: "Could not load analytics funnel.",
+          label: "analytics",
+        },
+        {
+          setter: setRevenueSectionData,
+          errSetter: setRevenueSectionError,
+          msg: "Could not load true revenue.",
+          label: "revenue",
+        },
+        {
+          setter: setVenueSectionData,
+          errSetter: setVenueSectionError,
+          msg: "Could not load venue performance.",
+          label: "venue",
+        },
+        {
+          setter: setMoneySectionData,
+          errSetter: setMoneySectionError,
+          msg: "Could not load venue money stats.",
+          label: "money",
+        },
+      ];
+      results.forEach((res, i) => {
+        const { setter, errSetter, msg, label } = meta[i];
+        if (res.status === "fulfilled") {
+          setter(res.value);
+          errSetter(null);
+        } else {
+          console.error(`[admin analytics/${label}]`, res.reason);
+          errSetter(msg);
+        }
+      });
+    });
   };
+
+  const moneyTotals = moneySectionData?.totals;
+  const filteredMoneyVenues = useMemo(() => {
+    let rows = Array.isArray(moneySectionData?.venues) ? moneySectionData.venues : [];
+    const q = moneyVenueSearch.trim().toLowerCase();
+    if (q) {
+      rows = rows.filter((v) => (v.venueName || "").toLowerCase().includes(q));
+    }
+    const sortKey = moneyVenueSort;
+    return [...rows].sort((a, b) => (b[sortKey] ?? 0) - (a[sortKey] ?? 0));
+  }, [moneySectionData, moneyVenueSearch, moneyVenueSort]);
 
   if (!isAuthenticated) {
     return (
@@ -722,6 +877,215 @@ const AdminDashboard = () => {
           </>
         )}
       </section>
+
+      {/* Venue Money & Request Stats — source of truth for revenue */}
+      <section className="summary-section funnel-section admin-insights-block admin-money-section">
+        <div className="admin-insights-block-header">
+          <h2 style={{ margin: "0 0 6px" }}>💰 Venue Money &amp; Request Stats</h2>
+          <p className="subtitle admin-range-label" style={{ margin: 0, fontSize: "0.95rem" }}>
+            Revenue and request performance based on actual database records.
+          </p>
+          <p className="subtitle admin-range-label" style={{ margin: "6px 0 0", fontSize: "0.9rem" }}>
+            {moneySectionData?.appliedRange?.label || "—"}
+          </p>
+          <p className="subtitle" style={{ marginTop: 6, opacity: 0.75, fontSize: "0.82rem" }}>
+            {moneySectionData?.dateRange?.timezone || "Europe/London (London)"}
+          </p>
+        </div>
+        <SectionFilterControls value={moneyFilter} onChange={setMoneyFilter} />
+        {moneySectionError && (
+          <p style={{ color: "#f87171", marginBottom: "12px" }}>{moneySectionError}</p>
+        )}
+        {moneySectionLoading && !moneySectionData && (
+          <p className="subtitle" style={{ fontSize: "0.85rem", opacity: 0.8 }}>
+            Loading money stats…
+          </p>
+        )}
+        {moneyTotals && (
+          <>
+            <div className="summary-grid admin-money-top-cards" style={{ marginTop: "4px" }}>
+              <div className="summary-card money-card-blue">
+                <div className="card-header">
+                  <DollarSign size={22} />
+                  <span className="badge money-badge-blue">DB</span>
+                </div>
+                <div className="card-content">
+                  <h3 className="money-value-blue">{formatGbp(moneyTotals.potentialRevenue)}</h3>
+                  <p>Potential Revenue</p>
+                </div>
+              </div>
+              <div className="summary-card money-card-green">
+                <div className="card-header">
+                  <CheckCircle size={22} />
+                  <span className="badge money-badge-green">DB</span>
+                </div>
+                <div className="card-content">
+                  <h3 className="money-value-green">{formatGbp(moneyTotals.earnedRevenue)}</h3>
+                  <p>Earned Revenue</p>
+                </div>
+              </div>
+              <div className="summary-card money-card-red">
+                <div className="card-header">
+                  <XCircle size={22} />
+                  <span className="badge money-badge-red">DB</span>
+                </div>
+                <div className="card-content">
+                  <h3 className="money-value-red">{formatGbp(moneyTotals.lostRevenue)}</h3>
+                  <p>Lost / Refunded Revenue</p>
+                </div>
+              </div>
+              <div className="summary-card money-card-yellow">
+                <div className="card-header">
+                  <Clock size={22} />
+                  <span className="badge money-badge-yellow">DB</span>
+                </div>
+                <div className="card-content">
+                  <h3 className="money-value-yellow">{formatGbp(moneyTotals.pendingRevenue)}</h3>
+                  <p>Pending Revenue</p>
+                </div>
+              </div>
+              <div className="summary-card money-card-blue">
+                <div className="card-header">
+                  <Users size={22} />
+                  <span className="badge money-badge-blue">DB</span>
+                </div>
+                <div className="card-content">
+                  <h3 className="money-value-blue">{moneyTotals.totalRequests ?? 0}</h3>
+                  <p>Total Requests</p>
+                </div>
+              </div>
+              <div className="summary-card money-card-green">
+                <div className="card-header">
+                  <CheckCircle size={22} />
+                  <span className="badge money-badge-green">DB</span>
+                </div>
+                <div className="card-content">
+                  <h3 className="money-value-green">{moneyTotals.acceptedRequests ?? 0}</h3>
+                  <p>Accepted Requests</p>
+                </div>
+              </div>
+              <div className="summary-card money-card-red">
+                <div className="card-header">
+                  <XCircle size={22} />
+                  <span className="badge money-badge-red">DB</span>
+                </div>
+                <div className="card-content">
+                  <h3 className="money-value-red">{moneyTotals.rejectedRequests ?? 0}</h3>
+                  <p>Rejected Requests</p>
+                </div>
+              </div>
+              <div className="summary-card money-card-yellow">
+                <div className="card-header">
+                  <Clock size={22} />
+                  <span className="badge money-badge-yellow">DB</span>
+                </div>
+                <div className="card-content">
+                  <h3 className="money-value-yellow">{moneyTotals.pendingRequests ?? 0}</h3>
+                  <p>Pending Requests</p>
+                </div>
+              </div>
+            </div>
+
+            <div className="admin-money-toolbar">
+              <input
+                type="search"
+                className="admin-money-search"
+                placeholder="Search venue name…"
+                value={moneyVenueSearch}
+                onChange={(e) => setMoneyVenueSearch(e.target.value)}
+              />
+              <label className="admin-money-sort-label">
+                Sort by
+                <select
+                  className="admin-money-sort"
+                  value={moneyVenueSort}
+                  onChange={(e) => setMoneyVenueSort(e.target.value)}
+                >
+                  {MONEY_SORT_OPTIONS.map(({ id, label }) => (
+                    <option key={id} value={id}>
+                      {label}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            </div>
+
+            {filteredMoneyVenues.length === 0 ? (
+              <p style={{ textAlign: "center", opacity: 0.75, marginTop: "12px" }}>
+                No venues with request activity in this range.
+              </p>
+            ) : (
+              <div className="admin-venue-grid admin-money-venue-grid">
+                {filteredMoneyVenues.map((row) => {
+                  const active = row.isActive !== false;
+                  return (
+                    <button
+                      type="button"
+                      key={row.venueId}
+                      className="admin-venue-card admin-venue-card-blue admin-money-venue-card"
+                      onClick={() => setMoneyDetailVenueId(row.venueId)}
+                    >
+                      <div className="admin-venue-card-title-row">
+                        <span className="admin-venue-card-title">{row.venueName || row.venueId}</span>
+                        <span className={`admin-venue-status-badge ${active ? "active" : "inactive"}`}>
+                          {active ? "Active" : "Inactive"}
+                        </span>
+                      </div>
+                      <div className="admin-money-metric money-value-blue">
+                        <span>Potential Revenue</span>
+                        <strong>{formatGbp(row.potentialRevenue)}</strong>
+                      </div>
+                      <div className="admin-money-metric money-value-green">
+                        <span>Earned Revenue</span>
+                        <strong>{formatGbp(row.earnedRevenue)}</strong>
+                      </div>
+                      <div className="admin-money-metric money-value-red">
+                        <span>Lost / Refunded</span>
+                        <strong>{formatGbp(row.lostRevenue)}</strong>
+                      </div>
+                      <div className="admin-money-metric money-value-yellow">
+                        <span>Pending Revenue</span>
+                        <strong>{formatGbp(row.pendingRevenue)}</strong>
+                      </div>
+                      <div className="admin-money-divider" />
+                      <div className="admin-money-metric money-value-blue">
+                        <span>Total Requests</span>
+                        <strong>{row.totalRequests ?? 0}</strong>
+                      </div>
+                      <div className="admin-money-metric money-value-green">
+                        <span>Accepted</span>
+                        <strong>{row.acceptedRequests ?? 0}</strong>
+                      </div>
+                      <div className="admin-money-metric money-value-red">
+                        <span>Rejected</span>
+                        <strong>{row.rejectedRequests ?? 0}</strong>
+                      </div>
+                      <div className="admin-money-metric money-value-yellow">
+                        <span>Pending</span>
+                        <strong>{row.pendingRequests ?? 0}</strong>
+                      </div>
+                      <div className="admin-money-divider" />
+                      <div className="admin-venue-card-stat">
+                        <span>Acceptance Rate</span>
+                        <strong>{Number(row.acceptanceRatePct ?? 0).toFixed(1)}%</strong>
+                      </div>
+                      <div className="admin-venue-card-stat">
+                        <span>Revenue Capture Rate</span>
+                        <strong>{Number(row.revenueCaptureRatePct ?? 0).toFixed(1)}%</strong>
+                      </div>
+                    </button>
+                  );
+                })}
+              </div>
+            )}
+          </>
+        )}
+      </section>
+
+      <div className="admin-legacy-banner" role="note">
+        Legacy statistics — may not match new money reporting. Use{" "}
+        <strong>Venue Money &amp; Request Stats</strong> above as the source of truth for revenue.
+      </div>
 
       {/* SUMMARY CARDS */}
       <section className="summary-section">
@@ -1515,6 +1879,284 @@ const AdminDashboard = () => {
                   </section>
                 )}
               </div>
+              </>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* MONEY VENUE DETAIL MODAL */}
+      {moneyDetailVenueId && (
+        <div
+          className="admin-modal-overlay"
+          role="presentation"
+          onClick={() => setMoneyDetailVenueId(null)}
+        >
+          <div
+            className="admin-modal admin-money-modal"
+            role="dialog"
+            aria-modal="true"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="admin-modal-header">
+              <div>
+                <h2 style={{ marginBottom: 6 }}>{moneyDetailData?.venue?.name || "Venue"}</h2>
+                {moneyDetailData?.venue && (
+                  <span
+                    className={`admin-venue-status-badge ${
+                      moneyDetailData.venue.isActive !== false ? "active" : "inactive"
+                    }`}
+                  >
+                    {moneyDetailData.venue.isActive !== false ? "Active" : "Inactive"}
+                  </span>
+                )}
+              </div>
+              <button
+                type="button"
+                className="admin-modal-close"
+                onClick={() => setMoneyDetailVenueId(null)}
+              >
+                Close
+              </button>
+            </div>
+            <p className="subtitle admin-range-label" style={{ marginBottom: 4 }}>
+              {moneyDetailData?.appliedRange?.label || "—"}
+            </p>
+            <p className="subtitle" style={{ fontSize: "0.78rem", opacity: 0.75, marginBottom: "10px" }}>
+              Database revenue reporting — not analytics events.
+            </p>
+            {moneyDetailLoading && (
+              <p className="subtitle" style={{ marginBottom: "12px", opacity: 0.85 }}>
+                Loading venue money details…
+              </p>
+            )}
+            {!moneyDetailLoading && moneyDetailError && (
+              <div className="admin-money-error" role="alert">
+                {moneyDetailError}
+              </div>
+            )}
+            {!moneyDetailLoading && moneyDetailData && !moneyDetailError && (
+              <>
+                <div className="admin-detail-tabs">
+                  {[
+                    { id: "summary", label: "Summary" },
+                    { id: "requests", label: "Requests" },
+                    { id: "recent", label: "Recent Requests" },
+                    { id: "download", label: "Download" },
+                  ].map(({ id, label }) => (
+                    <button
+                      key={id}
+                      type="button"
+                      className={`admin-detail-tab ${moneyDetailTab === id ? "active" : ""}`}
+                      onClick={() => setMoneyDetailTab(id)}
+                    >
+                      {label}
+                    </button>
+                  ))}
+                </div>
+                <div className="admin-modal-body">
+                  {moneyDetailTab === "summary" && (
+                    <section className="admin-modal-section">
+                      <h3>Revenue summary</h3>
+                      <ul className="admin-modal-kv admin-money-kv">
+                        <li>
+                          <span className="money-value-blue">Potential Revenue</span>
+                          <strong className="money-value-blue">
+                            {formatGbp(moneyDetailData.totals?.potentialRevenue)}
+                          </strong>
+                        </li>
+                        <li>
+                          <span className="money-value-green">Earned Revenue</span>
+                          <strong className="money-value-green">
+                            {formatGbp(moneyDetailData.totals?.earnedRevenue)}
+                          </strong>
+                        </li>
+                        <li>
+                          <span className="money-value-red">Lost / Refunded Revenue</span>
+                          <strong className="money-value-red">
+                            {formatGbp(moneyDetailData.totals?.lostRevenue)}
+                          </strong>
+                        </li>
+                        <li>
+                          <span className="money-value-yellow">Pending Revenue</span>
+                          <strong className="money-value-yellow">
+                            {formatGbp(moneyDetailData.totals?.pendingRevenue)}
+                          </strong>
+                        </li>
+                        <li>
+                          <span>Acceptance Rate</span>
+                          <strong>{Number(moneyDetailData.totals?.acceptanceRatePct ?? 0).toFixed(1)}%</strong>
+                        </li>
+                        <li>
+                          <span>Revenue Capture Rate</span>
+                          <strong>{Number(moneyDetailData.totals?.revenueCaptureRatePct ?? 0).toFixed(1)}%</strong>
+                        </li>
+                      </ul>
+                      <h4 style={{ marginTop: "16px" }}>MixMind vs Jukebox</h4>
+                      <ul className="admin-modal-kv admin-money-kv">
+                        <li>
+                          <span>MixMind earned</span>
+                          <strong className="money-value-green">
+                            {formatGbp(moneyDetailData.totals?.mixmind?.earnedRevenue)}
+                          </strong>
+                        </li>
+                        <li>
+                          <span>Jukebox earned</span>
+                          <strong className="money-value-green">
+                            {formatGbp(moneyDetailData.totals?.jukebox?.earnedRevenue)}
+                          </strong>
+                        </li>
+                      </ul>
+                    </section>
+                  )}
+
+                  {moneyDetailTab === "requests" && (
+                    <section className="admin-modal-section">
+                      <h3>Request counts</h3>
+                      <ul className="admin-modal-kv admin-money-kv">
+                        <li>
+                          <span className="money-value-blue">Total</span>
+                          <strong className="money-value-blue">
+                            {moneyDetailData.totals?.totalRequests ?? 0}
+                          </strong>
+                        </li>
+                        <li>
+                          <span className="money-value-green">Accepted</span>
+                          <strong className="money-value-green">
+                            {moneyDetailData.totals?.acceptedRequests ?? 0}
+                          </strong>
+                        </li>
+                        <li>
+                          <span className="money-value-red">Rejected</span>
+                          <strong className="money-value-red">
+                            {moneyDetailData.totals?.rejectedRequests ?? 0}
+                          </strong>
+                        </li>
+                        <li>
+                          <span className="money-value-yellow">Pending</span>
+                          <strong className="money-value-yellow">
+                            {moneyDetailData.totals?.pendingRequests ?? 0}
+                          </strong>
+                        </li>
+                      </ul>
+                      <h4 style={{ marginTop: "16px" }}>By mode</h4>
+                      <table className="data-table admin-modal-table">
+                        <thead>
+                          <tr>
+                            <th>Mode</th>
+                            <th>Total</th>
+                            <th>Accepted</th>
+                            <th>Rejected</th>
+                            <th>Pending</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          <tr>
+                            <td>MixMind</td>
+                            <td>{moneyDetailData.totals?.mixmind?.totalRequests ?? 0}</td>
+                            <td>{moneyDetailData.totals?.mixmind?.acceptedRequests ?? 0}</td>
+                            <td>{moneyDetailData.totals?.mixmind?.rejectedRequests ?? 0}</td>
+                            <td>{moneyDetailData.totals?.mixmind?.pendingRequests ?? 0}</td>
+                          </tr>
+                          <tr>
+                            <td>Jukebox</td>
+                            <td>{moneyDetailData.totals?.jukebox?.totalRequests ?? 0}</td>
+                            <td>{moneyDetailData.totals?.jukebox?.acceptedRequests ?? 0}</td>
+                            <td>{moneyDetailData.totals?.jukebox?.rejectedRequests ?? 0}</td>
+                            <td>{moneyDetailData.totals?.jukebox?.pendingRequests ?? 0}</td>
+                          </tr>
+                        </tbody>
+                      </table>
+                    </section>
+                  )}
+
+                  {moneyDetailTab === "recent" && (
+                    <section className="admin-modal-section">
+                      <h3>Recent requests</h3>
+                      {(moneyDetailData.recentRequests || []).length === 0 ? (
+                        <p className="subtitle">No requests in this range.</p>
+                      ) : (
+                        <div className="admin-hourly-scroll">
+                          <table className="data-table admin-modal-table admin-money-recent-table">
+                            <thead>
+                              <tr>
+                                <th>Mode</th>
+                                <th>Song</th>
+                                <th>Artist</th>
+                                <th>Customer</th>
+                                <th>Status</th>
+                                <th>Payment</th>
+                                <th>Earned</th>
+                                <th>Created</th>
+                              </tr>
+                            </thead>
+                            <tbody>
+                              {moneyDetailData.recentRequests.map((r) => (
+                                <tr key={`${r.mode}-${r.id}`}>
+                                  <td>{r.mode}</td>
+                                  <td>{r.songTitle || "—"}</td>
+                                  <td>{r.artist || "—"}</td>
+                                  <td>{r.requesterName || "—"}</td>
+                                  <td>{r.status}</td>
+                                  <td>{r.paymentStatus}</td>
+                                  <td className="money-value-green">{formatGbp(r.earnedRevenue)}</td>
+                                  <td>{new Date(r.createdAt).toLocaleString("en-GB")}</td>
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
+                        </div>
+                      )}
+                    </section>
+                  )}
+
+                  {moneyDetailTab === "download" && (
+                    <section className="admin-modal-section">
+                      <h3>Export report</h3>
+                      <p className="subtitle" style={{ marginBottom: "14px", lineHeight: 1.45 }}>
+                        One row per request in the selected date range. All amounts in £ (GBP).
+                      </p>
+                      <div className="admin-modal-downloads">
+                        <button
+                          type="button"
+                          className="admin-download-btn"
+                          onClick={() => {
+                            const rows = moneyDetailData.reportRows || [];
+                            const base = (moneyDetailData.venue?.name || "venue")
+                              .replace(/[^\w-]+/g, "_")
+                              .slice(0, 64);
+                            downloadBlob(
+                              `${base}-money-report.csv`,
+                              "text/csv;charset=utf-8",
+                              moneyReportToCsv(rows)
+                            );
+                          }}
+                        >
+                          Download CSV
+                        </button>
+                        <button
+                          type="button"
+                          className="admin-download-btn"
+                          onClick={() => {
+                            const base = (moneyDetailData.venue?.name || "venue")
+                              .replace(/[^\w-]+/g, "_")
+                              .slice(0, 64);
+                            downloadBlob(
+                              `${base}-money-report.json`,
+                              "application/json;charset=utf-8",
+                              JSON.stringify(buildMoneyReportJson(moneyDetailData), null, 2)
+                            );
+                          }}
+                        >
+                          Download JSON
+                        </button>
+                      </div>
+                      <p className="subtitle" style={{ marginTop: "12px", fontSize: "0.82rem", opacity: 0.8 }}>
+                        {(moneyDetailData.reportRows || []).length} request row(s) in export.
+                      </p>
+                    </section>
+                  )}
+                </div>
               </>
             )}
           </div>
