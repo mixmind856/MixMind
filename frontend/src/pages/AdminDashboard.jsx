@@ -1041,8 +1041,18 @@ const AdminDashboard = () => {
                   <span className="badge money-badge-yellow">DB</span>
                 </div>
                 <div className="card-content">
-                  <h3 className="money-value-yellow">{moneyTotals.pendingRequests ?? 0}</h3>
-                  <p>Pending Requests</p>
+                  <h3 className="money-value-yellow">{moneyTotals.pendingDjRequests ?? 0}</h3>
+                  <p>Pending DJ Decision</p>
+                </div>
+              </div>
+              <div className="summary-card money-card-yellow">
+                <div className="card-header">
+                  <Clock size={22} />
+                  <span className="badge money-badge-yellow">DB</span>
+                </div>
+                <div className="card-content">
+                  <h3 className="money-value-yellow">{moneyTotals.unpaidAbandonedRequests ?? 0}</h3>
+                  <p>Unpaid / Abandoned</p>
                 </div>
               </div>
             </div>
@@ -1122,8 +1132,12 @@ const AdminDashboard = () => {
                         <strong>{row.rejectedRequests ?? 0}</strong>
                       </div>
                       <div className="admin-money-metric money-value-yellow">
-                        <span>Pending</span>
-                        <strong>{row.pendingRequests ?? 0}</strong>
+                        <span>Pending DJ</span>
+                        <strong>{row.pendingDjRequests ?? 0}</strong>
+                      </div>
+                      <div className="admin-money-metric money-value-yellow">
+                        <span>Unpaid / Abandoned</span>
+                        <strong>{row.unpaidAbandonedRequests ?? 0}</strong>
                       </div>
                       <div className="admin-money-divider" />
                       <div className="admin-venue-card-stat">
@@ -1893,16 +1907,24 @@ const AdminDashboard = () => {
                       <h3>MixMind (DB)</h3>
                       <ul className="admin-modal-kv">
                         <li>
-                          <span>Accepted / in pipeline</span>
-                          <strong>{detailData.mixmind?.acceptedCompleted ?? 0}</strong>
+                          <span>Accepted</span>
+                          <strong>{detailData.mixmind?.acceptedRequests ?? detailData.mixmind?.acceptedCompleted ?? 0}</strong>
                         </li>
                         <li>
-                          <span>Pending</span>
-                          <strong>{detailData.mixmind?.pending ?? 0}</strong>
+                          <span>Rejected</span>
+                          <strong>{detailData.mixmind?.rejectedRequests ?? detailData.mixmind?.rejectedFailed ?? 0}</strong>
                         </li>
                         <li>
-                          <span>Rejected / failed</span>
-                          <strong>{detailData.mixmind?.rejectedFailed ?? 0}</strong>
+                          <span>Pending DJ decision</span>
+                          <strong>{detailData.mixmind?.pendingDjRequests ?? detailData.mixmind?.pending ?? 0}</strong>
+                        </li>
+                        <li>
+                          <span>Unpaid / abandoned</span>
+                          <strong>{detailData.mixmind?.unpaidAbandonedRequests ?? detailData.mixmind?.unpaidAbandoned ?? 0}</strong>
+                        </li>
+                        <li>
+                          <span>Earned revenue</span>
+                          <strong>£{(detailData.mixmind?.earnedRevenue ?? detailData.mixmind?.capturedRevenue ?? 0).toFixed(2)}</strong>
                         </li>
                       </ul>
                     </section>
@@ -1910,16 +1932,24 @@ const AdminDashboard = () => {
                       <h3>Jukebox (DB)</h3>
                       <ul className="admin-modal-kv">
                         <li>
-                          <span>Queued (success path)</span>
-                          <strong>{detailData.jukebox?.queuedSuccess ?? 0}</strong>
+                          <span>Accepted</span>
+                          <strong>{detailData.jukebox?.acceptedRequests ?? detailData.jukebox?.queuedSuccess ?? 0}</strong>
+                        </li>
+                        <li>
+                          <span>Rejected</span>
+                          <strong>{detailData.jukebox?.rejectedRequests ?? detailData.jukebox?.rejected ?? 0}</strong>
                         </li>
                         <li>
                           <span>Pending</span>
-                          <strong>{detailData.jukebox?.pending ?? 0}</strong>
+                          <strong>{detailData.jukebox?.pendingDjRequests ?? detailData.jukebox?.pending ?? 0}</strong>
                         </li>
                         <li>
-                          <span>Rejected / failed</span>
-                          <strong>{detailData.jukebox?.rejected ?? 0}</strong>
+                          <span>Unpaid / abandoned</span>
+                          <strong>{detailData.jukebox?.unpaidAbandonedRequests ?? detailData.jukebox?.unpaidAbandoned ?? 0}</strong>
+                        </li>
+                        <li>
+                          <span>Earned revenue</span>
+                          <strong>£{(detailData.jukebox?.earnedRevenue ?? detailData.jukebox?.revenue ?? 0).toFixed(2)}</strong>
                         </li>
                       </ul>
                     </section>
@@ -2170,9 +2200,15 @@ const AdminDashboard = () => {
                           </strong>
                         </li>
                         <li>
-                          <span className="money-value-yellow">Pending</span>
+                          <span className="money-value-yellow">Pending DJ</span>
                           <strong className="money-value-yellow">
-                            {moneyDetailData.totals?.pendingRequests ?? 0}
+                            {moneyDetailData.totals?.pendingDjRequests ?? 0}
+                          </strong>
+                        </li>
+                        <li>
+                          <span className="money-value-yellow">Unpaid / Abandoned</span>
+                          <strong className="money-value-yellow">
+                            {moneyDetailData.totals?.unpaidAbandonedRequests ?? 0}
                           </strong>
                         </li>
                       </ul>
@@ -2184,7 +2220,8 @@ const AdminDashboard = () => {
                             <th>Total</th>
                             <th>Accepted</th>
                             <th>Rejected</th>
-                            <th>Pending</th>
+                            <th>Pending DJ</th>
+                            <th>Unpaid</th>
                           </tr>
                         </thead>
                         <tbody>
@@ -2193,14 +2230,16 @@ const AdminDashboard = () => {
                             <td>{moneyDetailData.totals?.mixmind?.totalRequests ?? 0}</td>
                             <td>{moneyDetailData.totals?.mixmind?.acceptedRequests ?? 0}</td>
                             <td>{moneyDetailData.totals?.mixmind?.rejectedRequests ?? 0}</td>
-                            <td>{moneyDetailData.totals?.mixmind?.pendingRequests ?? 0}</td>
+                            <td>{moneyDetailData.totals?.mixmind?.pendingDjRequests ?? 0}</td>
+                            <td>{moneyDetailData.totals?.mixmind?.unpaidAbandonedRequests ?? 0}</td>
                           </tr>
                           <tr>
                             <td>Jukebox</td>
                             <td>{moneyDetailData.totals?.jukebox?.totalRequests ?? 0}</td>
                             <td>{moneyDetailData.totals?.jukebox?.acceptedRequests ?? 0}</td>
                             <td>{moneyDetailData.totals?.jukebox?.rejectedRequests ?? 0}</td>
-                            <td>{moneyDetailData.totals?.jukebox?.pendingRequests ?? 0}</td>
+                            <td>{moneyDetailData.totals?.jukebox?.pendingDjRequests ?? 0}</td>
+                            <td>{moneyDetailData.totals?.jukebox?.unpaidAbandonedRequests ?? 0}</td>
                           </tr>
                         </tbody>
                       </table>

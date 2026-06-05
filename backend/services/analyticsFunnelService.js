@@ -6,13 +6,11 @@ const JukeboxRequest = require("../models/JukeboxRequest");
 
 const TZ = "Europe/London";
 
-const MIXMIND_REVENUE_STATUSES = ["queued", "paid", "approved", "processing", "completed"];
-const MIXMIND_PENDING_STATUSES = ["created", "authorized", "pending_dj_approval", "analyzing"];
-const MIXMIND_REJECTED_STATUSES = ["rejected", "failed"];
-
-const JUKEBOX_PENDING = ["pending_payment", "paid_pending_genre", "genre_approved"];
-const JUKEBOX_REJECTED = ["genre_rejected", "failed"];
-const JUKEBOX_SUCCESS = ["queued"];
+const {
+  summarizeMixMindRequests,
+  summarizeJukeboxRequests,
+  mixmindRequestAmount,
+} = require("./requestStatsService");
 
 function londonYmd(d) {
   return new Intl.DateTimeFormat("en-CA", {
@@ -431,78 +429,12 @@ function venueHourlyFromEvents(events, venueId) {
     .sort((a, b) => a.hour.localeCompare(b.hour));
 }
 
-function mixmindRequestAmount(r) {
-  const n = Number(r.paidAmount);
-  if (Number.isFinite(n) && n > 0) return n;
-  return Number(r.price) || 0;
-}
-
-function summarizeMixMindRequests(requests) {
-  let total = 0;
-  let acceptedCompleted = 0;
-  let pending = 0;
-  let rejectedFailed = 0;
-  let capturedRevenue = 0;
-
-  for (const r of requests) {
-    total++;
-    const st = r.status;
-    const ps = r.paymentStatus;
-
-    if (MIXMIND_REJECTED_STATUSES.includes(st)) {
-      rejectedFailed++;
-      continue;
-    }
-    if (MIXMIND_PENDING_STATUSES.includes(st)) {
-      pending++;
-      continue;
-    }
-    if (MIXMIND_REVENUE_STATUSES.includes(st)) {
-      acceptedCompleted++;
-      if (ps === "captured") {
-        capturedRevenue += mixmindRequestAmount(r);
-      }
-    }
-  }
-
-  return { total, acceptedCompleted, pending, rejectedFailed, capturedRevenue };
-}
-
-function summarizeJukeboxRequests(rows) {
-  let total = 0;
-  let queuedSuccess = 0;
-  let pending = 0;
-  let rejected = 0;
-  let revenue = 0;
-
-  for (const r of rows) {
-    total++;
-    const st = r.status;
-    const ps = r.paymentStatus;
-
-    if (JUKEBOX_REJECTED.includes(st)) {
-      rejected++;
-      continue;
-    }
-    if (JUKEBOX_PENDING.includes(st)) {
-      pending++;
-      continue;
-    }
-    if (JUKEBOX_SUCCESS.includes(st)) {
-      queuedSuccess++;
-      if (ps === "succeeded") {
-        revenue += (Number(r.amountPence) || 0) / 100;
-      }
-    }
-  }
-
-  return { total, queuedSuccess, pending, rejected, revenue };
-}
-
 async function aggregateGlobalDbStats(from, toExclusive) {
   const [reqDocs, jbDocs] = await Promise.all([
     Request.find({ createdAt: { $gte: from, $lt: toExclusive } })
-      .select("status paymentStatus paidAmount price")
+      .select(
+        "status paymentStatus paidAmount price djApprovedAt djRejectedAt"
+      )
       .lean()
       .exec(),
     JukeboxRequest.find({ createdAt: { $gte: from, $lt: toExclusive } })
@@ -632,23 +564,35 @@ async function enrichVenuesWithDbStats(venues, from, toExclusive) {
     const m = summarizeMixMindRequests(byVenueReq[k] || []);
     const j = summarizeJukeboxRequests(byVenueJb[k] || []);
 
-    row.mixmindTotalRequests = m.total;
-    row.mixmindAcceptedCompleted = m.acceptedCompleted;
-    row.mixmindPending = m.pending;
-    row.mixmindRejectedFailed = m.rejectedFailed;
-    row.mixmindCapturedRevenue = Math.round(m.capturedRevenue * 100) / 100;
+    row.mixmindTotalRequests = m.totalRequests;
+    row.mixmindAcceptedCompleted = m.acceptedRequests;
+    row.mixmindPending = m.pendingDjRequests;
+    row.mixmindUnpaidAbandoned = m.unpaidAbandonedRequests;
+    row.mixmindRejectedFailed = m.rejectedRequests;
+    row.mixmindCapturedRevenue = m.earnedRevenue;
+    row.mixmindPotentialRevenue = m.potentialRevenue;
+    row.mixmindLostRevenue = m.lostRevenue;
+    row.mixmindPendingRevenue = m.pendingRevenue;
 
-    row.jukeboxTotalRequests = j.total;
-    row.jukeboxQueuedSuccess = j.queuedSuccess;
-    row.jukeboxPending = j.pending;
-    row.jukeboxRejected = j.rejected;
-    row.jukeboxRevenue = Math.round(j.revenue * 100) / 100;
+    row.jukeboxTotalRequests = j.totalRequests;
+    row.jukeboxQueuedSuccess = j.acceptedRequests;
+    row.jukeboxPending = j.pendingDjRequests;
+    row.jukeboxUnpaidAbandoned = j.unpaidAbandonedRequests;
+    row.jukeboxRejected = j.rejectedRequests;
+    row.jukeboxRevenue = j.earnedRevenue;
+    row.jukeboxPotentialRevenue = j.potentialRevenue;
+    row.jukeboxLostRevenue = j.lostRevenue;
+    row.jukeboxPendingRevenue = j.pendingRevenue;
 
     const totalRev = row.mixmindCapturedRevenue + row.jukeboxRevenue;
     row.totalTrueRevenue = Math.round(totalRev * 100) / 100;
     row.dbRequestCount = (row.mixmindTotalRequests || 0) + (row.jukeboxTotalRequests || 0);
-    row.dbRejectedCount = (m.rejectedFailed || 0) + (j.rejected || 0);
-    row.dbPendingCount = (m.pending || 0) + (j.pending || 0);
+    row.dbAcceptedCount = (m.acceptedRequests || 0) + (j.acceptedRequests || 0);
+    row.dbRejectedCount = (m.rejectedRequests || 0) + (j.rejectedRequests || 0);
+    row.dbPendingDjCount = (m.pendingDjRequests || 0) + (j.pendingDjRequests || 0);
+    row.dbUnpaidAbandonedCount =
+      (m.unpaidAbandonedRequests || 0) + (j.unpaidAbandonedRequests || 0);
+    row.dbPendingCount = row.dbPendingDjCount;
     row.visitToPaymentConversion = row.venueFunnelConversionPct;
   }
 }

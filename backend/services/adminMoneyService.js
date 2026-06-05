@@ -1,32 +1,20 @@
 const mongoose = require("mongoose");
 const Venue = require("../models/Venue");
-const Request = require("../models/Request");
-const JukeboxRequest = require("../models/JukeboxRequest");
 const { resolveAnalyticsWindow } = require("./analyticsFunnelService");
+const {
+  emptyStats,
+  addStats,
+  finalizeStats,
+  classifyMixMindRequest,
+  classifyJukeboxRequest,
+  statsFromMixMindClassification,
+  statsFromJukeboxClassification,
+  fetchRequestDocs,
+  mixmindRequestAmount,
+  jukeboxRequestAmount,
+} = require("./requestStatsService");
 
 const TZ = "Europe/London";
-
-const MIXMIND_ACCEPTED_STATUSES = ["queued", "paid", "approved", "processing", "completed"];
-const JUKEBOX_CANCELED_PAYMENT = ["canceled", "cancelled"];
-
-function roundMoney(n) {
-  return Math.round((Number(n) || 0) * 100) / 100;
-}
-
-function pct(num, den) {
-  if (!den || den <= 0) return 0;
-  return Math.round((num / den) * 10000) / 100;
-}
-
-function mixmindRequestAmount(r) {
-  const paid = Number(r.paidAmount);
-  if (Number.isFinite(paid) && paid > 0) return paid;
-  return Number(r.price) || 0;
-}
-
-function jukeboxRequestAmount(r) {
-  return (Number(r.amountPence) || 0) / 100;
-}
 
 function londonYmdFromDate(d) {
   return new Intl.DateTimeFormat("en-CA", {
@@ -37,143 +25,19 @@ function londonYmdFromDate(d) {
   }).format(d instanceof Date ? d : new Date(d));
 }
 
-function isMixMindLost(r) {
-  const st = r.status;
-  const ps = r.paymentStatus;
-  return st === "rejected" || st === "failed" || ps === "cancelled";
-}
-
-function isMixMindEarned(r) {
-  return r.paymentStatus === "captured";
-}
-
-function isMixMindPendingRevenue(r) {
-  return r.paymentStatus === "authorized" || r.status === "pending_dj_approval";
-}
-
-function isJukeboxLost(r) {
-  const st = r.status;
-  const ps = r.paymentStatus;
-  return (
-    st === "genre_rejected" ||
-    st === "failed" ||
-    JUKEBOX_CANCELED_PAYMENT.includes(ps)
-  );
-}
-
-function isJukeboxEarned(r) {
-  return r.status === "queued" && r.paymentStatus === "succeeded";
-}
-
-function isJukeboxPendingRevenue(r) {
-  return ["pending_payment", "paid_pending_genre", "genre_approved"].includes(r.status);
-}
-
-function classifyMixMindRevenue(r) {
-  const amount = mixmindRequestAmount(r);
-  const potential = amount > 0 ? amount : 0;
-  let earned = 0;
-  let lost = 0;
-  let pending = 0;
-
-  if (potential > 0) {
-    if (isMixMindLost(r)) {
-      lost = potential;
-    } else if (isMixMindEarned(r)) {
-      earned = potential;
-    } else if (isMixMindPendingRevenue(r)) {
-      pending = potential;
-    }
-  }
-
-  return {
-    potentialRevenue: roundMoney(potential),
-    earnedRevenue: roundMoney(earned),
-    lostRevenue: roundMoney(lost),
-    pendingRevenue: roundMoney(pending),
-  };
-}
-
-function classifyJukeboxRevenue(r) {
-  const amount = jukeboxRequestAmount(r);
-  const potential = amount > 0 ? amount : 0;
-  let earned = 0;
-  let lost = 0;
-  let pending = 0;
-
-  if (potential > 0) {
-    if (isJukeboxLost(r)) {
-      lost = potential;
-    } else if (isJukeboxEarned(r)) {
-      earned = potential;
-    } else if (isJukeboxPendingRevenue(r)) {
-      pending = potential;
-    }
-  }
-
-  return {
-    potentialRevenue: roundMoney(potential),
-    earnedRevenue: roundMoney(earned),
-    lostRevenue: roundMoney(lost),
-    pendingRevenue: roundMoney(pending),
-  };
-}
-
-function mixmindRequestCountBucket(r) {
-  if (isMixMindLost(r)) return "rejected";
-  if (MIXMIND_ACCEPTED_STATUSES.includes(r.status)) return "accepted";
-  return "pending";
-}
-
-function jukeboxRequestCountBucket(r) {
-  if (isJukeboxLost(r)) return "rejected";
-  if (r.status === "queued" && r.paymentStatus === "succeeded") return "accepted";
-  return "pending";
-}
-
-function emptyStats() {
-  return {
-    potentialRevenue: 0,
-    earnedRevenue: 0,
-    lostRevenue: 0,
-    pendingRevenue: 0,
-    totalRequests: 0,
-    acceptedRequests: 0,
-    rejectedRequests: 0,
-    pendingRequests: 0,
-  };
-}
-
-function addStats(target, source) {
-  target.potentialRevenue = roundMoney(target.potentialRevenue + source.potentialRevenue);
-  target.earnedRevenue = roundMoney(target.earnedRevenue + source.earnedRevenue);
-  target.lostRevenue = roundMoney(target.lostRevenue + source.lostRevenue);
-  target.pendingRevenue = roundMoney(target.pendingRevenue + source.pendingRevenue);
-  target.totalRequests += source.totalRequests;
-  target.acceptedRequests += source.acceptedRequests;
-  target.rejectedRequests += source.rejectedRequests;
-  target.pendingRequests += source.pendingRequests;
-}
-
-function finalizeStats(stats) {
-  stats.acceptanceRatePct = pct(stats.acceptedRequests, stats.totalRequests);
-  stats.revenueCaptureRatePct = pct(stats.earnedRevenue, stats.potentialRevenue);
-  return stats;
-}
-
 function processMixMindRequest(r, venueName) {
-  const revenue = classifyMixMindRevenue(r);
-  const bucket = mixmindRequestCountBucket(r);
+  const classification = classifyMixMindRequest(r);
+  const stats = statsFromMixMindClassification(classification);
   const createdAt = r.createdAt ? new Date(r.createdAt) : new Date();
+  const revenue = {
+    potentialRevenue: classification.potentialRevenue,
+    earnedRevenue: classification.earnedRevenue,
+    lostRevenue: classification.lostRevenue,
+    pendingRevenue: classification.pendingRevenue,
+  };
 
   return {
-    stats: {
-      ...revenue,
-      totalRequests: 1,
-      acceptedRequests: bucket === "accepted" ? 1 : 0,
-      rejectedRequests: bucket === "rejected" ? 1 : 0,
-      pendingRequests: bucket === "pending" ? 1 : 0,
-    },
+    stats,
     recent: {
       id: String(r._id),
       mode: "MixMind",
@@ -182,6 +46,7 @@ function processMixMindRequest(r, venueName) {
       requesterName: r.userName || "",
       status: r.status,
       paymentStatus: r.paymentStatus,
+      bucket: classification.bucket,
       ...revenue,
       createdAt: createdAt.toISOString(),
     },
@@ -194,6 +59,7 @@ function processMixMindRequest(r, venueName) {
       requesterName: r.userName || "",
       status: r.status,
       paymentStatus: r.paymentStatus,
+      bucket: classification.bucket,
       ...revenue,
       createdAt: createdAt.toISOString(),
     },
@@ -201,18 +67,18 @@ function processMixMindRequest(r, venueName) {
 }
 
 function processJukeboxRequest(r, venueName) {
-  const revenue = classifyJukeboxRevenue(r);
-  const bucket = jukeboxRequestCountBucket(r);
+  const classification = classifyJukeboxRequest(r);
+  const stats = statsFromJukeboxClassification(classification);
   const createdAt = r.createdAt ? new Date(r.createdAt) : new Date();
+  const revenue = {
+    potentialRevenue: classification.potentialRevenue,
+    earnedRevenue: classification.earnedRevenue,
+    lostRevenue: classification.lostRevenue,
+    pendingRevenue: classification.pendingRevenue,
+  };
 
   return {
-    stats: {
-      ...revenue,
-      totalRequests: 1,
-      acceptedRequests: bucket === "accepted" ? 1 : 0,
-      rejectedRequests: bucket === "rejected" ? 1 : 0,
-      pendingRequests: bucket === "pending" ? 1 : 0,
-    },
+    stats,
     recent: {
       id: String(r._id),
       mode: "Jukebox",
@@ -221,6 +87,7 @@ function processJukeboxRequest(r, venueName) {
       requesterName: r.requesterName || "",
       status: r.status,
       paymentStatus: r.paymentStatus,
+      bucket: classification.bucket,
       ...revenue,
       createdAt: createdAt.toISOString(),
     },
@@ -233,29 +100,11 @@ function processJukeboxRequest(r, venueName) {
       requesterName: r.requesterName || "",
       status: r.status,
       paymentStatus: r.paymentStatus,
+      bucket: classification.bucket,
       ...revenue,
       createdAt: createdAt.toISOString(),
     },
   };
-}
-
-async function fetchRequestsInWindow(from, toExclusive, venueId = null) {
-  const dateFilter = { createdAt: { $gte: from, $lt: toExclusive } };
-  const reqQuery = { ...dateFilter, venueId: { $ne: null, $exists: true } };
-  const jbQuery = { ...dateFilter };
-
-  if (venueId) {
-    const oid = new mongoose.Types.ObjectId(venueId);
-    reqQuery.venueId = oid;
-    jbQuery.venueId = oid;
-  }
-
-  const [reqDocs, jbDocs] = await Promise.all([
-    Request.find(reqQuery).lean().exec(),
-    JukeboxRequest.find(jbQuery).lean().exec(),
-  ]);
-
-  return { reqDocs, jbDocs };
 }
 
 async function loadVenueNames(venueIds) {
@@ -354,7 +203,7 @@ function buildDateRangeResponse(from, toExclusive) {
 
 async function buildMoneyVenues(query = {}) {
   const { from, toExclusive, appliedRange } = resolveAnalyticsWindow(query);
-  const { reqDocs, jbDocs } = await fetchRequestsInWindow(from, toExclusive);
+  const { reqDocs, jbDocs } = await fetchRequestDocs({ from, toExclusive });
 
   const venueIds = new Set();
   for (const r of reqDocs) {
@@ -394,7 +243,11 @@ async function buildMoneyVenue(venueId, query = {}) {
   }
 
   const { from, toExclusive, appliedRange } = resolveAnalyticsWindow(query);
-  const { reqDocs, jbDocs } = await fetchRequestsInWindow(from, toExclusive, venueId);
+  const { reqDocs, jbDocs } = await fetchRequestDocs({
+    venueId,
+    from,
+    toExclusive,
+  });
 
   const venueMetaById = new Map([
     [

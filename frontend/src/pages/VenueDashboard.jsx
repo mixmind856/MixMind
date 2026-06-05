@@ -58,21 +58,19 @@ export default function VenueDashboard() {
     "70S",
     "SOUL"
   ]);
-  const [stats, setStats] = useState({
-    total: 0,
-    pending: 0,
-    completed: 0,
-    rejected: 0,
-    revenue: 0
-  });
-  const [jukeboxStats, setJukeboxStats] = useState({
+  const emptyRequestStats = () => ({
     totalRequests: 0,
     acceptedRequests: 0,
     rejectedRequests: 0,
-    pendingRequests: 0,
-    completedRequests: 0,
-    totalRevenue: 0
+    pendingDjRequests: 0,
+    unpaidAbandonedRequests: 0,
+    potentialRevenue: 0,
+    earnedRevenue: 0,
+    lostRevenue: 0,
+    pendingRevenue: 0,
   });
+  const [stats, setStats] = useState(emptyRequestStats());
+  const [jukeboxStats, setJukeboxStats] = useState(emptyRequestStats());
   const [jukeboxStatsError, setJukeboxStatsError] = useState("");
   const [refreshing, setRefreshing] = useState(false);
   const [spotifyDebug, setSpotifyDebug] = useState(null);
@@ -149,38 +147,43 @@ export default function VenueDashboard() {
       setSpotifyConnected(!!venueData.spotifyConnected);
       await fetchSpotifyDebugStatus(venueData._id, token);
 
-      try {
-        const jukeboxStatsRes = await fetch(
-          `${import.meta.env.VITE_API_URL}/jukebox/stats?venueId=${venueData._id}`
-        );
+      const statsRes = await fetch(
+        `${import.meta.env.VITE_API_URL}/venue/request-stats`,
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
 
-        if (!jukeboxStatsRes.ok) {
-          throw new Error("Unable to load jukebox stats");
-        }
-
-        const jukeboxData = await jukeboxStatsRes.json();
+      if (statsRes.ok) {
+        const statsData = await statsRes.json();
+        setStats({
+          totalRequests: Number(statsData.totalRequests || 0),
+          acceptedRequests: Number(statsData.acceptedRequests || 0),
+          rejectedRequests: Number(statsData.rejectedRequests || 0),
+          pendingDjRequests: Number(statsData.pendingDjRequests || 0),
+          unpaidAbandonedRequests: Number(statsData.unpaidAbandonedRequests || 0),
+          potentialRevenue: Number(statsData.potentialRevenue || 0),
+          earnedRevenue: Number(statsData.earnedRevenue || 0),
+          lostRevenue: Number(statsData.lostRevenue || 0),
+          pendingRevenue: Number(statsData.pendingRevenue || 0),
+        });
+        const jb = statsData.jukebox || {};
         setJukeboxStats({
-          totalRequests: Number(jukeboxData.totalRequests || 0),
-          acceptedRequests: Number(jukeboxData.acceptedRequests || 0),
-          rejectedRequests: Number(jukeboxData.rejectedRequests || 0),
-          pendingRequests: Number(jukeboxData.pendingRequests || 0),
-          completedRequests: Number(jukeboxData.completedRequests || 0),
-          totalRevenue: Number(jukeboxData.totalRevenue || 0)
+          totalRequests: Number(jb.totalRequests || 0),
+          acceptedRequests: Number(jb.acceptedRequests || 0),
+          rejectedRequests: Number(jb.rejectedRequests || 0),
+          pendingDjRequests: Number(jb.pendingDjRequests || 0),
+          unpaidAbandonedRequests: Number(jb.unpaidAbandonedRequests || 0),
+          potentialRevenue: Number(jb.potentialRevenue || 0),
+          earnedRevenue: Number(jb.earnedRevenue || 0),
+          lostRevenue: Number(jb.lostRevenue || 0),
+          pendingRevenue: Number(jb.pendingRevenue || 0),
         });
         setJukeboxStatsError("");
-      } catch (_) {
-        setJukeboxStats({
-          totalRequests: 0,
-          acceptedRequests: 0,
-          rejectedRequests: 0,
-          pendingRequests: 0,
-          completedRequests: 0,
-          totalRevenue: 0
-        });
-        setJukeboxStatsError("Unable to load jukebox stats");
+      } else {
+        setStats(emptyRequestStats());
+        setJukeboxStats(emptyRequestStats());
+        setJukeboxStatsError("Unable to load request stats");
       }
 
-      // Fetch venue requests
       const requestsRes = await fetch(
         `${import.meta.env.VITE_API_URL}/requests/venue/${venueData._id}`,
         { headers: { Authorization: `Bearer ${token}` } }
@@ -189,41 +192,6 @@ export default function VenueDashboard() {
       if (requestsRes.ok) {
         const requestsData = await requestsRes.json();
         setRequests(requestsData);
-        
-        // Categorize statuses correctly based on Request model
-        // Status enum: ["queued", "created", "pending_dj_approval", "paid", "approved", "processing", "completed", "failed", "rejected", "authorized", "analyzing"]
-        
-        const PENDING_STATUSES = ["created", "authorized", "pending_dj_approval", "approved", "queued", "analyzing"];
-        const COMPLETED_STATUSES = ["completed", "paid"];
-        const REJECTED_STATUSES = ["rejected", "failed"];
-        
-        const total = requestsData.length;
-        const pending = requestsData.filter(r => PENDING_STATUSES.includes(r.status)).length;
-        const completed = requestsData.filter(r => COMPLETED_STATUSES.includes(r.status)).length;
-        const rejected = requestsData.filter(r => REJECTED_STATUSES.includes(r.status)).length;
-        const revenueEligibleStatuses = ["queued", "paid", "approved", "processing", "completed"];
-        const revenue = requestsData
-          .filter(r => r.paymentStatus === "captured" && revenueEligibleStatuses.includes(r.status))
-          .reduce((sum, r) => sum + (Number(r.paidAmount ?? r.price ?? 0) || 0), 0);
-
-        // Debug logs
-        console.log("📊 Total requests from API:", total);
-        console.log("📊 Pending count:", pending);
-        console.log("   🔵 Pending statuses:", requestsData.filter(r => PENDING_STATUSES.includes(r.status)).map(r => ({status: r.status, title: r.title})));
-        console.log("📊 Completed count:", completed);
-        console.log("   🟢 Completed statuses:", requestsData.filter(r => COMPLETED_STATUSES.includes(r.status)).map(r => ({status: r.status, title: r.title})));
-        console.log("📊 Rejected count:", rejected);
-        console.log("   🔴 Rejected statuses:", requestsData.filter(r => REJECTED_STATUSES.includes(r.status)).map(r => ({status: r.status, title: r.title})));
-        console.log("📊 Revenue total:", revenue);
-        console.log("📊 All requests data:", requestsData);
-
-        setStats({
-          total,
-          pending,
-          completed,
-          rejected,
-          revenue
-        });
       }
     } catch (err) {
       setError(err.message || "Failed to load data");
@@ -1167,26 +1135,44 @@ export default function VenueDashboard() {
               {refreshing ? "⟳ Refreshing..." : "⟳ Refresh"}
             </button>
           </div>
-          <div className="grid grid-cols-1 md:grid-cols-5 gap-6">
+          <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-5 gap-6">
             <div className="bg-white/5 backdrop-blur-md border border-purple-500/20 rounded-xl p-6 hover:border-purple-500/40 transition-all">
               <p className="text-gray-400 text-sm mb-2">Total Requests</p>
-              <p className="text-3xl font-bold text-purple-400">{stats.total}</p>
-            </div>
-            <div className="bg-white/5 backdrop-blur-md border border-purple-500/20 rounded-xl p-6 hover:border-yellow-500/40 transition-all">
-              <p className="text-gray-400 text-sm mb-2">Pending</p>
-              <p className="text-3xl font-bold text-yellow-400">{stats.pending}</p>
+              <p className="text-3xl font-bold text-purple-400">{stats.totalRequests}</p>
             </div>
             <div className="bg-white/5 backdrop-blur-md border border-purple-500/20 rounded-xl p-6 hover:border-green-500/40 transition-all">
-              <p className="text-gray-400 text-sm mb-2">Completed</p>
-              <p className="text-3xl font-bold text-green-400">{stats.completed}</p>
+              <p className="text-gray-400 text-sm mb-2">Accepted</p>
+              <p className="text-3xl font-bold text-green-400">{stats.acceptedRequests}</p>
             </div>
             <div className="bg-white/5 backdrop-blur-md border border-purple-500/20 rounded-xl p-6 hover:border-red-500/40 transition-all">
               <p className="text-gray-400 text-sm mb-2">Rejected</p>
-              <p className="text-3xl font-bold text-red-400">{stats.rejected}</p>
+              <p className="text-3xl font-bold text-red-400">{stats.rejectedRequests}</p>
             </div>
-            <div className="bg-white/5 backdrop-blur-md border border-purple-500/20 rounded-xl p-6 hover:border-blue-500/40 transition-all">
-              <p className="text-gray-400 text-sm mb-2">Total Revenue</p>
-              <p className="text-3xl font-bold text-blue-400">£{stats.revenue.toFixed(2)}</p>
+            <div className="bg-white/5 backdrop-blur-md border border-purple-500/20 rounded-xl p-6 hover:border-yellow-500/40 transition-all">
+              <p className="text-gray-400 text-sm mb-2">Pending DJ Decision</p>
+              <p className="text-3xl font-bold text-yellow-400">{stats.pendingDjRequests}</p>
+            </div>
+            <div className="bg-white/5 backdrop-blur-md border border-purple-500/20 rounded-xl p-6 hover:border-orange-500/40 transition-all">
+              <p className="text-gray-400 text-sm mb-2">Unpaid / Abandoned</p>
+              <p className="text-3xl font-bold text-orange-400">{stats.unpaidAbandonedRequests}</p>
+            </div>
+          </div>
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mt-6">
+            <div className="bg-white/5 backdrop-blur-md border border-blue-500/20 rounded-xl p-6">
+              <p className="text-gray-400 text-sm mb-2">Earned Revenue</p>
+              <p className="text-2xl font-bold text-blue-400">£{stats.earnedRevenue.toFixed(2)}</p>
+            </div>
+            <div className="bg-white/5 backdrop-blur-md border border-yellow-500/20 rounded-xl p-6">
+              <p className="text-gray-400 text-sm mb-2">Pending Revenue</p>
+              <p className="text-2xl font-bold text-yellow-400">£{stats.pendingRevenue.toFixed(2)}</p>
+            </div>
+            <div className="bg-white/5 backdrop-blur-md border border-red-500/20 rounded-xl p-6">
+              <p className="text-gray-400 text-sm mb-2">Lost / Refunded</p>
+              <p className="text-2xl font-bold text-red-400">£{stats.lostRevenue.toFixed(2)}</p>
+            </div>
+            <div className="bg-white/5 backdrop-blur-md border border-emerald-500/20 rounded-xl p-6">
+              <p className="text-gray-400 text-sm mb-2">Potential Revenue</p>
+              <p className="text-2xl font-bold text-emerald-400">£{stats.potentialRevenue.toFixed(2)}</p>
             </div>
           </div>
           <p className="text-xs text-gray-500 mt-4">💡 Auto-refreshes every 10 seconds</p>
@@ -1214,15 +1200,15 @@ export default function VenueDashboard() {
               </div>
               <div className="bg-black/20 border border-yellow-500/20 rounded-lg p-4">
                 <p className="text-gray-400 text-sm">Pending</p>
-                <p className="text-2xl font-bold text-yellow-300">{jukeboxStats.pendingRequests}</p>
+                <p className="text-2xl font-bold text-yellow-300">{jukeboxStats.pendingDjRequests}</p>
               </div>
-              <div className="bg-black/20 border border-blue-500/20 rounded-lg p-4">
-                <p className="text-gray-400 text-sm">Completed</p>
-                <p className="text-2xl font-bold text-blue-300">{jukeboxStats.completedRequests}</p>
+              <div className="bg-black/20 border border-orange-500/20 rounded-lg p-4">
+                <p className="text-gray-400 text-sm">Unpaid / Abandoned</p>
+                <p className="text-2xl font-bold text-orange-300">{jukeboxStats.unpaidAbandonedRequests}</p>
               </div>
               <div className="bg-black/20 border border-emerald-500/20 rounded-lg p-4">
-                <p className="text-gray-400 text-sm">Total revenue</p>
-                <p className="text-2xl font-bold text-emerald-300">£{jukeboxStats.totalRevenue.toFixed(2)}</p>
+                <p className="text-gray-400 text-sm">Earned revenue</p>
+                <p className="text-2xl font-bold text-emerald-300">£{jukeboxStats.earnedRevenue.toFixed(2)}</p>
               </div>
             </div>
           </div>

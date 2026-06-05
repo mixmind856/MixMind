@@ -1,5 +1,6 @@
 const jwt = require("jsonwebtoken");
 const Venue = require("../../models/Venue");
+const { buildVenueRequestStats } = require("../../services/requestStatsService");
 
 /**
  * Generate JWT token for venue
@@ -112,6 +113,24 @@ async function venueSignin(req, res) {
     });
   } catch (err) {
     console.error("Venue Signin Error:", err.message);
+    res.status(500).json({ error: "Internal server error" });
+  }
+}
+
+/**
+ * Get unified request stats for the authenticated venue (all-time).
+ */
+async function getVenueRequestStats(req, res) {
+  try {
+    const venueId = req.venue.id;
+    const stats = await buildVenueRequestStats(venueId);
+    res.json(stats);
+  } catch (err) {
+    console.error("Get Venue Request Stats Error:", err.message);
+    const code = err.statusCode || 500;
+    if (code === 400) {
+      return res.status(400).json({ error: err.message || "Bad request" });
+    }
     res.status(500).json({ error: "Internal server error" });
   }
 }
@@ -557,6 +576,7 @@ async function submitWaitlist(req, res) {
 module.exports = {
   venueSignup,
   venueSignin,
+  getVenueRequestStats,
   getVenueProfile,
   updateVenueProfile,
   getPublicVenue,

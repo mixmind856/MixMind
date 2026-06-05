@@ -4,6 +4,7 @@ const verifyVenueToken = require("../../middleware/verifyVenueToken");
 const {
   venueSignup,
   venueSignin,
+  getVenueRequestStats,
   getVenueProfile,
   updateVenueProfile,
   getPublicVenue,
@@ -26,6 +27,7 @@ router.get("/public/:venueId", getPublicVenue);
 router.get("/active-venues", getActiveVenues);
 
 // Protected routes
+router.get("/request-stats", verifyVenueToken, getVenueRequestStats);
 router.get("/profile", verifyVenueToken, getVenueProfile);
 router.put("/profile", verifyVenueToken, updateVenueProfile);
 router.post("/toggle-live-playlist", verifyVenueToken, toggleLivePlaylist);
