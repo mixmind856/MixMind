@@ -2,36 +2,15 @@ const mongoose = require("mongoose");
 const Request = require("../models/Request");
 const JukeboxRequest = require("../models/JukeboxRequest");
 
-/**
- * TEMPORARY dashboard filter — excludes legacy requests before this date.
- * Applied to admin, venue, and money dashboard stats only (not DB documents).
- * Remove when May-10-era data review is complete.
- */
-const TEMP_DASHBOARD_STATS_MIN_CREATED_AT = new Date("2026-05-20T00:00:00.000Z");
-const TEMP_DASHBOARD_STATS_FILTER_ENABLED = true;
-
+const MIXMIND_ACCEPTED_STATUSES = [
+  "queued",
+  "completed",
+  "approved",
+  "paid",
+  "processing",
+];
+const MIXMIND_REJECTED_STATUSES = ["rejected", "failed"];
 const MIXMIND_PAID_PAYMENT_STATUSES = ["authorized", "captured", "cancelled"];
-
-function getDashboardStatsDateFilter({ from = null, toExclusive = null } = {}) {
-  if (!TEMP_DASHBOARD_STATS_FILTER_ENABLED) {
-    if (from && toExclusive) {
-      return { createdAt: { $gte: from, $lt: toExclusive } };
-    }
-    return {};
-  }
-
-  const min = TEMP_DASHBOARD_STATS_MIN_CREATED_AT;
-  const gte = from ? new Date(Math.max(from.getTime(), min.getTime())) : min;
-
-  if (toExclusive) {
-    return { createdAt: { $gte: gte, $lt: toExclusive } };
-  }
-  return { createdAt: { $gte: gte } };
-}
-
-function mixmindHadPayment(paymentStatus) {
-  return MIXMIND_PAID_PAYMENT_STATUSES.includes(paymentStatus);
-}
 
 const JUKEBOX_REJECTED_STATUSES = ["genre_rejected", "failed"];
 const JUKEBOX_CANCELED_PAYMENT = ["canceled", "cancelled"];
@@ -77,20 +56,38 @@ function emptyStats() {
 }
 
 function classifyMixMindRequest(r) {
+  const st = r.status;
   const ps = r.paymentStatus || "unpaid";
   const hasDjApproved = !!r.djApprovedAt;
   const hasDjRejected = !!r.djRejectedAt;
-  const hadPayment = mixmindHadPayment(ps);
-  const rejectedAfterPayment = hasDjRejected && hadPayment;
 
-  // Outcome: DJ decision is source of truth (never status / captured / queued)
   let bucket;
-  if (hasDjRejected) {
+  if (
+    hasDjRejected ||
+    MIXMIND_REJECTED_STATUSES.includes(st) ||
+    ps === "cancelled"
+  ) {
     bucket = "rejected";
-  } else if (hasDjApproved) {
+  } else if (
+    hasDjApproved ||
+    MIXMIND_ACCEPTED_STATUSES.includes(st) ||
+    ps === "captured"
+  ) {
     bucket = "accepted";
-  } else if (ps === "authorized") {
+  } else if (
+    st === "pending_dj_approval" &&
+    ps === "authorized" &&
+    !hasDjApproved &&
+    !hasDjRejected
+  ) {
     bucket = "pending_dj";
+  } else if (
+    st === "pending_dj_approval" &&
+    !MIXMIND_PAID_PAYMENT_STATUSES.includes(ps) &&
+    !hasDjApproved &&
+    !hasDjRejected
+  ) {
+    bucket = "unpaid_abandoned";
   } else {
     bucket = "unpaid_abandoned";
   }
@@ -101,19 +98,17 @@ function classifyMixMindRequest(r) {
   let lostRevenue = 0;
   let pendingRevenue = 0;
 
-  // Revenue: separate from outcome
-  if (hadPayment || rejectedAfterPayment) {
+  if (MIXMIND_PAID_PAYMENT_STATUSES.includes(ps)) {
     potentialRevenue = amount;
-  }
-
-  if (ps === "cancelled" || rejectedAfterPayment) {
-    lostRevenue = amount;
-  } else if (ps === "captured") {
-    earnedRevenue = amount;
-  }
-
-  if (ps === "authorized" && !hasDjApproved && !hasDjRejected) {
-    pendingRevenue = amount;
+    if (ps === "captured") {
+      earnedRevenue = amount;
+    } else if (ps === "cancelled") {
+      lostRevenue = amount;
+    } else if (ps === "authorized" && st === "pending_dj_approval") {
+      pendingRevenue = amount;
+    } else if (bucket === "rejected" && ps === "authorized") {
+      lostRevenue = amount;
+    }
   }
 
   return {
@@ -269,9 +264,11 @@ async function fetchRequestDocs({ venueId = null, from = null, toExclusive = nul
   const reqQuery = { venueId: { $ne: null, $exists: true } };
   const jbQuery = {};
 
-  const dateFilter = getDashboardStatsDateFilter({ from, toExclusive });
-  Object.assign(reqQuery, dateFilter);
-  Object.assign(jbQuery, dateFilter);
+  if (from && toExclusive) {
+    const dateFilter = { createdAt: { $gte: from, $lt: toExclusive } };
+    Object.assign(reqQuery, dateFilter);
+    Object.assign(jbQuery, dateFilter);
+  }
 
   if (venueId) {
     if (!mongoose.Types.ObjectId.isValid(venueId)) {
@@ -323,9 +320,6 @@ function getJukeboxRequestStatsFields(classification) {
 }
 
 module.exports = {
-  TEMP_DASHBOARD_STATS_MIN_CREATED_AT,
-  TEMP_DASHBOARD_STATS_FILTER_ENABLED,
-  getDashboardStatsDateFilter,
   emptyStats,
   roundMoney,
   pct,

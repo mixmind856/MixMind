@@ -10,8 +10,6 @@ const {
   summarizeMixMindRequests,
   summarizeJukeboxRequests,
   mixmindRequestAmount,
-  getDashboardStatsDateFilter,
-  fetchRequestDocs,
 } = require("./requestStatsService");
 
 function londonYmd(d) {
@@ -432,15 +430,14 @@ function venueHourlyFromEvents(events, venueId) {
 }
 
 async function aggregateGlobalDbStats(from, toExclusive) {
-  const dateFilter = getDashboardStatsDateFilter({ from, toExclusive });
   const [reqDocs, jbDocs] = await Promise.all([
-    Request.find(dateFilter)
+    Request.find({ createdAt: { $gte: from, $lt: toExclusive } })
       .select(
         "status paymentStatus paidAmount price djApprovedAt djRejectedAt"
       )
       .lean()
       .exec(),
-    JukeboxRequest.find(dateFilter)
+    JukeboxRequest.find({ createdAt: { $gte: from, $lt: toExclusive } })
       .select("status paymentStatus amountPence")
       .lean()
       .exec()
@@ -534,12 +531,17 @@ async function enrichVenuesWithDbStats(venues, from, toExclusive) {
   const oidList = ids.filter((id) => mongoose.Types.ObjectId.isValid(id)).map((id) => new mongoose.Types.ObjectId(id));
   if (oidList.length === 0) return;
 
-  const dateFilter = getDashboardStatsDateFilter({ from, toExclusive });
   const [reqDocs, jbDocs] = await Promise.all([
-    Request.find({ venueId: { $in: oidList }, ...dateFilter })
+    Request.find({
+      venueId: { $in: oidList },
+      createdAt: { $gte: from, $lt: toExclusive }
+    })
       .lean()
       .exec(),
-    JukeboxRequest.find({ venueId: { $in: oidList }, ...dateFilter })
+    JukeboxRequest.find({
+      venueId: { $in: oidList },
+      createdAt: { $gte: from, $lt: toExclusive }
+    })
       .lean()
       .exec()
   ]);
@@ -762,11 +764,12 @@ async function buildVenueAnalyticsDeepDive(venueId, query = {}) {
     .lean()
     .exec();
 
-  const { reqDocs, jbDocs } = await fetchRequestDocs({
-    venueId,
-    from,
-    toExclusive,
-  });
+  const oid = new mongoose.Types.ObjectId(venueId);
+
+  const [reqDocs, jbDocs] = await Promise.all([
+    Request.find({ venueId: oid, createdAt: { $gte: from, $lt: toExclusive } }).lean().exec(),
+    JukeboxRequest.find({ venueId: oid, createdAt: { $gte: from, $lt: toExclusive } }).lean().exec()
+  ]);
 
   const mixmind = summarizeMixMindRequests(reqDocs);
   const jukebox = summarizeJukeboxRequests(jbDocs);
