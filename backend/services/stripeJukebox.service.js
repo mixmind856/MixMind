@@ -9,7 +9,7 @@ function getStripe() {
   return _stripe;
 }
 
-const DEFAULT_AMOUNT_PENCE = 169;
+const DEFAULT_AMOUNT_PENCE = 100;
 
 async function createPreAuthPaymentIntent({ amountPence, venueId, trackId, trackName, artistName }) {
   const stripe = getStripe();

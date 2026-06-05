@@ -9,6 +9,11 @@ import {
   getAnalyticsContext,
   trackAnalyticsEvent
 } from "../services/analyticsService";
+import {
+  resolveVenuePrices,
+  formatGbp,
+  getNormalRequestPrice,
+} from "../utils/venuePricing";
 
 export default function VenuePublicRequest() {
   const navigate = useNavigate();
@@ -23,7 +28,7 @@ export default function VenuePublicRequest() {
     email: "",
     phone: "",
     countryCode: "+44",
-    price: 1.69 // Will be updated based on DJ mode
+    price: 1.0
   });
 
   const [loading, setLoading] = useState(true);
@@ -169,8 +174,7 @@ const suppressNextSpotifySearchRef = useRef(false);
       setIsVenueActive(venueData.isActive || false);
       setSpotifyMode(!!venueData.spotifyMode);
 
-      // Keep your current pricing logic here
-      const dynamicPrice = venueData.djMode ? 3.0 : 1.69;
+      const dynamicPrice = getNormalRequestPrice(venueData);
       setFormData((prev) => ({
         ...prev,
         price: dynamicPrice
@@ -526,8 +530,9 @@ console.log("✅ Song request created");
   setPriorityRequest(isPriority);
   setShowPriorityChoice(false);
 
-  const basePrice = venue?.djMode ? 3.0 : 1.69;
-  const priorityPrice = venue?.djMode ? 5.99 : 2.99;
+  const prices = resolveVenuePrices(venue);
+  const basePrice = prices.djNormalPrice;
+  const priorityPrice = prices.djPriorityPrice;
   const selectedPrice = isPriority ? priorityPrice : basePrice;
 
   setFormData((prev) => ({
@@ -540,7 +545,7 @@ console.log("✅ Song request created");
 
   const handlePaymentSuccess = async () => {
     // Keep your current pricing reset logic here
-    const resetPrice = venue && venue.djMode ? 3.0 : 1.69;
+    const resetPrice = getNormalRequestPrice(venue);
 
     setFormData({
       songTitle: "",
@@ -714,6 +719,20 @@ console.log("✅ Song request created");
           <form onSubmit={handleSubmit} className="space-y-4">
             {spotifyMode ? (
               <div className="space-y-3">
+                <div
+                  className="p-3 rounded-xl"
+                  style={{
+                    background: "rgba(34,227,161,0.1)",
+                    border: "1px solid rgba(34,227,161,0.2)",
+                  }}
+                >
+                  <p className="text-xs" style={{ color: "rgba(255,255,255,0.72)" }}>
+                    Request price
+                  </p>
+                  <p className="text-lg font-bold text-white">
+                    {formatGbp(resolveVenuePrices(venue).spotifyJukeboxPrice)}
+                  </p>
+                </div>
                 <div>
                   <label className="block text-xs font-600 mb-2" style={{ color: "rgba(255,255,255,0.72)" }}>
                     Search Spotify Song
@@ -1189,7 +1208,7 @@ console.log("✅ Song request created");
               </div>
 
               <div className="text-xl font-bold text-white mt-1">
-                £3.00
+                {formatGbp(resolveVenuePrices(venue).djNormalPrice)}
               </div>
 
               <div className="text-sm mt-1 text-gray-400">
@@ -1244,11 +1263,18 @@ console.log("✅ Song request created");
 
               <div className="mt-2">
                 <div className="text-sm font-semibold text-green-300">
-                  Only <span className="text-2xl font-bold">£2.99</span> more
+                  Only{" "}
+                  <span className="text-2xl font-bold">
+                    {formatGbp(
+                      resolveVenuePrices(venue).djPriorityPrice -
+                        resolveVenuePrices(venue).djNormalPrice
+                    )}
+                  </span>{" "}
+                  more
                 </div>
 
                 <div className="text-lg font-semibold text-white mt-1">
-                  £5.99 total
+                  {formatGbp(resolveVenuePrices(venue).djPriorityPrice)} total
                 </div>
 
                 <div className="text-sm text-gray-400 mt-1">

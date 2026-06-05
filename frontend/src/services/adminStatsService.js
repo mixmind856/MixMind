@@ -239,6 +239,34 @@ export const getMoneyVenue = async (venueId, queryString = "") => {
   }
 };
 
+export const updateVenuePricing = async (venueId, prices) => {
+  try {
+    const adminKey = requireAdminKey();
+
+    const response = await fetch(
+      `${API_BASE_URL}/admin/venues/${encodeURIComponent(venueId)}/pricing`,
+      {
+        method: "PUT",
+        headers: {
+          "Content-Type": "application/json",
+          "x-admin-key": adminKey,
+        },
+        body: JSON.stringify(prices),
+      }
+    );
+
+    if (!response.ok) {
+      const data = await response.json().catch(() => ({}));
+      throw new Error(data.error || `Error: ${response.statusText}`);
+    }
+
+    return await response.json();
+  } catch (error) {
+    console.error("Error updating venue pricing:", error);
+    throw error;
+  }
+};
+
 export const getAnalyticsVenue = async (venueId, queryString = "") => {
   try {
     const adminKey = requireAdminKey();

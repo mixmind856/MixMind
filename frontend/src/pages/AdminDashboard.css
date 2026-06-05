@@ -1472,3 +1472,36 @@
 .admin-money-recent-table {
   min-width: 640px;
 }
+
+.admin-pricing-form {
+  display: grid;
+  gap: 12px;
+}
+
+.admin-pricing-field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-size: 0.85rem;
+  color: rgba(255, 255, 255, 0.8);
+}
+
+.admin-pricing-field input {
+  padding: 8px 10px;
+  border-radius: 8px;
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  background: rgba(0, 0, 0, 0.25);
+  color: #fff;
+}
+
+.admin-pricing-error {
+  margin-top: 10px;
+  color: #fecaca;
+  font-size: 0.85rem;
+}
+
+.admin-pricing-success {
+  margin-top: 10px;
+  color: #86efac;
+  font-size: 0.85rem;
+}

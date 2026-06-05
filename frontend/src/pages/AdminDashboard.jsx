@@ -5,7 +5,9 @@ import {
   getAnalyticsVenue,
   getMoneyVenues,
   getMoneyVenue,
+  updateVenuePricing,
 } from "../services/adminStatsService";
+import { resolveVenuePrices } from "../utils/venuePricing";
 import {
   BarChart3,
   TrendingUp,
@@ -279,6 +281,14 @@ const AdminDashboard = () => {
   const [detailLoading, setDetailLoading] = useState(false);
   const [detailError, setDetailError] = useState(null);
   const [detailTab, setDetailTab] = useState("overview");
+  const [pricingForm, setPricingForm] = useState({
+    spotifyJukeboxPrice: 1.0,
+    djNormalPrice: 2.0,
+    djPriorityPrice: 4.99,
+  });
+  const [pricingSaving, setPricingSaving] = useState(false);
+  const [pricingMessage, setPricingMessage] = useState(null);
+  const [pricingError, setPricingError] = useState(null);
   const [moneyFilter, setMoneyFilter] = useState(() => defaultSectionFilter());
   const [moneySectionData, setMoneySectionData] = useState(null);
   const [moneySectionError, setMoneySectionError] = useState(null);
@@ -434,6 +444,57 @@ const AdminDashboard = () => {
   useEffect(() => {
     if (detailVenueId) setDetailTab("overview");
   }, [detailVenueId]);
+
+  useEffect(() => {
+    if (!detailVenueId) {
+      setPricingMessage(null);
+      setPricingError(null);
+      return;
+    }
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await fetch(
+          `${import.meta.env.VITE_API_URL}/venue/public/${detailVenueId}`
+        );
+        if (!res.ok) throw new Error("Could not load venue pricing");
+        const data = await res.json();
+        if (cancelled) return;
+        const prices = resolveVenuePrices(data);
+        setPricingForm(prices);
+        setPricingMessage(null);
+        setPricingError(null);
+      } catch (err) {
+        if (!cancelled) {
+          setPricingError(err.message || "Could not load venue pricing");
+        }
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [detailVenueId]);
+
+  const handleSaveVenuePricing = async () => {
+    if (!detailVenueId) return;
+    setPricingSaving(true);
+    setPricingMessage(null);
+    setPricingError(null);
+    try {
+      const result = await updateVenuePricing(detailVenueId, {
+        spotifyJukeboxPrice: Number(pricingForm.spotifyJukeboxPrice),
+        djNormalPrice: Number(pricingForm.djNormalPrice),
+        djPriorityPrice: Number(pricingForm.djPriorityPrice),
+      });
+      const prices = resolveVenuePrices(result.venue);
+      setPricingForm(prices);
+      setPricingMessage(result.message || "Venue pricing updated");
+    } catch (err) {
+      setPricingError(err.message || "Failed to update pricing");
+    } finally {
+      setPricingSaving(false);
+    }
+  };
 
   const handleLogin = (e) => {
     e.preventDefault();
@@ -1650,6 +1711,82 @@ const AdminDashboard = () => {
                         </strong>
                       </li>
                     </ul>
+                  </section>
+                )}
+
+                {detailTab === "overview" && (
+                  <section className="admin-modal-section">
+                    <h3>Request pricing</h3>
+                    <p className="subtitle" style={{ marginBottom: "12px", lineHeight: 1.45 }}>
+                      Admin-controlled prices shown to customers on the public request page.
+                    </p>
+                    <div className="admin-pricing-form">
+                      <label className="admin-pricing-field">
+                        <span>Spotify/Jukebox Price (£)</span>
+                        <input
+                          type="number"
+                          min="0.01"
+                          max="100"
+                          step="0.01"
+                          value={pricingForm.spotifyJukeboxPrice}
+                          onChange={(e) =>
+                            setPricingForm((prev) => ({
+                              ...prev,
+                              spotifyJukeboxPrice: e.target.value,
+                            }))
+                          }
+                        />
+                      </label>
+                      <label className="admin-pricing-field">
+                        <span>DJ Normal Price (£)</span>
+                        <input
+                          type="number"
+                          min="0.01"
+                          max="100"
+                          step="0.01"
+                          value={pricingForm.djNormalPrice}
+                          onChange={(e) =>
+                            setPricingForm((prev) => ({
+                              ...prev,
+                              djNormalPrice: e.target.value,
+                            }))
+                          }
+                        />
+                      </label>
+                      <label className="admin-pricing-field">
+                        <span>DJ Priority Price (£)</span>
+                        <input
+                          type="number"
+                          min="0.01"
+                          max="100"
+                          step="0.01"
+                          value={pricingForm.djPriorityPrice}
+                          onChange={(e) =>
+                            setPricingForm((prev) => ({
+                              ...prev,
+                              djPriorityPrice: e.target.value,
+                            }))
+                          }
+                        />
+                      </label>
+                    </div>
+                    {pricingError && (
+                      <p className="admin-pricing-error" role="alert">
+                        {pricingError}
+                      </p>
+                    )}
+                    {pricingMessage && (
+                      <p className="admin-pricing-success">{pricingMessage}</p>
+                    )}
+                    <button
+                      type="button"
+                      className="admin-download-btn"
+                      onClick={handleSaveVenuePricing}
+                      disabled={pricingSaving}
+                      style={{ marginTop: "12px" }}
+                    >
+                      {pricingSaving ? "Saving…" : "Save pricing"}
+                    </button>
                   </section>
                 )}
 

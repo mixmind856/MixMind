@@ -22,6 +22,11 @@ const VenueSchema = new Schema(
     
     // Payments - Stripe
     stripeId: { type: String }, // Stripe customer ID for processing payments
+
+    // Request pricing (admin-controlled, GBP)
+    spotifyJukeboxPrice: { type: Number, default: 1.0 },
+    djNormalPrice: { type: Number, default: 2.0 },
+    djPriorityPrice: { type: Number, default: 4.99 },
     
     // DJ Mode
     djMode: { type: Boolean, default: false },

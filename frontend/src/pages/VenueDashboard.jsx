@@ -4,6 +4,7 @@ import axios from "axios";
 import DJAccessManagement from "../components/DJAccessManagement";
 import logo from "../assets/Mixmind.jpeg";
 import { Music, Zap, Award, Flame, Info } from "lucide-react";
+import { resolveVenuePrices, formatGbp } from "../utils/venuePricing";
 
 export default function VenueDashboard() {
   const navigate = useNavigate();
@@ -886,6 +887,34 @@ export default function VenueDashboard() {
           </div>
         </div>
 
+        {/* Request Pricing (read-only) */}
+        <div className="bg-gradient-to-r from-emerald-900/20 to-teal-900/20 border border-emerald-500/30 rounded-xl p-8 mb-12">
+          <h2 className="text-2xl font-bold mb-2">Request Pricing</h2>
+          <p className="text-gray-400 mb-6">
+            Prices shown to customers. Contact MixMind admin to change these rates.
+          </p>
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+            <div className="bg-black/20 rounded-lg p-4 border border-white/10">
+              <p className="text-sm text-gray-400 mb-1">Spotify/Jukebox Price</p>
+              <p className="text-2xl font-bold text-emerald-300">
+                {formatGbp(resolveVenuePrices(venue).spotifyJukeboxPrice)}
+              </p>
+            </div>
+            <div className="bg-black/20 rounded-lg p-4 border border-white/10">
+              <p className="text-sm text-gray-400 mb-1">DJ Normal Price</p>
+              <p className="text-2xl font-bold text-purple-300">
+                {formatGbp(resolveVenuePrices(venue).djNormalPrice)}
+              </p>
+            </div>
+            <div className="bg-black/20 rounded-lg p-4 border border-white/10">
+              <p className="text-sm text-gray-400 mb-1">DJ Priority Price</p>
+              <p className="text-2xl font-bold text-amber-300">
+                {formatGbp(resolveVenuePrices(venue).djPriorityPrice)}
+              </p>
+            </div>
+          </div>
+        </div>
+
         {/* DJ Mode Control */}
         <div className={`bg-gradient-to-r ${djMode ? 'from-purple-900/30 to-pink-900/30 border-purple-500/30' : 'from-gray-900/30 to-gray-900/30 border-gray-500/30'} border rounded-xl p-8 mb-12`}>
           <div className="flex items-center justify-between flex-wrap gap-6">
@@ -918,7 +947,7 @@ export default function VenueDashboard() {
             <div>
               <h2 className="text-2xl font-bold mb-2">Spotify Mode</h2>
               <p className="text-gray-400">
-                Customers search Spotify songs and pay £1.69 per approved request.
+                Customers search Spotify songs and pay {formatGbp(resolveVenuePrices(venue).spotifyJukeboxPrice)} per approved request.
               </p>
               <p className={`text-sm mt-2 ${spotifyMode ? "text-violet-300" : "text-gray-500"}`}>
                 {spotifyMode ? "Spotify Mode is ON" : "Spotify Mode is OFF"}

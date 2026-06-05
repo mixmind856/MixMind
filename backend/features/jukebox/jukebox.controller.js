@@ -5,6 +5,7 @@ const stripeService = require("../../services/stripeJukebox.service");
 const { getTrackGenreTags } = require("../../services/lastfmGenreService");
 const { mapVenueGenresToTags, normalizeTag } = require("./genreMap");
 const mongoose = require("mongoose");
+const { resolveVenuePrices, toPence } = require("../../utils/venuePricing");
 
 async function spotifyLogin(req, res) {
   const { venueId, returnTo } = req.query;
@@ -172,14 +173,14 @@ async function createPayment(req, res) {
   }
 
   const venue = await Venue.findById(venueId).select(
-    "isActive spotifyMode spotifyConnected preferredGenres genreCheckBypass"
+    "isActive spotifyMode spotifyConnected preferredGenres genreCheckBypass spotifyJukeboxPrice djNormalPrice djPriorityPrice"
   );
   console.log("[Jukebox create-payment] venue spotifyConnected:", !!venue?.spotifyConnected);
   if (!venue || !venue.isActive) return res.status(404).json({ error: "Venue not found or inactive" });
   if (!venue.spotifyMode) return res.status(400).json({ error: "Spotify mode is disabled for this venue" });
   if (!venue.spotifyConnected) return res.status(400).json({ error: "Venue Spotify account not connected" });
 
-  const amountPence = stripeService.DEFAULT_AMOUNT_PENCE;
+  const amountPence = toPence(resolveVenuePrices(venue).spotifyJukeboxPrice);
 
   try {
     console.log("SPOTIFY MODE FLOW ACTIVE");

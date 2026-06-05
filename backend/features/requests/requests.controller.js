@@ -11,6 +11,7 @@ const axios = require("axios");
 const { pushToStack, getStackSize } = require("../../services/stackService");
 const { createCheckoutSession, createCheckoutSessionDJ, createPaymentIntentDJ } = require("../../features/payments/stripe/stripe.service");
 const couponService = require("../../services/couponService");
+const { resolveRequestPrice } = require("../../utils/venuePricing");
 
 /* -------------------- UTILITY: SLEEP -------------------- */
 function sleep(ms) {
@@ -106,11 +107,10 @@ let appliedCoupon = null;
 let couponDiscountAmount = 0;
 
 if (venueId && venue) {
-  if (djModeEnabled) {
-    finalPrice = isPriority ? 5.99 : 3.0;
-  } else {
-    finalPrice = isPriority ? 2.99 : 1.69;
-  }
+  finalPrice = resolveRequestPrice(venue, {
+    djMode: djModeEnabled,
+    isPriority,
+  });
 
   console.log(`💷 PRICING CALCULATION:`);
   console.log(`   DJ Mode: ${djModeEnabled ? "ON" : "OFF"}`);

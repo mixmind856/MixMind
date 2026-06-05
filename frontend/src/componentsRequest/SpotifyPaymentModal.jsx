@@ -23,7 +23,7 @@ function CheckoutForm({ requestId, amountPence, onSuccess, onError }) {
   const elements = useElements();
   const [processing, setProcessing] = useState(false);
   const [errorMsg, setErrorMsg] = useState("");
-  const safeAmountPence = amountPence || 169;
+  const safeAmountPence = amountPence || 100;
 
   const handleSubmit = async (e) => {
     e.preventDefault();

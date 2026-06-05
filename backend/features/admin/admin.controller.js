@@ -23,6 +23,10 @@ const { buildMoneyVenues, buildMoneyVenue } = require("../../services/adminMoney
 const Request = require("../../models/Request");
 const Payment = require("../../models/Payment");
 const Venue = require("../../models/Venue");
+const {
+  resolveVenuePrices,
+  validatePricingField,
+} = require("../../utils/venuePricing");
 
 // Import queues
 const beatsourceQueue = require("../../queues/beatsourceQueue");
@@ -499,6 +503,54 @@ async function getMoneyVenue(req, res) {
   }
 }
 
+async function updateVenuePricing(req, res) {
+  try {
+    const { venueId } = req.params;
+    const { spotifyJukeboxPrice, djNormalPrice, djPriorityPrice } = req.body;
+
+    const fields = [
+      ["spotifyJukeboxPrice", spotifyJukeboxPrice],
+      ["djNormalPrice", djNormalPrice],
+      ["djPriorityPrice", djPriorityPrice],
+    ];
+
+    for (const [name, value] of fields) {
+      const err = validatePricingField(value, name);
+      if (err) {
+        return res.status(400).json({ error: err });
+      }
+    }
+
+    const venue = await Venue.findByIdAndUpdate(
+      venueId,
+      {
+        spotifyJukeboxPrice: Number(spotifyJukeboxPrice),
+        djNormalPrice: Number(djNormalPrice),
+        djPriorityPrice: Number(djPriorityPrice),
+      },
+      { new: true }
+    ).select("name spotifyJukeboxPrice djNormalPrice djPriorityPrice");
+
+    if (!venue) {
+      return res.status(404).json({ error: "Venue not found" });
+    }
+
+    const prices = resolveVenuePrices(venue);
+
+    res.json({
+      message: "Venue pricing updated",
+      venue: {
+        id: String(venue._id),
+        name: venue.name,
+        ...prices,
+      },
+    });
+  } catch (err) {
+    console.error("Update Venue Pricing Error:", err.message);
+    res.status(500).json({ error: "Internal server error" });
+  }
+}
+
 module.exports = {
   listVenueRequests,
   approveRequest,
@@ -516,5 +568,6 @@ module.exports = {
   getAnalyticsFunnel,
   getAnalyticsVenue,
   getMoneyVenues,
-  getMoneyVenue
+  getMoneyVenue,
+  updateVenuePricing,
 };
