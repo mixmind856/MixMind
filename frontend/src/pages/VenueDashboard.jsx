@@ -855,34 +855,6 @@ export default function VenueDashboard() {
           </div>
         </div>
 
-        {/* Request Pricing (read-only) */}
-        <div className="bg-gradient-to-r from-emerald-900/20 to-teal-900/20 border border-emerald-500/30 rounded-xl p-8 mb-12">
-          <h2 className="text-2xl font-bold mb-2">Request Pricing</h2>
-          <p className="text-gray-400 mb-6">
-            Prices shown to customers. Contact MixMind admin to change these rates.
-          </p>
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-            <div className="bg-black/20 rounded-lg p-4 border border-white/10">
-              <p className="text-sm text-gray-400 mb-1">Spotify/Jukebox Price</p>
-              <p className="text-2xl font-bold text-emerald-300">
-                {formatGbp(resolveVenuePrices(venue).spotifyJukeboxPrice)}
-              </p>
-            </div>
-            <div className="bg-black/20 rounded-lg p-4 border border-white/10">
-              <p className="text-sm text-gray-400 mb-1">DJ Normal Price</p>
-              <p className="text-2xl font-bold text-purple-300">
-                {formatGbp(resolveVenuePrices(venue).djNormalPrice)}
-              </p>
-            </div>
-            <div className="bg-black/20 rounded-lg p-4 border border-white/10">
-              <p className="text-sm text-gray-400 mb-1">DJ Priority Price</p>
-              <p className="text-2xl font-bold text-amber-300">
-                {formatGbp(resolveVenuePrices(venue).djPriorityPrice)}
-              </p>
-            </div>
-          </div>
-        </div>
-
         {/* DJ Mode Control */}
         <div className={`bg-gradient-to-r ${djMode ? 'from-purple-900/30 to-pink-900/30 border-purple-500/30' : 'from-gray-900/30 to-gray-900/30 border-gray-500/30'} border rounded-xl p-8 mb-12`}>
           <div className="flex items-center justify-between flex-wrap gap-6">
@@ -1148,31 +1120,13 @@ export default function VenueDashboard() {
               <p className="text-gray-400 text-sm mb-2">Rejected</p>
               <p className="text-3xl font-bold text-red-400">{stats.rejectedRequests}</p>
             </div>
-            <div className="bg-white/5 backdrop-blur-md border border-purple-500/20 rounded-xl p-6 hover:border-yellow-500/40 transition-all">
-              <p className="text-gray-400 text-sm mb-2">Pending DJ Decision</p>
-              <p className="text-3xl font-bold text-yellow-400">{stats.pendingDjRequests}</p>
-            </div>
-            <div className="bg-white/5 backdrop-blur-md border border-purple-500/20 rounded-xl p-6 hover:border-orange-500/40 transition-all">
-              <p className="text-gray-400 text-sm mb-2">Unpaid / Abandoned</p>
-              <p className="text-3xl font-bold text-orange-400">{stats.unpaidAbandonedRequests}</p>
-            </div>
-          </div>
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mt-6">
             <div className="bg-white/5 backdrop-blur-md border border-blue-500/20 rounded-xl p-6">
               <p className="text-gray-400 text-sm mb-2">Earned Revenue</p>
               <p className="text-2xl font-bold text-blue-400">£{stats.earnedRevenue.toFixed(2)}</p>
             </div>
-            <div className="bg-white/5 backdrop-blur-md border border-yellow-500/20 rounded-xl p-6">
-              <p className="text-gray-400 text-sm mb-2">Pending Revenue</p>
-              <p className="text-2xl font-bold text-yellow-400">£{stats.pendingRevenue.toFixed(2)}</p>
-            </div>
             <div className="bg-white/5 backdrop-blur-md border border-red-500/20 rounded-xl p-6">
               <p className="text-gray-400 text-sm mb-2">Lost / Refunded</p>
               <p className="text-2xl font-bold text-red-400">£{stats.lostRevenue.toFixed(2)}</p>
-            </div>
-            <div className="bg-white/5 backdrop-blur-md border border-emerald-500/20 rounded-xl p-6">
-              <p className="text-gray-400 text-sm mb-2">Potential Revenue</p>
-              <p className="text-2xl font-bold text-emerald-400">£{stats.potentialRevenue.toFixed(2)}</p>
             </div>
           </div>
           <p className="text-xs text-gray-500 mt-4">💡 Auto-refreshes every 10 seconds</p>
@@ -1197,14 +1151,6 @@ export default function VenueDashboard() {
               <div className="bg-black/20 border border-red-500/20 rounded-lg p-4">
                 <p className="text-gray-400 text-sm">Rejected</p>
                 <p className="text-2xl font-bold text-red-300">{jukeboxStats.rejectedRequests}</p>
-              </div>
-              <div className="bg-black/20 border border-yellow-500/20 rounded-lg p-4">
-                <p className="text-gray-400 text-sm">Pending</p>
-                <p className="text-2xl font-bold text-yellow-300">{jukeboxStats.pendingDjRequests}</p>
-              </div>
-              <div className="bg-black/20 border border-orange-500/20 rounded-lg p-4">
-                <p className="text-gray-400 text-sm">Unpaid / Abandoned</p>
-                <p className="text-2xl font-bold text-orange-300">{jukeboxStats.unpaidAbandonedRequests}</p>
               </div>
               <div className="bg-black/20 border border-emerald-500/20 rounded-lg p-4">
                 <p className="text-gray-400 text-sm">Earned revenue</p>
