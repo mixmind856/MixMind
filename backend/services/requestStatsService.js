@@ -49,6 +49,20 @@ function isJukeboxAcceptedSong(r) {
   return r.status === "queued" && r.paymentStatus === "succeeded";
 }
 
+/** MixMind requests that never entered paid flow are excluded from all dashboard stats. */
+function isMixMindStatsEligible(r) {
+  const ps = r.paymentStatus;
+  if (!ps || ps === "unpaid") return false;
+  return MIXMIND_PAID_PAYMENT_STATUSES.includes(ps);
+}
+
+/** Jukebox requests that never entered paid flow are excluded from all dashboard stats. */
+function isJukeboxStatsEligible(r) {
+  const ps = r.paymentStatus;
+  if (!ps) return false;
+  return JUKEBOX_PAID_PAYMENT_STATUSES.includes(ps);
+}
+
 function emptyStats() {
   return {
     totalRequests: 0,
@@ -121,6 +135,7 @@ function classifyMixMindRequest(r) {
 
   return {
     bucket,
+    includeInStats: isMixMindStatsEligible(r),
     potentialRevenue: roundMoney(potentialRevenue),
     earnedRevenue: roundMoney(earnedRevenue),
     lostRevenue: roundMoney(lostRevenue),
@@ -168,6 +183,7 @@ function classifyJukeboxRequest(r) {
 
   return {
     bucket,
+    includeInStats: isJukeboxStatsEligible(r),
     potentialRevenue: roundMoney(potentialRevenue),
     earnedRevenue: roundMoney(earnedRevenue),
     lostRevenue: roundMoney(lostRevenue),
@@ -177,6 +193,9 @@ function classifyJukeboxRequest(r) {
 }
 
 function statsFromMixMindClassification(c) {
+  if (c.includeInStats === false) {
+    return emptyStats();
+  }
   const stats = emptyStats();
   stats.totalRequests = 1;
   if (c.bucket === "accepted") stats.acceptedRequests = 1;
@@ -335,6 +354,8 @@ module.exports = {
   jukeboxRequestAmount,
   isDjAcceptedSong,
   isJukeboxAcceptedSong,
+  isMixMindStatsEligible,
+  isJukeboxStatsEligible,
   classifyMixMindRequest,
   classifyJukeboxRequest,
   statsFromMixMindClassification,
