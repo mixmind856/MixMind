@@ -1129,9 +1129,7 @@ export default function VenueDashboard() {
               </div>
               <div className="bg-black/20 border border-red-500/20 rounded-lg p-4">
                 <p className="text-gray-400 text-sm">Rejected Requests</p>
-                <p className="text-2xl font-bold text-red-300">
-                  {(mixmindStats.rejectedRequests || 0) + (mixmindStats.unpaidAbandonedRequests || 0)}
-                </p>
+                <p className="text-2xl font-bold text-red-300">{mixmindStats.rejectedRequests}</p>
               </div>
               <div className="bg-black/20 border border-yellow-500/20 rounded-lg p-4">
                 <p className="text-gray-400 text-sm">Pending Requests</p>
@@ -1163,27 +1161,25 @@ export default function VenueDashboard() {
             )}
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
               <div className="bg-black/20 border border-purple-500/20 rounded-lg p-4">
-                <p className="text-gray-400 text-sm">Total song requests</p>
+                <p className="text-gray-400 text-sm">Total Requests</p>
                 <p className="text-2xl font-bold text-purple-300">{jukeboxStats.totalRequests}</p>
               </div>
               <div className="bg-black/20 border border-green-500/20 rounded-lg p-4">
-                <p className="text-gray-400 text-sm">Accepted</p>
+                <p className="text-gray-400 text-sm">Accepted Requests</p>
                 <p className="text-2xl font-bold text-green-300">{jukeboxStats.acceptedRequests}</p>
               </div>
               <div className="bg-black/20 border border-red-500/20 rounded-lg p-4">
-                <p className="text-gray-400 text-sm">Rejected</p>
+                <p className="text-gray-400 text-sm">Rejected Requests</p>
                 <p className="text-2xl font-bold text-red-300">{jukeboxStats.rejectedRequests}</p>
               </div>
-              <div className="bg-black/20 border border-yellow-500/20 rounded-lg p-4">
-                <p className="text-gray-400 text-sm">Pending</p>
-                <p className="text-2xl font-bold text-yellow-300">{jukeboxStats.pendingDjRequests}</p>
-              </div>
-              <div className="bg-black/20 border border-orange-500/20 rounded-lg p-4">
-                <p className="text-gray-400 text-sm">Unpaid / Abandoned</p>
-                <p className="text-2xl font-bold text-orange-300">{jukeboxStats.unpaidAbandonedRequests}</p>
+              <div className="bg-black/20 border border-blue-500/20 rounded-lg p-4">
+                <p className="text-gray-400 text-sm">Potential Revenue</p>
+                <p className="text-2xl font-bold text-blue-300">
+                  £{((jukeboxStats.earnedRevenue || 0) + (jukeboxStats.lostRevenue || 0)).toFixed(2)}
+                </p>
               </div>
               <div className="bg-black/20 border border-emerald-500/20 rounded-lg p-4">
-                <p className="text-gray-400 text-sm">Earned revenue</p>
+                <p className="text-gray-400 text-sm">Earned Revenue</p>
                 <p className="text-2xl font-bold text-emerald-300">£{jukeboxStats.earnedRevenue.toFixed(2)}</p>
               </div>
             </div>
