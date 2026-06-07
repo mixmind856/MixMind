@@ -1025,6 +1025,26 @@ const AdminDashboard = () => {
                   <p>Accepted Requests</p>
                 </div>
               </div>
+              <div className="summary-card money-card-green">
+                <div className="card-header">
+                  <CheckCircle size={22} />
+                  <span className="badge money-badge-green">DB</span>
+                </div>
+                <div className="card-content">
+                  <h3 className="money-value-green">{moneyTotals.djAcceptedSongs ?? 0}</h3>
+                  <p>Total DJ Accepted</p>
+                </div>
+              </div>
+              <div className="summary-card money-card-green">
+                <div className="card-header">
+                  <CheckCircle size={22} />
+                  <span className="badge money-badge-green">DB</span>
+                </div>
+                <div className="card-content">
+                  <h3 className="money-value-green">{moneyTotals.jukeboxAcceptedSongs ?? 0}</h3>
+                  <p>Total Jukebox Accepted</p>
+                </div>
+              </div>
               <div className="summary-card money-card-red">
                 <div className="card-header">
                   <XCircle size={22} />
@@ -1126,6 +1146,14 @@ const AdminDashboard = () => {
                       <div className="admin-money-metric money-value-green">
                         <span>Accepted</span>
                         <strong>{row.acceptedRequests ?? 0}</strong>
+                      </div>
+                      <div className="admin-money-metric money-value-green">
+                        <span>DJ Accepted</span>
+                        <strong>{row.djAcceptedSongs ?? 0}</strong>
+                      </div>
+                      <div className="admin-money-metric money-value-green">
+                        <span>Jukebox Accepted</span>
+                        <strong>{row.jukeboxAcceptedSongs ?? 0}</strong>
                       </div>
                       <div className="admin-money-metric money-value-red">
                         <span>Rejected</span>

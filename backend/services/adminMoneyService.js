@@ -12,6 +12,8 @@ const {
   fetchRequestDocs,
   mixmindRequestAmount,
   jukeboxRequestAmount,
+  isDjAcceptedSong,
+  isJukeboxAcceptedSong,
 } = require("./requestStatsService");
 
 const TZ = "Europe/London";
@@ -130,7 +132,7 @@ async function loadVenueNames(venueIds) {
 }
 
 function aggregateFromDocs(reqDocs, jbDocs, venueMetaById) {
-  const totals = emptyStats();
+  const totals = { ...emptyStats(), djAcceptedSongs: 0, jukeboxAcceptedSongs: 0 };
   const mixmind = emptyStats();
   const jukebox = emptyStats();
   const byVenue = new Map();
@@ -146,6 +148,8 @@ function aggregateFromDocs(reqDocs, jbDocs, venueMetaById) {
         venueName: meta.name || "Unknown venue",
         isActive: meta.isActive !== undefined ? meta.isActive : true,
         ...emptyStats(),
+        djAcceptedSongs: 0,
+        jukeboxAcceptedSongs: 0,
       });
     }
     return byVenue.get(key);
@@ -159,7 +163,12 @@ function aggregateFromDocs(reqDocs, jbDocs, venueMetaById) {
     const processed = processMixMindRequest(r, venueName);
     addStats(totals, processed.stats);
     addStats(mixmind, processed.stats);
-    addStats(ensureVenue(vid), processed.stats);
+    const venueRow = ensureVenue(vid);
+    addStats(venueRow, processed.stats);
+    if (isDjAcceptedSong(r)) {
+      totals.djAcceptedSongs += 1;
+      venueRow.djAcceptedSongs += 1;
+    }
     recentRequests.push(processed.recent);
     reportRows.push(processed.reportRow);
   }
@@ -171,7 +180,12 @@ function aggregateFromDocs(reqDocs, jbDocs, venueMetaById) {
     const processed = processJukeboxRequest(r, venueName);
     addStats(totals, processed.stats);
     addStats(jukebox, processed.stats);
-    addStats(ensureVenue(vid), processed.stats);
+    const venueRow = ensureVenue(vid);
+    addStats(venueRow, processed.stats);
+    if (isJukeboxAcceptedSong(r)) {
+      totals.jukeboxAcceptedSongs += 1;
+      venueRow.jukeboxAcceptedSongs += 1;
+    }
     recentRequests.push(processed.recent);
     reportRows.push(processed.reportRow);
   }

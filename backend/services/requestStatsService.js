@@ -41,6 +41,14 @@ function jukeboxRequestAmount(r) {
   return (Number(r.amountPence) || 0) / 100;
 }
 
+function isDjAcceptedSong(r) {
+  return !!r.djApprovedAt;
+}
+
+function isJukeboxAcceptedSong(r) {
+  return r.status === "queued" && r.paymentStatus === "succeeded";
+}
+
 function emptyStats() {
   return {
     totalRequests: 0,
@@ -325,6 +333,8 @@ module.exports = {
   pct,
   mixmindRequestAmount,
   jukeboxRequestAmount,
+  isDjAcceptedSong,
+  isJukeboxAcceptedSong,
   classifyMixMindRequest,
   classifyJukeboxRequest,
   statsFromMixMindClassification,
