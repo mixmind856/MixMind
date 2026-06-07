@@ -58,18 +58,20 @@ export default function VenueDashboard() {
     "70S",
     "SOUL"
   ]);
-  const emptyRequestStats = () => ({
-    totalRequests: 0,
-    acceptedRequests: 0,
-    rejectedRequests: 0,
-    pendingDjRequests: 0,
-    unpaidAbandonedRequests: 0,
-    potentialRevenue: 0,
-    earnedRevenue: 0,
-    lostRevenue: 0,
-    pendingRevenue: 0,
+  const parseRequestStats = (obj = {}) => ({
+    totalRequests: Number(obj.totalRequests || 0),
+    acceptedRequests: Number(obj.acceptedRequests || 0),
+    rejectedRequests: Number(obj.rejectedRequests || 0),
+    pendingDjRequests: Number(obj.pendingDjRequests || 0),
+    unpaidAbandonedRequests: Number(obj.unpaidAbandonedRequests || 0),
+    potentialRevenue: Number(obj.potentialRevenue || 0),
+    earnedRevenue: Number(obj.earnedRevenue || 0),
+    lostRevenue: Number(obj.lostRevenue || 0),
+    pendingRevenue: Number(obj.pendingRevenue || 0),
   });
-  const [stats, setStats] = useState(emptyRequestStats());
+  const emptyRequestStats = () => parseRequestStats();
+  const [mixmindStats, setMixmindStats] = useState(emptyRequestStats());
+  const [totalEarnedRevenue, setTotalEarnedRevenue] = useState(0);
   const [jukeboxStats, setJukeboxStats] = useState(emptyRequestStats());
   const [jukeboxStatsError, setJukeboxStatsError] = useState("");
   const [refreshing, setRefreshing] = useState(false);
@@ -154,32 +156,13 @@ export default function VenueDashboard() {
 
       if (statsRes.ok) {
         const statsData = await statsRes.json();
-        setStats({
-          totalRequests: Number(statsData.totalRequests || 0),
-          acceptedRequests: Number(statsData.acceptedRequests || 0),
-          rejectedRequests: Number(statsData.rejectedRequests || 0),
-          pendingDjRequests: Number(statsData.pendingDjRequests || 0),
-          unpaidAbandonedRequests: Number(statsData.unpaidAbandonedRequests || 0),
-          potentialRevenue: Number(statsData.potentialRevenue || 0),
-          earnedRevenue: Number(statsData.earnedRevenue || 0),
-          lostRevenue: Number(statsData.lostRevenue || 0),
-          pendingRevenue: Number(statsData.pendingRevenue || 0),
-        });
-        const jb = statsData.jukebox || {};
-        setJukeboxStats({
-          totalRequests: Number(jb.totalRequests || 0),
-          acceptedRequests: Number(jb.acceptedRequests || 0),
-          rejectedRequests: Number(jb.rejectedRequests || 0),
-          pendingDjRequests: Number(jb.pendingDjRequests || 0),
-          unpaidAbandonedRequests: Number(jb.unpaidAbandonedRequests || 0),
-          potentialRevenue: Number(jb.potentialRevenue || 0),
-          earnedRevenue: Number(jb.earnedRevenue || 0),
-          lostRevenue: Number(jb.lostRevenue || 0),
-          pendingRevenue: Number(jb.pendingRevenue || 0),
-        });
+        setMixmindStats(parseRequestStats(statsData.mixmind));
+        setTotalEarnedRevenue(Number(statsData.earnedRevenue || 0));
+        setJukeboxStats(parseRequestStats(statsData.jukebox));
         setJukeboxStatsError("");
       } else {
-        setStats(emptyRequestStats());
+        setMixmindStats(emptyRequestStats());
+        setTotalEarnedRevenue(0);
         setJukeboxStats(emptyRequestStats());
         setJukeboxStatsError("Unable to load request stats");
       }
@@ -1122,51 +1105,53 @@ export default function VenueDashboard() {
           </div>
         </div>
 
-        {/* Stats Grid */}
+        {/* DJ Mode Stats (MixMind only) */}
         <div className="mb-12">
-          <div className="flex justify-between items-center mb-6">
-            <h2 className="text-2xl font-bold">📊 Live Stats</h2>
-            <button
-              onClick={handleRefreshStats}
-              disabled={refreshing}
-              className="px-4 py-2 bg-purple-600 hover:bg-purple-700 text-white rounded-lg font-semibold transition-all disabled:opacity-50"
-            >
-              {refreshing ? "⟳ Refreshing..." : "⟳ Refresh"}
-            </button>
+          <div className="bg-white/5 backdrop-blur-md border border-violet-500/30 rounded-xl p-8">
+            <div className="flex justify-between items-center mb-6">
+              <h2 className="text-2xl font-bold">DJ Mode Stats</h2>
+              <button
+                onClick={handleRefreshStats}
+                disabled={refreshing}
+                className="px-4 py-2 bg-purple-600 hover:bg-purple-700 text-white rounded-lg font-semibold transition-all disabled:opacity-50"
+              >
+                {refreshing ? "⟳ Refreshing..." : "⟳ Refresh"}
+              </button>
+            </div>
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+              <div className="bg-black/20 border border-purple-500/20 rounded-lg p-4">
+                <p className="text-gray-400 text-sm">Total Requests</p>
+                <p className="text-2xl font-bold text-purple-300">{mixmindStats.totalRequests}</p>
+              </div>
+              <div className="bg-black/20 border border-green-500/20 rounded-lg p-4">
+                <p className="text-gray-400 text-sm">Accepted Requests</p>
+                <p className="text-2xl font-bold text-green-300">{mixmindStats.acceptedRequests}</p>
+              </div>
+              <div className="bg-black/20 border border-red-500/20 rounded-lg p-4">
+                <p className="text-gray-400 text-sm">Rejected Requests</p>
+                <p className="text-2xl font-bold text-red-300">
+                  {(mixmindStats.rejectedRequests || 0) + (mixmindStats.unpaidAbandonedRequests || 0)}
+                </p>
+              </div>
+              <div className="bg-black/20 border border-yellow-500/20 rounded-lg p-4">
+                <p className="text-gray-400 text-sm">Pending Requests</p>
+                <p className="text-2xl font-bold text-yellow-300">{mixmindStats.pendingDjRequests}</p>
+              </div>
+              <div className="bg-black/20 border border-red-500/20 rounded-lg p-4">
+                <p className="text-gray-400 text-sm">Lost Revenue</p>
+                <p className="text-2xl font-bold text-red-300">£{mixmindStats.lostRevenue.toFixed(2)}</p>
+              </div>
+              <div className="bg-black/20 border border-blue-500/20 rounded-lg p-4">
+                <p className="text-gray-400 text-sm">Potential Revenue</p>
+                <p className="text-2xl font-bold text-blue-300">£{mixmindStats.potentialRevenue.toFixed(2)}</p>
+              </div>
+              <div className="bg-black/20 border border-emerald-500/20 rounded-lg p-4">
+                <p className="text-gray-400 text-sm">Earned Revenue</p>
+                <p className="text-2xl font-bold text-emerald-300">£{mixmindStats.earnedRevenue.toFixed(2)}</p>
+              </div>
+            </div>
+            <p className="text-xs text-gray-500 mt-4">💡 Auto-refreshes every 10 seconds</p>
           </div>
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-            <div className="bg-white/5 backdrop-blur-md border border-purple-500/20 rounded-xl p-6 hover:border-purple-500/40 transition-all">
-              <p className="text-gray-400 text-sm mb-2">Total Requests</p>
-              <p className="text-3xl font-bold text-purple-400">{stats.totalRequests}</p>
-            </div>
-            <div className="bg-white/5 backdrop-blur-md border border-purple-500/20 rounded-xl p-6 hover:border-green-500/40 transition-all">
-              <p className="text-gray-400 text-sm mb-2">Accepted Requests</p>
-              <p className="text-3xl font-bold text-green-400">{stats.acceptedRequests}</p>
-            </div>
-            <div className="bg-white/5 backdrop-blur-md border border-purple-500/20 rounded-xl p-6 hover:border-red-500/40 transition-all">
-              <p className="text-gray-400 text-sm mb-2">Rejected Requests</p>
-              <p className="text-3xl font-bold text-red-400">
-                {(stats.rejectedRequests || 0) + (stats.unpaidAbandonedRequests || 0)}
-              </p>
-            </div>
-            <div className="bg-white/5 backdrop-blur-md border border-purple-500/20 rounded-xl p-6 hover:border-yellow-500/40 transition-all">
-              <p className="text-gray-400 text-sm mb-2">Pending Requests</p>
-              <p className="text-3xl font-bold text-yellow-400">{stats.pendingDjRequests}</p>
-            </div>
-            <div className="bg-white/5 backdrop-blur-md border border-red-500/20 rounded-xl p-6">
-              <p className="text-gray-400 text-sm mb-2">Lost Revenue</p>
-              <p className="text-2xl font-bold text-red-400">£{stats.lostRevenue.toFixed(2)}</p>
-            </div>
-            <div className="bg-white/5 backdrop-blur-md border border-blue-500/20 rounded-xl p-6">
-              <p className="text-gray-400 text-sm mb-2">Potential Revenue</p>
-              <p className="text-2xl font-bold text-blue-400">£{stats.potentialRevenue.toFixed(2)}</p>
-            </div>
-            <div className="bg-white/5 backdrop-blur-md border border-green-500/20 rounded-xl p-6">
-              <p className="text-gray-400 text-sm mb-2">Earned Revenue</p>
-              <p className="text-2xl font-bold text-green-400">£{stats.earnedRevenue.toFixed(2)}</p>
-            </div>
-          </div>
-          <p className="text-xs text-gray-500 mt-4">💡 Auto-refreshes every 10 seconds</p>
         </div>
 
         {/* Spotify/Jukebox Stats */}
@@ -1211,7 +1196,7 @@ export default function VenueDashboard() {
               Total Revenue Earned
             </p>
             <p className="text-4xl md:text-5xl font-bold text-emerald-300">
-              {formatGbp(stats.earnedRevenue)}
+              {formatGbp(totalEarnedRevenue)} 🔥
             </p>
             <p className="text-gray-400 text-sm mt-4 max-w-xl mx-auto">
               Combined earned revenue from MixMind / DJ mode and Spotify Jukebox.
