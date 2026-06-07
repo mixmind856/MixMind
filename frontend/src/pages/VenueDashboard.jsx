@@ -1231,6 +1231,20 @@ export default function VenueDashboard() {
           </div>
         </div>
 
+        <div className="mb-12">
+          <div className="w-full bg-gradient-to-r from-emerald-900/40 via-teal-900/30 to-emerald-900/40 border-2 border-emerald-500/40 rounded-2xl p-8 md:p-10 text-center shadow-lg shadow-emerald-900/20">
+            <p className="text-gray-300 text-sm md:text-base uppercase tracking-wide mb-3">
+              Total Revenue Earned
+            </p>
+            <p className="text-4xl md:text-5xl font-bold text-emerald-300">
+              {formatGbp(stats.earnedRevenue)}
+            </p>
+            <p className="text-gray-400 text-sm mt-4 max-w-xl mx-auto">
+              Combined earned revenue from MixMind / DJ mode and Spotify Jukebox.
+            </p>
+          </div>
+        </div>
+
         {/* Venue Info */}
         {venue && (
           <div className="bg-white/5 backdrop-blur-md border border-purple-500/20 rounded-xl p-8 mb-12">
