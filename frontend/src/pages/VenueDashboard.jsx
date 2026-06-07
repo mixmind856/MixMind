@@ -6,16 +6,6 @@ import logo from "../assets/Mixmind.jpeg";
 import { Music, Zap, Award, Flame, Info } from "lucide-react";
 import { resolveVenuePrices, formatGbp } from "../utils/venuePricing";
 
-/** UI-only visibility toggles — stats fetching and calculations unchanged */
-const VENUE_DASHBOARD_UI = {
-  showRequestPricing: false,
-  liveStats: {
-    showPendingDjDecision: false,
-    showUnpaidAbandoned: false,
-    showPendingRevenue: false,
-  },
-};
-
 export default function VenueDashboard() {
   const navigate = useNavigate();
   const [venue, setVenue] = useState(null);
@@ -865,7 +855,6 @@ export default function VenueDashboard() {
           </div>
         </div>
 
-        {VENUE_DASHBOARD_UI.showRequestPricing && (
         <div className="bg-gradient-to-r from-emerald-900/20 to-teal-900/20 border border-emerald-500/30 rounded-xl p-8 mb-12">
           <h2 className="text-2xl font-bold mb-2">Request Pricing</h2>
           <p className="text-gray-400 mb-6">
@@ -892,7 +881,6 @@ export default function VenueDashboard() {
             </div>
           </div>
         </div>
-        )}
 
         {/* DJ Mode Control */}
         <div className={`bg-gradient-to-r ${djMode ? 'from-purple-900/30 to-pink-900/30 border-purple-500/30' : 'from-gray-900/30 to-gray-900/30 border-gray-500/30'} border rounded-xl p-8 mb-12`}>
@@ -1146,50 +1134,36 @@ export default function VenueDashboard() {
               {refreshing ? "⟳ Refreshing..." : "⟳ Refresh"}
             </button>
           </div>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
             <div className="bg-white/5 backdrop-blur-md border border-purple-500/20 rounded-xl p-6 hover:border-purple-500/40 transition-all">
               <p className="text-gray-400 text-sm mb-2">Total Requests</p>
               <p className="text-3xl font-bold text-purple-400">{stats.totalRequests}</p>
             </div>
             <div className="bg-white/5 backdrop-blur-md border border-purple-500/20 rounded-xl p-6 hover:border-green-500/40 transition-all">
-              <p className="text-gray-400 text-sm mb-2">Accepted</p>
+              <p className="text-gray-400 text-sm mb-2">Accepted Requests</p>
               <p className="text-3xl font-bold text-green-400">{stats.acceptedRequests}</p>
             </div>
             <div className="bg-white/5 backdrop-blur-md border border-purple-500/20 rounded-xl p-6 hover:border-red-500/40 transition-all">
-              <p className="text-gray-400 text-sm mb-2">Rejected</p>
-              <p className="text-3xl font-bold text-red-400">{stats.rejectedRequests}</p>
+              <p className="text-gray-400 text-sm mb-2">Rejected Requests</p>
+              <p className="text-3xl font-bold text-red-400">
+                {(stats.rejectedRequests || 0) + (stats.unpaidAbandonedRequests || 0)}
+              </p>
             </div>
-            {VENUE_DASHBOARD_UI.liveStats.showPendingDjDecision && (
             <div className="bg-white/5 backdrop-blur-md border border-purple-500/20 rounded-xl p-6 hover:border-yellow-500/40 transition-all">
-              <p className="text-gray-400 text-sm mb-2">Pending DJ Decision</p>
+              <p className="text-gray-400 text-sm mb-2">Pending Requests</p>
               <p className="text-3xl font-bold text-yellow-400">{stats.pendingDjRequests}</p>
             </div>
-            )}
-            {VENUE_DASHBOARD_UI.liveStats.showUnpaidAbandoned && (
-            <div className="bg-white/5 backdrop-blur-md border border-purple-500/20 rounded-xl p-6 hover:border-orange-500/40 transition-all">
-              <p className="text-gray-400 text-sm mb-2">Unpaid / Abandoned</p>
-              <p className="text-3xl font-bold text-orange-400">{stats.unpaidAbandonedRequests}</p>
-            </div>
-            )}
-          </div>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mt-6">
-            <div className="bg-white/5 backdrop-blur-md border border-emerald-500/20 rounded-xl p-6">
-              <p className="text-gray-400 text-sm mb-2">Potential Revenue</p>
-              <p className="text-2xl font-bold text-emerald-400">£{stats.potentialRevenue.toFixed(2)}</p>
+            <div className="bg-white/5 backdrop-blur-md border border-red-500/20 rounded-xl p-6">
+              <p className="text-gray-400 text-sm mb-2">Lost Revenue</p>
+              <p className="text-2xl font-bold text-red-400">£{stats.lostRevenue.toFixed(2)}</p>
             </div>
             <div className="bg-white/5 backdrop-blur-md border border-blue-500/20 rounded-xl p-6">
+              <p className="text-gray-400 text-sm mb-2">Potential Revenue</p>
+              <p className="text-2xl font-bold text-blue-400">£{stats.potentialRevenue.toFixed(2)}</p>
+            </div>
+            <div className="bg-white/5 backdrop-blur-md border border-green-500/20 rounded-xl p-6">
               <p className="text-gray-400 text-sm mb-2">Earned Revenue</p>
-              <p className="text-2xl font-bold text-blue-400">£{stats.earnedRevenue.toFixed(2)}</p>
-            </div>
-            {VENUE_DASHBOARD_UI.liveStats.showPendingRevenue && (
-            <div className="bg-white/5 backdrop-blur-md border border-yellow-500/20 rounded-xl p-6">
-              <p className="text-gray-400 text-sm mb-2">Pending Revenue</p>
-              <p className="text-2xl font-bold text-yellow-400">£{stats.pendingRevenue.toFixed(2)}</p>
-            </div>
-            )}
-            <div className="bg-white/5 backdrop-blur-md border border-red-500/20 rounded-xl p-6">
-              <p className="text-gray-400 text-sm mb-2">Lost / Refunded</p>
-              <p className="text-2xl font-bold text-red-400">£{stats.lostRevenue.toFixed(2)}</p>
+              <p className="text-2xl font-bold text-green-400">£{stats.earnedRevenue.toFixed(2)}</p>
             </div>
           </div>
           <p className="text-xs text-gray-500 mt-4">💡 Auto-refreshes every 10 seconds</p>
