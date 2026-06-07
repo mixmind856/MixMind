@@ -49,18 +49,20 @@ function isJukeboxAcceptedSong(r) {
   return r.status === "queued" && r.paymentStatus === "succeeded";
 }
 
-/** MixMind requests that never entered paid flow are excluded from all dashboard stats. */
-function isMixMindStatsEligible(r) {
-  const ps = r.paymentStatus;
-  if (!ps || ps === "unpaid") return false;
-  return MIXMIND_PAID_PAYMENT_STATUSES.includes(ps);
+/** Exclude only abandoned / never-completed checkouts — not paid pending or rejected outcomes. */
+function isMixMindStatsEligible(r, bucket) {
+  const ps = r.paymentStatus || "unpaid";
+  if (bucket === "unpaid_abandoned") return false;
+  if (!r.paymentStatus || ps === "pending" || ps === "unpaid") return false;
+  return true;
 }
 
-/** Jukebox requests that never entered paid flow are excluded from all dashboard stats. */
-function isJukeboxStatsEligible(r) {
-  const ps = r.paymentStatus;
-  if (!ps) return false;
-  return JUKEBOX_PAID_PAYMENT_STATUSES.includes(ps);
+/** Exclude only abandoned / never-completed checkouts — keep paid rejected and accepted. */
+function isJukeboxStatsEligible(r, bucket) {
+  const ps = (r.paymentStatus || "").trim();
+  if (bucket === "unpaid_abandoned") return false;
+  if (!ps || ps.toLowerCase() === "pending") return false;
+  return true;
 }
 
 function emptyStats() {
@@ -135,7 +137,7 @@ function classifyMixMindRequest(r) {
 
   return {
     bucket,
-    includeInStats: isMixMindStatsEligible(r),
+    includeInStats: isMixMindStatsEligible(r, bucket),
     potentialRevenue: roundMoney(potentialRevenue),
     earnedRevenue: roundMoney(earnedRevenue),
     lostRevenue: roundMoney(lostRevenue),
@@ -183,7 +185,7 @@ function classifyJukeboxRequest(r) {
 
   return {
     bucket,
-    includeInStats: isJukeboxStatsEligible(r),
+    includeInStats: isJukeboxStatsEligible(r, bucket),
     potentialRevenue: roundMoney(potentialRevenue),
     earnedRevenue: roundMoney(earnedRevenue),
     lostRevenue: roundMoney(lostRevenue),
