@@ -10,6 +10,8 @@ const {
   summarizeMixMindRequests,
   summarizeJukeboxRequests,
   mixmindRequestAmount,
+  isDjAcceptedSong,
+  isJukeboxAcceptedSong,
 } = require("./requestStatsService");
 
 function londonYmd(d) {
@@ -497,7 +499,9 @@ async function mergeVenuesFromDbActivity(venues, from, toExclusive) {
       venueFunnelConversionPct: 0,
       visitToPaymentConversion: 0,
       hottestHour: null,
-      sources: {}
+      sources: {},
+      djAcceptedSongs: 0,
+      jukeboxAcceptedSongs: 0,
     });
   }
   return venues;
@@ -561,8 +565,13 @@ async function enrichVenuesWithDbStats(venues, from, toExclusive) {
 
   for (const row of venues) {
     const k = row.venueId;
-    const m = summarizeMixMindRequests(byVenueReq[k] || []);
-    const j = summarizeJukeboxRequests(byVenueJb[k] || []);
+    const reqList = byVenueReq[k] || [];
+    const jbList = byVenueJb[k] || [];
+    const m = summarizeMixMindRequests(reqList);
+    const j = summarizeJukeboxRequests(jbList);
+
+    row.djAcceptedSongs = reqList.filter(isDjAcceptedSong).length;
+    row.jukeboxAcceptedSongs = jbList.filter(isJukeboxAcceptedSong).length;
 
     row.mixmindTotalRequests = m.totalRequests;
     row.mixmindAcceptedCompleted = m.acceptedRequests;
@@ -773,6 +782,8 @@ async function buildVenueAnalyticsDeepDive(venueId, query = {}) {
 
   const mixmind = summarizeMixMindRequests(reqDocs);
   const jukebox = summarizeJukeboxRequests(jbDocs);
+  const djAcceptedSongs = reqDocs.filter(isDjAcceptedSong).length;
+  const jukeboxAcceptedSongs = jbDocs.filter(isJukeboxAcceptedSong).length;
 
   const funnelVenue = venueFunnelRowFromEvents(events, venueId, venue.name);
   const hourlyActivity = venueHourlyFromEvents(events, venueId);
@@ -816,6 +827,8 @@ async function buildVenueAnalyticsDeepDive(venueId, query = {}) {
     funnel: funnelVenue,
     hourlyActivity,
     sources: funnelVenue.sources,
+    djAcceptedSongs,
+    jukeboxAcceptedSongs,
     mixmind: {
       ...mixmind,
       recent: recentMixmind

@@ -923,6 +923,14 @@ const AdminDashboard = () => {
                         <strong>{row.dbRequestCount ?? 0}</strong>
                       </div>
                       <div className="admin-venue-card-stat">
+                        <span>DJ Accepted</span>
+                        <strong>{row.djAcceptedSongs ?? 0}</strong>
+                      </div>
+                      <div className="admin-venue-card-stat">
+                        <span>Jukebox Accepted</span>
+                        <strong>{row.jukeboxAcceptedSongs ?? 0}</strong>
+                      </div>
+                      <div className="admin-venue-card-stat">
                         <span>Rejected (DB)</span>
                         <strong>{rejected}</strong>
                       </div>
@@ -1731,6 +1739,14 @@ const AdminDashboard = () => {
                         </strong>
                       </li>
                       <li>
+                        <span>DJ Accepted</span>
+                        <strong>{detailData.djAcceptedSongs ?? 0}</strong>
+                      </li>
+                      <li>
+                        <span>Jukebox Accepted</span>
+                        <strong>{detailData.jukeboxAcceptedSongs ?? 0}</strong>
+                      </li>
+                      <li>
                         <span>Rejected (DB)</span>
                         <strong>
                           {(detailData.mixmind?.rejectedFailed ?? 0) + (detailData.jukebox?.rejected ?? 0)}
@@ -1939,6 +1955,10 @@ const AdminDashboard = () => {
                           <strong>{detailData.mixmind?.acceptedRequests ?? detailData.mixmind?.acceptedCompleted ?? 0}</strong>
                         </li>
                         <li>
+                          <span>DJ Accepted</span>
+                          <strong>{detailData.djAcceptedSongs ?? 0}</strong>
+                        </li>
+                        <li>
                           <span>Rejected</span>
                           <strong>{detailData.mixmind?.rejectedRequests ?? detailData.mixmind?.rejectedFailed ?? 0}</strong>
                         </li>
@@ -1962,6 +1982,10 @@ const AdminDashboard = () => {
                         <li>
                           <span>Accepted</span>
                           <strong>{detailData.jukebox?.acceptedRequests ?? detailData.jukebox?.queuedSuccess ?? 0}</strong>
+                        </li>
+                        <li>
+                          <span>Jukebox Accepted</span>
+                          <strong>{detailData.jukeboxAcceptedSongs ?? 0}</strong>
                         </li>
                         <li>
                           <span>Rejected</span>
