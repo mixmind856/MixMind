@@ -5,7 +5,7 @@ const DEFAULTS = {
 };
 
 const NON_DJ_PRIORITY_PRICE = 2.99;
-const QUEUE_JUMP_FEE = 1.0;
+const QUEUE_JUMP_FEE = 0.99;
 
 function resolveVenuePrices(venue) {
   return {

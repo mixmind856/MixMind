@@ -294,9 +294,15 @@ const suppressNextSpotifySearchRef = useRef(false);
   }, [spotifyMode, venueId, selectedSpotifyTrack?.trackId]);
 
   const spotifyBasePrice = venue ? resolveVenuePrices(venue).spotifyJukeboxPrice : 0;
-  const spotifyRequestPrice = venue
-    ? resolveSpotifyRequestPrice(venue, { queueJump: spotifyQueueJump })
-    : 0;
+  const customerFinalPrice = spotifyMode
+    ? venue
+      ? resolveSpotifyRequestPrice(venue, {
+          queueJump: Boolean(spotifyChoiceConfirmed && spotifyQueueJump),
+        })
+      : 0
+    : couponData
+      ? couponData.finalPrice
+      : formData.price;
 
   const startSpotifyPayment = async (queueJump = spotifyQueueJump) => {
     if (spotifyPaymentLoading || spotifyPrecheckLoading) {
@@ -817,9 +823,7 @@ console.log("✅ Song request created");
                     Request price
                   </p>
                   <p className="text-lg font-bold text-white">
-                    {formatGbp(
-                      spotifyChoiceConfirmed ? spotifyRequestPrice : spotifyBasePrice
-                    )}
+                    {formatGbp(customerFinalPrice)}
                   </p>
                   {spotifyChoiceConfirmed && spotifyQueueJump && (
                     <p className="text-xs mt-1" style={{ color: "rgba(255,255,255,0.6)" }}>
@@ -1094,14 +1098,16 @@ console.log("✅ Song request created");
               className="mt-6 p-4 rounded-xl"
               style={{ background: "rgba(34,227,161,0.1)", border: "1px solid rgba(34,227,161,0.2)" }}
             >
-              <div className="flex justify-between items-center mb-2">
-                <p className="text-xs" style={{ color: "rgba(255,255,255,0.72)" }}>Base Price</p>
-                <p className="text-sm font-semibold" style={{ color: "rgba(255,255,255,0.72)" }}>
-                  £{formData.price.toFixed(2)}
-                </p>
-              </div>
+              {!spotifyMode && (
+                <div className="flex justify-between items-center mb-2">
+                  <p className="text-xs" style={{ color: "rgba(255,255,255,0.72)" }}>Base Price</p>
+                  <p className="text-sm font-semibold" style={{ color: "rgba(255,255,255,0.72)" }}>
+                    £{formData.price.toFixed(2)}
+                  </p>
+                </div>
+              )}
 
-              {couponData && (
+              {couponData && !spotifyMode && (
                 <>
                   <div
                     className="h-px"
@@ -1124,7 +1130,7 @@ console.log("✅ Song request created");
                   Total to Pay
                 </p>
                 <p className="font-bold text-xl" style={{ color: "#22E3A1" }}>
-                  £{(couponData ? couponData.finalPrice : formData.price).toFixed(2)}
+                  £{Number(customerFinalPrice).toFixed(2)}
                 </p>
               </div>
             </div>

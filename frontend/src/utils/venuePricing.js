@@ -4,7 +4,7 @@ const DEFAULTS = {
   djPriorityPrice: 4.99,
 };
 
-export const QUEUE_JUMP_FEE = 1.0;
+export const QUEUE_JUMP_FEE = 0.99;
 
 export function resolveVenuePrices(venue) {
   return {
