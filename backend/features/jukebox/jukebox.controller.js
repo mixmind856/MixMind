@@ -5,11 +5,15 @@ const stripeService = require("../../services/stripeJukebox.service");
 const { getTrackGenreTags } = require("../../services/lastfmGenreService");
 const { mapVenueGenresToTags, normalizeTag } = require("./genreMap");
 const mongoose = require("mongoose");
-const { resolveVenuePrices, toPence } = require("../../utils/venuePricing");
+const { resolveVenuePrices, resolveSpotifyRequestPrice, toPence } = require("../../utils/venuePricing");
 const {
   fetchRequestDocs,
   aggregateRequestStats,
 } = require("../../services/requestStatsService");
+const {
+  enqueueAfterGenreApproval,
+  getQueueJumpSocialProof,
+} = require("../../services/jukeboxQueueService");
 
 async function spotifyLogin(req, res) {
   const { venueId, returnTo } = req.query;
@@ -170,6 +174,7 @@ async function createPayment(req, res) {
     spotifyUri,
     requesterName,
     requesterEmail,
+    queueJump = false,
   } = req.body;
 
   if (!venueId || !trackId || !trackName || !artistName || !spotifyUri) {
@@ -184,7 +189,10 @@ async function createPayment(req, res) {
   if (!venue.spotifyMode) return res.status(400).json({ error: "Spotify mode is disabled for this venue" });
   if (!venue.spotifyConnected) return res.status(400).json({ error: "Venue Spotify account not connected" });
 
-  const amountPence = toPence(resolveVenuePrices(venue).spotifyJukeboxPrice);
+  const useQueueJump = queueJump === true || queueJump === "true";
+  const amountPence = toPence(
+    resolveSpotifyRequestPrice(venue, { queueJump: useQueueJump })
+  );
 
   try {
     console.log("SPOTIFY MODE FLOW ACTIVE");
@@ -209,6 +217,7 @@ async function createPayment(req, res) {
       venueAllowedGenres: venue.preferredGenres || [],
       stripePaymentIntentId: intent.paymentIntentId,
       amountPence,
+      queueJump: useQueueJump,
       status: "pending_payment",
       requesterName: requesterName || "",
       requesterEmail: requesterEmail || "",
@@ -218,6 +227,7 @@ async function createPayment(req, res) {
       clientSecret: intent.clientSecret,
       requestId: jukeboxReq._id,
       amount: intent.amount,
+      queueJump: useQueueJump,
     });
   } catch (err) {
     return res.status(500).json({ error: "Failed to create payment intent" });
@@ -280,22 +290,23 @@ async function confirmAndProcess(req, res) {
       });
     }
 
-    await spotifyService.addToQueue(jukeboxReq.venueId, jukeboxReq.spotifyUri);
     jukeboxReq.status = "genre_approved";
     await jukeboxReq.save();
 
-    await stripeService.capturePayment(paymentIntentId);
-    jukeboxReq.status = "queued";
-    jukeboxReq.paymentStatus = "succeeded";
-    jukeboxReq.processedAt = new Date();
-    await jukeboxReq.save();
+    await enqueueAfterGenreApproval(jukeboxReq);
+
+    const updatedReq = await JukeboxRequest.findById(requestId);
+    if (!updatedReq || updatedReq.status !== "queued") {
+      throw new Error("Failed to add track to Spotify queue");
+    }
 
     return res.json({
       approved: true,
       status: "queued",
+      queueJump: updatedReq.queueJump,
       detectedGenres: result.detectedGenres,
-      trackName: jukeboxReq.trackName,
-      artistName: jukeboxReq.artistName,
+      trackName: updatedReq.trackName,
+      artistName: updatedReq.artistName,
     });
   } catch (err) {
     try {
@@ -320,6 +331,28 @@ async function confirmAndProcess(req, res) {
       error: "Processing failed. Payment hold released.",
       message: err.message,
     });
+  }
+}
+
+async function getQueueJumpStats(req, res) {
+  try {
+    const { venueId } = req.query;
+    if (!venueId || !mongoose.Types.ObjectId.isValid(venueId)) {
+      return res.status(400).json({ error: "Valid venueId required" });
+    }
+
+    const venue = await Venue.findById(venueId).select("isActive spotifyMode");
+    if (!venue || !venue.isActive) {
+      return res.status(404).json({ error: "Venue not found or inactive" });
+    }
+    if (!venue.spotifyMode) {
+      return res.status(400).json({ error: "Spotify mode is disabled for this venue" });
+    }
+
+    const stats = await getQueueJumpSocialProof(venueId);
+    return res.json(stats);
+  } catch (err) {
+    return res.status(500).json({ error: "Failed to load queue jump stats" });
   }
 }
 
@@ -450,6 +483,7 @@ module.exports = {
   precheckGenre,
   createPayment,
   confirmAndProcess,
+  getQueueJumpStats,
   getJukeboxStats,
   getSpotifyDebugDevices
 };

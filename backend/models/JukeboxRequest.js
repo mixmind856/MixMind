@@ -43,6 +43,7 @@ const jukeboxRequestSchema = new mongoose.Schema(
       ],
       default: "pending_payment",
     },
+    queueJump: { type: Boolean, default: false },
     requesterName: { type: String, default: "" },
     requesterEmail: { type: String, default: "" },
     rejectionReason: { type: String, default: "" },

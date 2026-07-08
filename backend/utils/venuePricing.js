@@ -5,6 +5,7 @@ const DEFAULTS = {
 };
 
 const NON_DJ_PRIORITY_PRICE = 2.99;
+const QUEUE_JUMP_FEE = 1.0;
 
 function resolveVenuePrices(venue) {
   return {
@@ -13,6 +14,14 @@ function resolveVenuePrices(venue) {
     djNormalPrice: venue?.djNormalPrice ?? DEFAULTS.djNormalPrice,
     djPriorityPrice: venue?.djPriorityPrice ?? DEFAULTS.djPriorityPrice,
   };
+}
+
+function resolveSpotifyRequestPrice(venue, { queueJump = false } = {}) {
+  const basePrice = resolveVenuePrices(venue).spotifyJukeboxPrice;
+  if (queueJump) {
+    return basePrice + QUEUE_JUMP_FEE;
+  }
+  return basePrice;
 }
 
 function resolveRequestPrice(venue, { djMode, isPriority }) {
@@ -47,7 +56,9 @@ function validatePricingField(value, fieldName) {
 module.exports = {
   DEFAULTS,
   NON_DJ_PRIORITY_PRICE,
+  QUEUE_JUMP_FEE,
   resolveVenuePrices,
+  resolveSpotifyRequestPrice,
   resolveRequestPrice,
   toPence,
   validatePricingField,

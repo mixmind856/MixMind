@@ -11,8 +11,10 @@ import {
 } from "../services/analyticsService";
 import {
   resolveVenuePrices,
+  resolveSpotifyRequestPrice,
   formatGbp,
   getNormalRequestPrice,
+  QUEUE_JUMP_FEE,
 } from "../utils/venuePricing";
 
 export default function VenuePublicRequest() {
@@ -57,6 +59,10 @@ const [selectedSpotifyTrack, setSelectedSpotifyTrack] = useState(null);
 const [spotifyPrecheckLoading, setSpotifyPrecheckLoading] = useState(false);
 const [spotifyPaymentLoading, setSpotifyPaymentLoading] = useState(false);
 const [spotifyPaymentData, setSpotifyPaymentData] = useState(null);
+const [spotifyQueueJump, setSpotifyQueueJump] = useState(false);
+const [spotifyChoiceConfirmed, setSpotifyChoiceConfirmed] = useState(false);
+const [queueJumpSocialProof, setQueueJumpSocialProof] = useState(null);
+const [requestChoiceMode, setRequestChoiceMode] = useState(null);
 const suppressNextSpotifySearchRef = useRef(false);
   const checkoutLegacyKeyRef = useRef(null);
   const checkoutSpotifyKeyRef = useRef(null);
@@ -260,12 +266,132 @@ const suppressNextSpotifySearchRef = useRef(false);
     return () => clearTimeout(timer);
   }, [spotifyMode, spotifyQuery, venueId, venue?.name]);
 
+  useEffect(() => {
+    if (!spotifyMode || !venueId || !selectedSpotifyTrack) {
+      setQueueJumpSocialProof(null);
+      return;
+    }
+
+    let cancelled = false;
+    const fetchQueueJumpStats = async () => {
+      try {
+        const res = await fetch(
+          `${import.meta.env.VITE_API_URL}/jukebox/queue-jump-stats?venueId=${encodeURIComponent(venueId)}`
+        );
+        const data = await res.json();
+        if (!cancelled && res.ok) {
+          setQueueJumpSocialProof(data);
+        }
+      } catch {
+        if (!cancelled) setQueueJumpSocialProof(null);
+      }
+    };
+
+    fetchQueueJumpStats();
+    return () => {
+      cancelled = true;
+    };
+  }, [spotifyMode, venueId, selectedSpotifyTrack?.trackId]);
+
+  const spotifyBasePrice = venue ? resolveVenuePrices(venue).spotifyJukeboxPrice : 0;
+  const spotifyRequestPrice = venue
+    ? resolveSpotifyRequestPrice(venue, { queueJump: spotifyQueueJump })
+    : 0;
+
+  const startSpotifyPayment = async (queueJump = spotifyQueueJump) => {
+    if (spotifyPaymentLoading || spotifyPrecheckLoading) {
+      return;
+    }
+    if (!selectedSpotifyTrack) {
+      setError("Please select a Spotify track before continuing.");
+      return;
+    }
+    if (!formData.userName?.trim()) {
+      setError("Please enter your name.");
+      return;
+    }
+    if (!formData.phone?.trim()) {
+      setError("Please enter your phone number.");
+      return;
+    }
+
+    setError("");
+    setSpotifyPrecheckLoading(true);
+    setSpotifyPaymentLoading(true);
+
+    try {
+      const precheckRes = await fetch(`${import.meta.env.VITE_API_URL}/jukebox/precheck-genre`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          venueId,
+          trackName: selectedSpotifyTrack.trackName,
+          artistName: selectedSpotifyTrack.artistName
+        })
+      });
+      const precheckData = await precheckRes.json();
+      if (!precheckRes.ok) {
+        throw new Error(precheckData.error || precheckData.reason || "Genre precheck failed");
+      }
+      if (!precheckData.allowed) {
+        setAcceptedGenres(precheckData.allowedGenres || []);
+        setError(precheckData.reason || "This song doesn't fit tonight's music policy.");
+        return;
+      }
+
+      console.log("SPOTIFY MODE FLOW ACTIVE");
+      console.log("Calling /api/jukebox/create-payment");
+      setSpotifyPaymentData(null);
+      const ctxSpotReq = getAnalyticsContext();
+      trackAnalyticsEvent({
+        eventType: "request_started",
+        venueId,
+        venueName: venue?.name,
+        src: ctxSpotReq.src,
+        sessionId: ctxSpotReq.sessionId || getOrCreateSessionId(),
+        metadata: { flow: "spotify", trackId: selectedSpotifyTrack.trackId, queueJump }
+      });
+      const paymentRes = await fetch(`${import.meta.env.VITE_API_URL}/jukebox/create-payment`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          venueId,
+          trackId: selectedSpotifyTrack.trackId,
+          trackName: selectedSpotifyTrack.trackName,
+          artistName: selectedSpotifyTrack.artistName,
+          albumName: selectedSpotifyTrack.albumName,
+          albumArtUrl: selectedSpotifyTrack.albumArtUrl,
+          spotifyUri: selectedSpotifyTrack.spotifyUri,
+          durationMs: selectedSpotifyTrack.durationMs,
+          requesterName: formData.userName.trim(),
+          requesterEmail: formData.email?.trim() || "",
+          queueJump,
+        })
+      });
+      const paymentData = await paymentRes.json();
+      if (!paymentRes.ok) {
+        throw new Error(paymentData.error || "Failed to start payment.");
+      }
+      setSpotifyPaymentData(paymentData);
+    } catch (err) {
+      setSpotifyPaymentData(null);
+      setError(err.message || "Failed to start payment.");
+    } finally {
+      setSpotifyPrecheckLoading(false);
+      setSpotifyPaymentLoading(false);
+    }
+  };
+
   const handleSpotifyTrackSelect = (track) => {
     if (!spotifyMode || submitting) return;
 
     setError("");
     setSpotifyPaymentData(null);
+    setSpotifyQueueJump(false);
+    setSpotifyChoiceConfirmed(false);
     setSelectedSpotifyTrack(track);
+    setRequestChoiceMode("spotify");
+    setShowPriorityChoice(true);
     setFormData((prev) => ({
       ...prev,
       songTitle: track.trackName,
@@ -429,90 +555,21 @@ console.log("✅ Song request created");
     e.preventDefault();
 
     if (spotifyMode) {
-      if (spotifyPaymentLoading || spotifyPrecheckLoading) {
-        return;
-      }
       if (!selectedSpotifyTrack) {
         setError("Please select a Spotify track before continuing.");
         return;
       }
-      if (!formData.userName?.trim()) {
-        setError("Please enter your name.");
+      if (!spotifyChoiceConfirmed) {
+        setRequestChoiceMode("spotify");
+        setShowPriorityChoice(true);
         return;
       }
-      if (!formData.phone?.trim()) {
-        setError("Please enter your phone number.");
-        return;
-      }
-
-      setError("");
-      setSpotifyPrecheckLoading(true);
-      setSpotifyPaymentLoading(true);
-
-      try {
-        const precheckRes = await fetch(`${import.meta.env.VITE_API_URL}/jukebox/precheck-genre`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            venueId,
-            trackName: selectedSpotifyTrack.trackName,
-            artistName: selectedSpotifyTrack.artistName
-          })
-        });
-        const precheckData = await precheckRes.json();
-        if (!precheckRes.ok) {
-          throw new Error(precheckData.error || precheckData.reason || "Genre precheck failed");
-        }
-        if (!precheckData.allowed) {
-          setAcceptedGenres(precheckData.allowedGenres || []);
-          setError(precheckData.reason || "This song doesn't fit tonight's music policy.");
-          return;
-        }
-
-        console.log("SPOTIFY MODE FLOW ACTIVE");
-        console.log("Calling /api/jukebox/create-payment");
-        setSpotifyPaymentData(null);
-        const ctxSpotReq = getAnalyticsContext();
-        trackAnalyticsEvent({
-          eventType: "request_started",
-          venueId,
-          venueName: venue?.name,
-          src: ctxSpotReq.src,
-          sessionId: ctxSpotReq.sessionId || getOrCreateSessionId(),
-          metadata: { flow: "spotify", trackId: selectedSpotifyTrack.trackId }
-        });
-        const paymentRes = await fetch(`${import.meta.env.VITE_API_URL}/jukebox/create-payment`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            venueId,
-            trackId: selectedSpotifyTrack.trackId,
-            trackName: selectedSpotifyTrack.trackName,
-            artistName: selectedSpotifyTrack.artistName,
-            albumName: selectedSpotifyTrack.albumName,
-            albumArtUrl: selectedSpotifyTrack.albumArtUrl,
-            spotifyUri: selectedSpotifyTrack.spotifyUri,
-            durationMs: selectedSpotifyTrack.durationMs,
-            requesterName: formData.userName.trim(),
-            requesterEmail: formData.email?.trim() || ""
-          })
-        });
-        const paymentData = await paymentRes.json();
-        if (!paymentRes.ok) {
-          throw new Error(paymentData.error || "Failed to start payment.");
-        }
-        setSpotifyPaymentData(paymentData);
-      } catch (err) {
-        setSpotifyPaymentData(null);
-        setError(err.message || "Failed to start payment.");
-      } finally {
-        setSpotifyPrecheckLoading(false);
-        setSpotifyPaymentLoading(false);
-      }
+      await startSpotifyPayment(spotifyQueueJump);
       return;
     }
 
     if (venue?.djMode) {
+      setRequestChoiceMode("dj");
       setShowPriorityChoice(true);
       return;
     }
@@ -520,15 +577,43 @@ console.log("✅ Song request created");
     await submitRequest();
   };
 
-  const handlePriorityChoice = async (isPriority) => {
-  if (spotifyMode) {
-    console.warn("SPOTIFY MODE FLOW ACTIVE");
-    console.warn("Blocked DJ priority modal route in Spotify mode");
+  const handleSpotifyQueueChoice = async (isQueueJump) => {
+    setSpotifyQueueJump(isQueueJump);
+    setSpotifyChoiceConfirmed(true);
     setShowPriorityChoice(false);
+    setRequestChoiceMode(null);
+
+    if (formData.userName?.trim() && formData.phone?.trim()) {
+      await startSpotifyPayment(isQueueJump);
+    }
+  };
+
+  const handleCloseRequestChoice = () => {
+    setShowPriorityChoice(false);
+    if (requestChoiceMode === "spotify") {
+      setSelectedSpotifyTrack(null);
+      setSpotifyQueueJump(false);
+      setSpotifyChoiceConfirmed(false);
+      setFormData((prev) => ({
+        ...prev,
+        songTitle: "",
+        artistName: ""
+      }));
+      suppressNextSpotifySearchRef.current = true;
+      setSpotifyQuery("");
+      setSpotifyResults([]);
+      setSpotifySearched(false);
+    }
+    setRequestChoiceMode(null);
+  };
+
+  const handlePriorityChoice = async (isPriority) => {
+  if (spotifyMode || requestChoiceMode === "spotify") {
     return;
   }
   setPriorityRequest(isPriority);
   setShowPriorityChoice(false);
+  setRequestChoiceMode(null);
 
   const prices = resolveVenuePrices(venue);
   const basePrice = prices.djNormalPrice;
@@ -581,6 +666,8 @@ console.log("✅ Song request created");
     }
     setSpotifyPaymentData(null);
     setSelectedSpotifyTrack(null);
+    setSpotifyQueueJump(false);
+    setSpotifyChoiceConfirmed(false);
     setSpotifyResults([]);
     setSpotifyQuery("");
     setFormData((prev) => ({
@@ -730,8 +817,15 @@ console.log("✅ Song request created");
                     Request price
                   </p>
                   <p className="text-lg font-bold text-white">
-                    {formatGbp(resolveVenuePrices(venue).spotifyJukeboxPrice)}
+                    {formatGbp(
+                      spotifyChoiceConfirmed ? spotifyRequestPrice : spotifyBasePrice
+                    )}
                   </p>
+                  {spotifyChoiceConfirmed && spotifyQueueJump && (
+                    <p className="text-xs mt-1" style={{ color: "rgba(255,255,255,0.6)" }}>
+                      Includes {formatGbp(QUEUE_JUMP_FEE)} Queue Jump
+                    </p>
+                  )}
                 </div>
                 <div>
                   <label className="block text-xs font-600 mb-2" style={{ color: "rgba(255,255,255,0.72)" }}>
@@ -820,10 +914,29 @@ console.log("✅ Song request created");
                       ) : (
                         <div className="w-12 h-12 rounded-lg bg-white/10" />
                       )}
-                      <div className="min-w-0">
+                      <div className="min-w-0 flex-1">
                         <p className="text-sm text-white font-semibold truncate">{selectedSpotifyTrack.trackName}</p>
                         <p className="text-xs text-gray-300 truncate">{selectedSpotifyTrack.artistName}</p>
                       </div>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setRequestChoiceMode("spotify");
+                          setShowPriorityChoice(true);
+                        }}
+                        className="text-xs font-medium px-3 py-1.5 rounded-lg shrink-0"
+                        style={{
+                          background: "rgba(168,85,247,0.2)",
+                          border: "1px solid rgba(168,85,247,0.35)",
+                          color: "#D8B4FE",
+                        }}
+                      >
+                        {spotifyChoiceConfirmed
+                          ? spotifyQueueJump
+                            ? "Queue Jump"
+                            : "Standard"
+                          : "Choose"}
+                      </button>
                     </div>
                   </div>
                 )}
@@ -1142,6 +1255,7 @@ console.log("✅ Song request created");
           clientSecret={spotifyPaymentData.clientSecret}
           requestId={spotifyPaymentData.requestId}
           amountPence={spotifyPaymentData.amount}
+          queueJump={spotifyQueueJump}
           onClose={() => {
             setSpotifyPaymentData(null);
           }}
@@ -1163,6 +1277,137 @@ console.log("✅ Song request created");
     "0 0 0 1px rgba(214,170,255,0.08), 0 20px 60px rgba(0,0,0,0.55), 0 0 45px rgba(168,85,247,0.16)"
 }}
     >
+      {requestChoiceMode === "spotify" ? (
+        <>
+          <div className="text-center mb-5">
+            <h3 className="text-2xl font-bold mb-1 text-white">
+              Choose your request
+            </h3>
+          </div>
+
+          <div className="space-y-4">
+            <button
+              type="button"
+              onClick={() => handleSpotifyQueueChoice(false)}
+              className="w-full rounded-2xl px-4 py-4 text-left transition-all"
+              style={{
+  background:
+    "linear-gradient(180deg, rgba(24,10,40,0.9) 0%, rgba(11,8,26,0.98) 100%)",
+  border: "1px solid rgba(168,85,247,0.65)",
+  boxShadow:
+    "0 0 0 1px rgba(168,85,247,0.12), 0 0 28px rgba(168,85,247,0.26), inset 0 0 18px rgba(168,85,247,0.06)"
+}}
+            >
+              <div className="flex items-center gap-4">
+                <div
+                  className="w-12 h-12 rounded-full flex items-center justify-center shrink-0"
+                  style={{
+  background: "rgba(168,85,247,0.12)",
+  border: "1px solid rgba(168,85,247,0.4)",
+  boxShadow: "0 0 18px rgba(168,85,247,0.18)"
+}}
+                >
+                  <span className="text-xl">🎵</span>
+                </div>
+
+                <div>
+                  <div className="text-lg font-semibold text-white">
+                    Standard Request
+                  </div>
+
+                  <div className="text-xl font-bold text-white mt-1">
+                    {formatGbp(spotifyBasePrice)}
+                  </div>
+
+                  <div className="text-sm mt-1 text-gray-400">
+                    Join the normal queue.
+                  </div>
+                </div>
+              </div>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => handleSpotifyQueueChoice(true)}
+              className="w-full rounded-2xl px-4 py-4 text-left relative transition-all"
+              style={{
+  background:
+    "linear-gradient(180deg, rgba(3,33,28,0.95) 0%, rgba(2,19,17,0.98) 100%)",
+  border: "1px solid rgba(34,227,161,0.8)",
+  boxShadow:
+    "0 0 0 1px rgba(34,227,161,0.14), 0 0 34px rgba(34,227,161,0.32), inset 0 0 18px rgba(34,227,161,0.06)"
+}}
+            >
+              <div
+                className="absolute -top-2 right-3 px-2 py-1 rounded-full text-xs font-semibold flex items-center gap-1"
+                style={{
+                  background: "#3BF2B5",
+                  color: "#08110E"
+                }}
+              >
+                <span style={{ color: "#FFD700" }}>⭐</span>
+                MOST POPULAR
+              </div>
+
+              <div className="flex items-start gap-4">
+                <div
+                  className="w-12 h-12 rounded-full flex items-center justify-center shrink-0"
+                  style={{
+  background: "rgba(34,227,161,0.12)",
+  border: "1px solid rgba(34,227,161,0.45)",
+  animationDelay: "0.2s",
+  boxShadow: "0 0 34px rgba(34,227,161,0.42), 0 0 70px rgba(34,227,161,0.18)"
+}}
+                >
+                  <span className="text-xl">⚡</span>
+                </div>
+
+                <div className="flex-1">
+                  <div className="text-lg font-semibold text-white">
+                    Queue Jump
+                  </div>
+
+                  <div className="mt-2">
+                    <div className="text-sm font-semibold text-green-300">
+                      Only{" "}
+                      <span className="text-2xl font-bold">
+                        {formatGbp(QUEUE_JUMP_FEE)}
+                      </span>{" "}
+                      more
+                    </div>
+
+                    <div className="text-lg font-semibold text-white mt-1">
+                      {formatGbp(resolveSpotifyRequestPrice(venue, { queueJump: true }))} total
+                    </div>
+
+                    <div className="text-sm text-gray-400 mt-1">
+                      Skip ahead of all standard requests.
+                    </div>
+
+                    {queueJumpSocialProof?.displayCount > 0 && (
+                      <div className="text-sm text-orange-300/90 mt-2">
+                        🔥 {queueJumpSocialProof.displayCount}{" "}
+                        {queueJumpSocialProof.displayCount === 1 ? "person" : "people"}{" "}
+                        skipped the queue today.
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </div>
+            </button>
+          </div>
+
+          <button
+            type="button"
+            onClick={handleCloseRequestChoice}
+            className="w-full mt-5 text-sm font-medium"
+            style={{ color: "rgba(210,190,255,0.6)" }}
+          >
+            Cancel
+          </button>
+        </>
+      ) : (
+        <>
       {/* HEADER */}
       <div className="text-center mb-5">
         <h3 className="text-2xl font-bold mb-1 text-white">
@@ -1289,12 +1534,14 @@ console.log("✅ Song request created");
       {/* CANCEL */}
       <button
         type="button"
-        onClick={() => setShowPriorityChoice(false)}
+        onClick={handleCloseRequestChoice}
         className="w-full mt-5 text-sm font-medium"
         style={{ color: "rgba(210,190,255,0.6)" }}
       >
         Cancel
       </button>
+        </>
+      )}
     </div>
   </div>
 )}

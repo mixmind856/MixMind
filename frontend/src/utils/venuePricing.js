@@ -4,6 +4,8 @@ const DEFAULTS = {
   djPriorityPrice: 4.99,
 };
 
+export const QUEUE_JUMP_FEE = 1.0;
+
 export function resolveVenuePrices(venue) {
   return {
     spotifyJukeboxPrice:
@@ -11,6 +13,14 @@ export function resolveVenuePrices(venue) {
     djNormalPrice: venue?.djNormalPrice ?? DEFAULTS.djNormalPrice,
     djPriorityPrice: venue?.djPriorityPrice ?? DEFAULTS.djPriorityPrice,
   };
+}
+
+export function resolveSpotifyRequestPrice(venue, { queueJump = false } = {}) {
+  const basePrice = resolveVenuePrices(venue).spotifyJukeboxPrice;
+  if (queueJump) {
+    return basePrice + QUEUE_JUMP_FEE;
+  }
+  return basePrice;
 }
 
 export function formatGbp(amount) {

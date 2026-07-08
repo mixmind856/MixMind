@@ -18,7 +18,7 @@ const STRIPE_APPEARANCE = {
   },
 };
 
-function CheckoutForm({ requestId, amountPence, onSuccess, onError }) {
+function CheckoutForm({ requestId, amountPence, queueJump, onSuccess, onError }) {
   const stripe = useStripe();
   const elements = useElements();
   const [processing, setProcessing] = useState(false);
@@ -101,8 +101,9 @@ function CheckoutForm({ requestId, amountPence, onSuccess, onError }) {
         <ShieldCheck size={14} className="text-emerald-300 flex-shrink-0 mt-0.5" />
         <span>
           Your card will be pre-authorised for{" "}
-          <strong className="text-white">£{(safeAmountPence / 100).toFixed(2)}</strong>. It is
-          captured only after genre validation and successful Spotify queueing.
+          <strong className="text-white">£{(safeAmountPence / 100).toFixed(2)}</strong>
+          {queueJump ? " (includes Queue Jump)" : ""}. It is captured only after genre
+          validation and successful Spotify queueing.
         </span>
       </div>
 
@@ -131,7 +132,7 @@ function CheckoutForm({ requestId, amountPence, onSuccess, onError }) {
         disabled={!stripe || processing}
         className="w-full bg-gradient-to-r from-purple-600 to-violet-700 text-white font-semibold rounded-xl py-3 disabled:opacity-50"
       >
-        {processing ? "Processing..." : `Authorise £${(safeAmountPence / 100).toFixed(2)}`}
+        {processing ? "Processing..." : queueJump ? `Authorise Queue Jump · £${(safeAmountPence / 100).toFixed(2)}` : `Authorise £${(safeAmountPence / 100).toFixed(2)}`}
       </button>
     </form>
   );
@@ -142,6 +143,7 @@ export default function SpotifyPaymentModal({
   clientSecret,
   requestId,
   amountPence,
+  queueJump = false,
   onClose,
   onSuccess,
   onGenreReject,
@@ -189,7 +191,13 @@ export default function SpotifyPaymentModal({
             </div>
           </div>
 
-          <h2 className="text-lg font-bold mb-4 text-white">Complete your request</h2>
+          <h2 className="text-lg font-bold mb-1 text-white">
+            {queueJump ? "Complete your Queue Jump" : "Complete your request"}
+          </h2>
+          {queueJump && (
+            <p className="text-xs text-amber-300 mb-4">⚡ Your song will play before standard requests</p>
+          )}
+          {!queueJump && <div className="mb-4" />}
 
           <Elements
             stripe={stripePromise}
@@ -201,6 +209,7 @@ export default function SpotifyPaymentModal({
             <CheckoutForm
               requestId={requestId}
               amountPence={amountPence}
+              queueJump={queueJump}
               onSuccess={onSuccess}
               onError={(errData) => {
                 if (errData.type === "genre") onGenreReject(errData);

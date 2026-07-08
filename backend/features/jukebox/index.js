@@ -11,5 +11,6 @@ router.get("/search", ctrl.searchTracks);
 router.post("/precheck-genre", ctrl.precheckGenre);
 router.post("/create-payment", ctrl.createPayment);
 router.post("/confirm", ctrl.confirmAndProcess);
+router.get("/queue-jump-stats", ctrl.getQueueJumpStats);
 
 module.exports = router;
