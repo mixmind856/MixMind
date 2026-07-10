@@ -13,7 +13,7 @@ import {
   setVenueUseGlobalPricing,
   getVenuesSpotifyDeviceStatus,
 } from "../services/adminStatsService";
-import { formatSpotifyDeviceBadge } from "../utils/spotifyDeviceStatus";
+import { formatSpotifyDeviceBadge, getSpotifyDeviceActiveOffline } from "../utils/spotifyDeviceStatus";
 import {
   TrendingUp,
   Users,
@@ -266,6 +266,19 @@ function formatSpotifyDeviceLabel(statuses, venueId) {
   const entry = statuses?.[venueId];
   if (entry === undefined) return "Checking…";
   return formatSpotifyDeviceBadge(entry);
+}
+
+function SpotifyDeviceBadge({ statuses, venueId }) {
+  const entry = statuses?.[venueId];
+  if (entry === undefined) {
+    return <span className="admin-spotify-device-badge checking">Checking…</span>;
+  }
+  const { isActive } = getSpotifyDeviceActiveOffline(entry);
+  return (
+    <span className={`admin-spotify-device-badge ${isActive ? "active" : "offline"}`}>
+      {formatSpotifyDeviceBadge(entry)}
+    </span>
+  );
 }
 
 const AdminDashboard = () => {
@@ -858,22 +871,25 @@ const AdminDashboard = () => {
         </span>
       </p>
 
-      <section className="summary-section admin-powers-section">
-        <div className="admin-insights-block-header">
-          <h2 style={{ margin: "0 0 6px", display: "flex", alignItems: "center", gap: 8 }}>
-            <Zap size={22} /> Powers
+      <section className="summary-section admin-insights-block admin-powers-section">
+        <div className="admin-insights-block-header admin-powers-header">
+          <h2 className="admin-powers-title">
+            <Zap size={22} aria-hidden /> Powers
           </h2>
-          <p className="subtitle" style={{ margin: 0, fontSize: "0.9rem", opacity: 0.8 }}>
+          <p className="admin-powers-subtitle">
             Global platform controls and default Spotify pricing.
           </p>
         </div>
 
         <div className="admin-powers-grid">
-          <div className="card admin-powers-card">
-            <h3 style={{ marginTop: 0 }}>Global Pricing</h3>
-            <div className="admin-powers-fields">
-              <label className="admin-powers-field">
-                <span>Standard Request</span>
+          <div className="admin-powers-card">
+            <h3 className="admin-powers-card-title">Global Pricing</h3>
+            <p className="admin-powers-card-desc">
+              Default prices for venues with Use Global Pricing enabled.
+            </p>
+            <div className="admin-pricing-form admin-powers-fields">
+              <label className="admin-pricing-field">
+                <span>Standard Request (£)</span>
                 <input
                   type="number"
                   min="0"
@@ -887,8 +903,8 @@ const AdminDashboard = () => {
                   }
                 />
               </label>
-              <label className="admin-powers-field">
-                <span>Queue Jump</span>
+              <label className="admin-pricing-field">
+                <span>Queue Jump (£)</span>
                 <input
                   type="number"
                   min="0.01"
@@ -902,8 +918,8 @@ const AdminDashboard = () => {
                   }
                 />
               </label>
-              <label className="admin-powers-field">
-                <span>Play Next</span>
+              <label className="admin-pricing-field">
+                <span>Play Next (£)</span>
                 <input
                   type="number"
                   min="0.01"
@@ -919,14 +935,14 @@ const AdminDashboard = () => {
               </label>
             </div>
             {powersError && (
-              <p style={{ color: "#f87171", fontSize: "0.85rem" }}>{powersError}</p>
+              <p className="admin-pricing-error" role="alert">{powersError}</p>
             )}
             {powersMessage && (
-              <p style={{ color: "#22E3A1", fontSize: "0.85rem" }}>{powersMessage}</p>
+              <p className="admin-pricing-success">{powersMessage}</p>
             )}
             <button
               type="button"
-              className="refresh-button"
+              className="refresh-button admin-powers-save-btn"
               disabled={powersSaving}
               onClick={handleSavePlatformPowers}
             >
@@ -934,14 +950,14 @@ const AdminDashboard = () => {
             </button>
           </div>
 
-          <div className="card admin-powers-card">
-            <h3 style={{ marginTop: 0 }}>Global Venue Control</h3>
-            <p className="subtitle" style={{ fontSize: "0.82rem", opacity: 0.75, marginBottom: 12 }}>
-              Activate or deactivate venues platform-wide.
+          <div className="admin-powers-card admin-powers-venue-card">
+            <h3 className="admin-powers-card-title">Venue Controls</h3>
+            <p className="admin-powers-card-desc">
+              Manage venue status, Spotify device connectivity, and pricing mode.
             </p>
             <div className="admin-powers-venue-list">
               {powersVenues.length === 0 ? (
-                <p style={{ opacity: 0.7, fontSize: "0.85rem" }}>Loading venues…</p>
+                <p className="admin-powers-empty">Loading venues…</p>
               ) : (
                 powersVenues.map((venue) => {
                   const venueId = String(venue._id);
@@ -949,37 +965,47 @@ const AdminDashboard = () => {
                   const useGlobal = venue.useGlobalPricing !== false;
                   return (
                     <div key={venueId} className="admin-powers-venue-row">
-                      <div className="admin-powers-venue-info">
+                      <div className="admin-powers-venue-main">
                         <span className="admin-powers-venue-name">{venue.name || venueId}</span>
-                        <span className="admin-powers-venue-status">
-                          {active ? "Active" : "Inactive"}
-                          {" · "}
-                          {useGlobal ? "Global pricing" : "Custom pricing"}
-                        </span>
-                        <label className="admin-powers-global-toggle">
-                          <input
-                            type="checkbox"
-                            checked={useGlobal}
-                            disabled={!!useGlobalPricingUpdating[venueId]}
-                            onChange={(e) =>
-                              handleVenueUseGlobalPricingToggle(venueId, e.target.checked)
-                            }
-                          />
-                          <span>Use Global Pricing</span>
-                        </label>
+                        <div className="admin-powers-venue-stats">
+                          <div className="admin-powers-venue-stat">
+                            <span className="admin-powers-venue-stat-label">Spotify Device</span>
+                            <SpotifyDeviceBadge statuses={spotifyDeviceStatuses} venueId={venueId} />
+                          </div>
+                          <div className="admin-powers-venue-stat">
+                            <span className="admin-powers-venue-stat-label">Pricing</span>
+                            <span className={`admin-powers-pricing-mode ${useGlobal ? "global" : "custom"}`}>
+                              {useGlobal ? "Global" : "Custom"}
+                            </span>
+                          </div>
+                        </div>
                       </div>
-                      <button
-                        type="button"
-                        className={`admin-powers-toggle ${active ? "active" : "inactive"}`}
-                        disabled={!!venueActiveUpdating[venueId]}
-                        onClick={() => handleVenueActiveToggle(venueId, !active)}
-                      >
-                        {venueActiveUpdating[venueId]
-                          ? "…"
-                          : active
-                            ? "🟢 Active"
-                            : "🔴 Inactive"}
-                      </button>
+                      <div className="admin-powers-venue-actions">
+                        <button
+                          type="button"
+                          className={`admin-powers-toggle ${useGlobal ? "global-on" : "global-off"}`}
+                          disabled={!!useGlobalPricingUpdating[venueId]}
+                          onClick={() => handleVenueUseGlobalPricingToggle(venueId, !useGlobal)}
+                        >
+                          {useGlobalPricingUpdating[venueId]
+                            ? "…"
+                            : useGlobal
+                              ? "☑ Global Pricing"
+                              : "☐ Custom Pricing"}
+                        </button>
+                        <button
+                          type="button"
+                          className={`admin-powers-toggle ${active ? "active" : "inactive"}`}
+                          disabled={!!venueActiveUpdating[venueId]}
+                          onClick={() => handleVenueActiveToggle(venueId, !active)}
+                        >
+                          {venueActiveUpdating[venueId]
+                            ? "…"
+                            : active
+                              ? "🟢 Active"
+                              : "🔴 Inactive"}
+                        </button>
+                      </div>
                     </div>
                   );
                 })
