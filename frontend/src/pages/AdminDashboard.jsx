@@ -73,80 +73,6 @@ function csvEscape(cell) {
   return s;
 }
 
-function buildVenueReportPayload(detail) {
-  const funnel = detail?.funnel || {};
-  const mm = detail?.mixmind || {};
-  const jb = detail?.jukebox || {};
-  const conv = funnel.venueFunnelConversionPct ?? funnel.visitToPaymentConversion ?? 0;
-  return {
-    venueName: detail?.venue?.name ?? "",
-    dateRange: detail?.dateRange ?? null,
-    appliedRangeLabel: detail?.appliedRange?.label ?? "",
-    pageVisits: funnel.venuePageVisits ?? 0,
-    venueTaggedQrScans: funnel.venueTaggedQrScans ?? 0,
-    visitToPaymentConversionPct: conv,
-    analyticsPaymentCompletions: funnel.analyticsCheckoutCompletions ?? 0,
-    totalDbRequests: (mm.total ?? 0) + (jb.total ?? 0),
-    mixmindAcceptedOrPipeline: mm.acceptedCompleted ?? 0,
-    mixmindPending: mm.pending ?? 0,
-    mixmindRejectedOrFailed: mm.rejectedFailed ?? 0,
-    jukeboxQueuedSuccess: jb.queuedSuccess ?? 0,
-    jukeboxPending: jb.pending ?? 0,
-    jukeboxRejected: jb.rejected ?? 0,
-    capturedMixmindRevenue: mm.capturedRevenue ?? 0,
-    succeededJukeboxRevenue: jb.revenue ?? 0,
-    totalTrueRevenue: (mm.capturedRevenue ?? 0) + (jb.revenue ?? 0),
-    sources: detail?.sources ?? {},
-    hourlyActivity: detail?.hourlyActivity ?? [],
-    recentMixmindRequests: mm.recent ?? [],
-    recentJukeboxRequests: jb.recent ?? [],
-  };
-}
-
-function venueReportToCsv(p) {
-  const lines = [];
-  lines.push("field,value");
-  const flat = [
-    ["venue", p.venueName],
-    ["appliedRange", p.appliedRangeLabel],
-    ["dateFrom", p.dateRange?.from ?? ""],
-    ["dateTo", p.dateRange?.to ?? ""],
-    ["pageVisits_events", p.pageVisits],
-    ["venueTaggedQrScans_events", p.venueTaggedQrScans],
-    ["visitToPaymentConversionPct_events", p.visitToPaymentConversionPct],
-    ["analyticsPaymentCompletions_events", p.analyticsPaymentCompletions],
-    ["totalDbRequests", p.totalDbRequests],
-    ["mixmindAcceptedOrPipeline_db", p.mixmindAcceptedOrPipeline],
-    ["mixmindPending_db", p.mixmindPending],
-    ["mixmindRejectedOrFailed_db", p.mixmindRejectedOrFailed],
-    ["jukeboxQueuedSuccess_db", p.jukeboxQueuedSuccess],
-    ["jukeboxPending_db", p.jukeboxPending],
-    ["jukeboxRejected_db", p.jukeboxRejected],
-    ["capturedMixmindRevenue_db", p.capturedMixmindRevenue],
-    ["succeededJukeboxRevenue_db", p.succeededJukeboxRevenue],
-    ["totalTrueRevenue_db", p.totalTrueRevenue],
-  ];
-  for (const [k, v] of flat) lines.push(`${csvEscape(k)},${csvEscape(v)}`);
-  lines.push("");
-  lines.push("hour,eventCount");
-  for (const h of p.hourlyActivity) {
-    lines.push(`${csvEscape(h.hour)},${csvEscape(h.count)}`);
-  }
-  lines.push("");
-  lines.push("source,visits,selections,analyticsPaymentCompletions,conversionPct");
-  for (const [src, s] of Object.entries(p.sources)) {
-    lines.push(
-      [src, s.visits ?? 0, s.selections ?? 0, s.analyticsCheckoutCompletions ?? 0, s.conversion ?? 0]
-        .map(csvEscape)
-        .join(",")
-    );
-  }
-  lines.push("");
-  lines.push("recentMixmindRequests_json", csvEscape(JSON.stringify(p.recentMixmindRequests)));
-  lines.push("recentJukeboxRequests_json", csvEscape(JSON.stringify(p.recentJukeboxRequests)));
-  return lines.join("\n");
-}
-
 function downloadBlob(filename, mime, body) {
   const blob = new Blob([body], { type: mime });
   const url = URL.createObjectURL(blob);
@@ -338,6 +264,7 @@ const AdminDashboard = () => {
   const [spotifyDeviceStatuses, setSpotifyDeviceStatuses] = useState({});
   const [venueActiveUpdating, setVenueActiveUpdating] = useState({});
   const [useGlobalPricingUpdating, setUseGlobalPricingUpdating] = useState({});
+  const [payoutPdfDownloading, setPayoutPdfDownloading] = useState({});
 
   useEffect(() => {
     if (!isAuthenticated) return;
@@ -616,6 +543,25 @@ const AdminDashboard = () => {
       console.error("[admin venue use global pricing]", err);
     } finally {
       setUseGlobalPricingUpdating((prev) => ({ ...prev, [venueId]: false }));
+    }
+  };
+
+  const handleDownloadPayoutPdf = async (venueId, venueName) => {
+    setPayoutPdfDownloading((prev) => ({ ...prev, [venueId]: true }));
+    try {
+      const qs = sectionFilterToQuery(venueFilter);
+      const blob = await downloadVenuePayoutInvoice(venueId, qs);
+      const base = (venueName || "venue").replace(/[^\w-]+/g, "_").slice(0, 64);
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `${base}-payout-statement.pdf`;
+      a.click();
+      URL.revokeObjectURL(url);
+    } catch (err) {
+      console.error("[admin payout pdf]", err);
+    } finally {
+      setPayoutPdfDownloading((prev) => ({ ...prev, [venueId]: false }));
     }
   };
 
@@ -1194,11 +1140,18 @@ const AdminDashboard = () => {
                   const taggedQr = row.venueTaggedQrScans ?? 0;
                   const rejected = row.dbRejectedCount ?? 0;
                   return (
-                    <button
-                      type="button"
+                    <div
                       key={row.venueId}
                       className="admin-venue-card admin-venue-card-blue"
+                      role="button"
+                      tabIndex={0}
                       onClick={() => setDetailVenueId(row.venueId)}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter" || e.key === " ") {
+                          e.preventDefault();
+                          setDetailVenueId(row.venueId);
+                        }
+                      }}
                     >
                       <div className="admin-venue-card-title-row">
                         <span className="admin-venue-card-title">{row.venueName || row.venueId}</span>
@@ -1265,7 +1218,20 @@ const AdminDashboard = () => {
                         <span>True revenue (DB)</span>
                         <strong>£{rev.toFixed(2)}</strong>
                       </div>
-                    </button>
+                      <button
+                        type="button"
+                        className="admin-venue-payout-btn"
+                        disabled={!!payoutPdfDownloading[row.venueId]}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleDownloadPayoutPdf(row.venueId, row.venueName);
+                        }}
+                      >
+                        {payoutPdfDownloading[row.venueId]
+                          ? "Generating PDF…"
+                          : "📄 Download Payout Statement (PDF)"}
+                      </button>
+                    </div>
                   );
                 })}
               </div>
@@ -1705,42 +1671,6 @@ const AdminDashboard = () => {
             )}
             {!detailLoading && detailData && !detailError && (
               <>
-                <div className="admin-modal-downloads">
-                  <button
-                    type="button"
-                    className="admin-download-btn"
-                    onClick={() => {
-                      const payload = buildVenueReportPayload(detailData);
-                      const base = (detailData.venue?.name || "venue")
-                        .replace(/[^\w-]+/g, "_")
-                        .slice(0, 64);
-                      downloadBlob(
-                        `${base}-report.json`,
-                        "application/json;charset=utf-8",
-                        JSON.stringify(payload, null, 2)
-                      );
-                    }}
-                  >
-                    Download JSON
-                  </button>
-                  <button
-                    type="button"
-                    className="admin-download-btn"
-                    onClick={() => {
-                      const payload = buildVenueReportPayload(detailData);
-                      const base = (detailData.venue?.name || "venue")
-                        .replace(/[^\w-]+/g, "_")
-                        .slice(0, 64);
-                      downloadBlob(
-                        `${base}-report.csv`,
-                        "text/csv;charset=utf-8",
-                        venueReportToCsv(payload)
-                      );
-                    }}
-                  >
-                    Download CSV
-                  </button>
-                </div>
                 <div className="admin-detail-tabs">
                   {[
                     { id: "overview", label: "Overview" },
@@ -2409,37 +2339,9 @@ const AdminDashboard = () => {
                     <section className="admin-modal-section">
                       <h3>Export report</h3>
                       <p className="subtitle" style={{ marginBottom: "14px", lineHeight: 1.45 }}>
-                        Download request-level exports or a venue payout statement PDF for the
-                        selected date range. All amounts in £ (GBP).
+                        One row per request in the selected date range. All amounts in £ (GBP).
                       </p>
                       <div className="admin-modal-downloads">
-                        <button
-                          type="button"
-                          className="admin-download-btn"
-                          onClick={async () => {
-                            if (!moneyDetailVenueId) return;
-                            try {
-                              const qm = sectionFilterToQuery(moneyFilter);
-                              const blob = await downloadVenuePayoutInvoice(
-                                moneyDetailVenueId,
-                                qm
-                              );
-                              const base = (moneyDetailData.venue?.name || "venue")
-                                .replace(/[^\w-]+/g, "_")
-                                .slice(0, 64);
-                              const url = URL.createObjectURL(blob);
-                              const a = document.createElement("a");
-                              a.href = url;
-                              a.download = `${base}-payout-invoice.pdf`;
-                              a.click();
-                              URL.revokeObjectURL(url);
-                            } catch (err) {
-                              console.error("[admin payout invoice]", err);
-                            }
-                          }}
-                        >
-                          Download Payout Invoice (PDF)
-                        </button>
                         <button
                           type="button"
                           className="admin-download-btn"
