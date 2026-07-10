@@ -6,21 +6,50 @@ const DEFAULTS = {
 
 export const QUEUE_JUMP_FEE = 0.99;
 
+function usesGlobalPricing(venue) {
+  return venue?.useGlobalPricing !== false;
+}
+
+function getGlobalPricing(venue) {
+  return venue?.globalPricing ?? null;
+}
+
 export function resolveVenuePrices(venue) {
+  const global = getGlobalPricing(venue);
+  const useGlobal = usesGlobalPricing(venue);
+  const djNormalPrice = venue?.djNormalPrice ?? DEFAULTS.djNormalPrice;
+  const djPriorityPrice = venue?.djPriorityPrice ?? DEFAULTS.djPriorityPrice;
+
+  let spotifyJukeboxPrice;
+  let queueJumpPrice;
+  let playNextPrice;
+
+  if (useGlobal && global) {
+    spotifyJukeboxPrice = global.standardRequest ?? DEFAULTS.spotifyJukeboxPrice;
+    queueJumpPrice = global.queueJump ?? spotifyJukeboxPrice + QUEUE_JUMP_FEE;
+    playNextPrice = global.playNext ?? DEFAULTS.djPriorityPrice;
+  } else if (useGlobal) {
+    spotifyJukeboxPrice = DEFAULTS.spotifyJukeboxPrice;
+    queueJumpPrice = DEFAULTS.spotifyJukeboxPrice + QUEUE_JUMP_FEE;
+    playNextPrice = DEFAULTS.djPriorityPrice;
+  } else {
+    spotifyJukeboxPrice = venue?.spotifyJukeboxPrice ?? DEFAULTS.spotifyJukeboxPrice;
+    queueJumpPrice = spotifyJukeboxPrice + QUEUE_JUMP_FEE;
+    playNextPrice = djPriorityPrice;
+  }
+
   return {
-    spotifyJukeboxPrice:
-      venue?.spotifyJukeboxPrice ?? DEFAULTS.spotifyJukeboxPrice,
-    djNormalPrice: venue?.djNormalPrice ?? DEFAULTS.djNormalPrice,
-    djPriorityPrice: venue?.djPriorityPrice ?? DEFAULTS.djPriorityPrice,
+    spotifyJukeboxPrice,
+    queueJumpPrice,
+    playNextPrice,
+    djNormalPrice,
+    djPriorityPrice,
   };
 }
 
 export function resolveSpotifyRequestPrice(venue, { queueJump = false } = {}) {
-  const basePrice = resolveVenuePrices(venue).spotifyJukeboxPrice;
-  if (queueJump) {
-    return basePrice + QUEUE_JUMP_FEE;
-  }
-  return basePrice;
+  const prices = resolveVenuePrices(venue);
+  return queueJump ? prices.queueJumpPrice : prices.spotifyJukeboxPrice;
 }
 
 export function formatGbp(amount) {

@@ -297,3 +297,91 @@ export const getAnalyticsVenue = async (venueId, queryString = "") => {
     throw error;
   }
 };
+
+export const getPlatformPowers = async () => {
+  const adminKey = requireAdminKey();
+  const response = await fetch(`${API_BASE_URL}/admin/powers`, {
+    method: "GET",
+    headers: {
+      "Content-Type": "application/json",
+      "x-admin-key": adminKey,
+    },
+  });
+  if (!response.ok) {
+    throw new Error(`Error: ${response.statusText}`);
+  }
+  return response.json();
+};
+
+export const updatePlatformPowers = async (globalPricing) => {
+  const adminKey = requireAdminKey();
+  const response = await fetch(`${API_BASE_URL}/admin/powers`, {
+    method: "PUT",
+    headers: {
+      "Content-Type": "application/json",
+      "x-admin-key": adminKey,
+    },
+    body: JSON.stringify(globalPricing),
+  });
+  if (!response.ok) {
+    const data = await response.json().catch(() => ({}));
+    throw new Error(data.error || `Error: ${response.statusText}`);
+  }
+  return response.json();
+};
+
+export const setVenueUseGlobalPricing = async (venueId, useGlobalPricing) => {
+  const adminKey = requireAdminKey();
+  const response = await fetch(
+    `${API_BASE_URL}/admin/venues/${encodeURIComponent(venueId)}/use-global-pricing`,
+    {
+      method: "PUT",
+      headers: {
+        "Content-Type": "application/json",
+        "x-admin-key": adminKey,
+      },
+      body: JSON.stringify({ useGlobalPricing }),
+    }
+  );
+  if (!response.ok) {
+    const data = await response.json().catch(() => ({}));
+    throw new Error(data.error || `Error: ${response.statusText}`);
+  }
+  return response.json();
+};
+
+export const setVenueActive = async (venueId, active) => {
+  const adminKey = requireAdminKey();
+  const response = await fetch(
+    `${API_BASE_URL}/admin/venues/${encodeURIComponent(venueId)}/active`,
+    {
+      method: "PUT",
+      headers: {
+        "Content-Type": "application/json",
+        "x-admin-key": adminKey,
+      },
+      body: JSON.stringify({ active }),
+    }
+  );
+  if (!response.ok) {
+    const data = await response.json().catch(() => ({}));
+    throw new Error(data.error || `Error: ${response.statusText}`);
+  }
+  return response.json();
+};
+
+export const getVenuesSpotifyDeviceStatus = async (venueIds) => {
+  const adminKey = requireAdminKey();
+  const response = await fetch(`${API_BASE_URL}/admin/venues/spotify-device-status`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "x-admin-key": adminKey,
+    },
+    body: JSON.stringify({ venueIds }),
+  });
+  if (!response.ok) {
+    throw new Error(`Error: ${response.statusText}`);
+  }
+  return response.json();
+};

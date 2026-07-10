@@ -14,6 +14,7 @@ const {
   enqueueAfterGenreApproval,
   getQueueJumpSocialProof,
 } = require("../../services/jukeboxQueueService");
+const { fetchVenueSpotifyDeviceDebug } = require("../../utils/spotifyDeviceDebug");
 
 async function spotifyLogin(req, res) {
   const { venueId, returnTo } = req.query;
@@ -182,7 +183,7 @@ async function createPayment(req, res) {
   }
 
   const venue = await Venue.findById(venueId).select(
-    "isActive spotifyMode spotifyConnected preferredGenres genreCheckBypass spotifyJukeboxPrice djNormalPrice djPriorityPrice"
+    "isActive spotifyMode spotifyConnected preferredGenres genreCheckBypass useGlobalPricing spotifyJukeboxPrice djNormalPrice djPriorityPrice"
   );
   console.log("[Jukebox create-payment] venue spotifyConnected:", !!venue?.spotifyConnected);
   if (!venue || !venue.isActive) return res.status(404).json({ error: "Venue not found or inactive" });
@@ -393,70 +394,12 @@ async function getSpotifyDebugDevices(req, res) {
       return res.status(403).json({ error: "Forbidden" });
     }
 
-    const venue = await Venue.findById(venueId).select(
-      "_id spotifyConnected spotifyMode spotifyAccessToken spotifyRefreshToken spotifyTokenExpiresAt spotifyLastActiveDeviceId spotifyLastActiveDeviceName"
-    );
-    if (!venue) {
+    const debug = await fetchVenueSpotifyDeviceDebug(venueId);
+    if (!debug) {
       return res.status(404).json({ error: "Venue not found" });
     }
 
-    const isSpotifyConfigured =
-      venue.spotifyConnected === true &&
-      !!venue.spotifyAccessToken &&
-      !!venue.spotifyRefreshToken;
-
-    if (!isSpotifyConfigured) {
-      return res.json({
-        venueId: String(venue._id),
-        spotifyConnected: false,
-        spotifyMode: !!venue.spotifyMode,
-        spotifyUser: null,
-        devices: [],
-        activeDevice: null,
-        connectionIssue: "SPOTIFY_NOT_CONFIGURED",
-        lastStoredDeviceId: venue.spotifyLastActiveDeviceId || null,
-        lastStoredDeviceName: venue.spotifyLastActiveDeviceName || null,
-        tokenExpiresAt: venue.spotifyTokenExpiresAt || null
-      });
-    }
-
-    const [profile, deviceResult] = await Promise.all([
-      spotifyService.getSpotifyProfileDebug(venueId),
-      spotifyService.getSpotifyDevicesDebug(venueId)
-    ]);
-    const devices = Array.isArray(deviceResult?.devices) ? deviceResult.devices : [];
-    const active = devices.find((d) => d.is_active) || null;
-
-    return res.json({
-      venueId: String(venue._id),
-      spotifyConnected: !!venue.spotifyConnected,
-      spotifyMode: !!venue.spotifyMode,
-      spotifyUser: profile
-        ? {
-            id: profile.id || null,
-            display_name: profile.display_name || null,
-            email: profile.email || null
-          }
-        : null,
-      devices: devices.map((d) => ({
-        id: d.id || null,
-        name: d.name || null,
-        type: d.type || null,
-        is_active: !!d.is_active,
-        is_restricted: !!d.is_restricted,
-        volume_percent: typeof d.volume_percent === "number" ? d.volume_percent : null
-      })),
-      activeDevice: active
-        ? {
-            id: active.id || null,
-            name: active.name || null,
-            type: active.type || null
-          }
-        : null,
-      lastStoredDeviceId: venue.spotifyLastActiveDeviceId || null,
-      lastStoredDeviceName: venue.spotifyLastActiveDeviceName || null,
-      tokenExpiresAt: venue.spotifyTokenExpiresAt || null
-    });
+    return res.json(debug);
   } catch (err) {
     console.error("[Spotify Debug Devices] Error:", {
       venueId: req?.params?.venueId,

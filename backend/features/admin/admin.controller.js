@@ -26,7 +26,13 @@ const Venue = require("../../models/Venue");
 const {
   resolveVenuePrices,
   validatePricingField,
+  attachGlobalPricingToVenue,
 } = require("../../utils/venuePricing");
+const {
+  readGlobalPricing,
+  writeGlobalPricing,
+} = require("../../utils/globalPricingStore");
+const { fetchVenueSpotifyDeviceDebug } = require("../../utils/spotifyDeviceDebug");
 
 // Import queues
 const beatsourceQueue = require("../../queues/beatsourceQueue");
@@ -529,24 +535,180 @@ async function updateVenuePricing(req, res) {
         djPriorityPrice: Number(djPriorityPrice),
       },
       { new: true }
-    ).select("name spotifyJukeboxPrice djNormalPrice djPriorityPrice");
+    ).select("name useGlobalPricing spotifyJukeboxPrice djNormalPrice djPriorityPrice");
 
     if (!venue) {
       return res.status(404).json({ error: "Venue not found" });
     }
 
-    const prices = resolveVenuePrices(venue);
+    const enriched = attachGlobalPricingToVenue(venue);
+    const prices = resolveVenuePrices(enriched);
 
     res.json({
       message: "Venue pricing updated",
       venue: {
         id: String(venue._id),
         name: venue.name,
+        useGlobalPricing: venue.useGlobalPricing !== false,
         ...prices,
       },
     });
   } catch (err) {
     console.error("Update Venue Pricing Error:", err.message);
+    res.status(500).json({ error: "Internal server error" });
+  }
+}
+
+async function getPlatformPowers(req, res) {
+  try {
+    const globalPricing = readGlobalPricing();
+    res.json({ globalPricing });
+  } catch (err) {
+    console.error("Get Platform Powers Error:", err.message);
+    res.status(500).json({ error: "Internal server error" });
+  }
+}
+
+async function updatePlatformPowers(req, res) {
+  try {
+    const standardRequest = Number(
+      req.body.standardRequest ?? req.body.defaultSpotifyJukeboxPrice
+    );
+    const queueJump = Number(req.body.queueJump ?? req.body.defaultQueueJumpPrice);
+    const playNext = Number(req.body.playNext ?? req.body.defaultPlayNextPrice);
+
+    const fields = [
+      ["standardRequest", standardRequest],
+      ["queueJump", queueJump],
+      ["playNext", playNext],
+    ];
+
+    for (const [name, value] of fields) {
+      const err = validatePricingField(value, name);
+      if (err) {
+        return res.status(400).json({ error: err });
+      }
+    }
+
+    if (queueJump < standardRequest) {
+      return res.status(400).json({
+        error: "Queue Jump price must be greater than or equal to Standard Request price",
+      });
+    }
+
+    const globalPricing = writeGlobalPricing({
+      standardRequest,
+      queueJump,
+      playNext,
+    });
+
+    res.json({
+      message: "Global pricing updated",
+      globalPricing,
+    });
+  } catch (err) {
+    console.error("Update Platform Powers Error:", err.message);
+    res.status(500).json({ error: "Internal server error" });
+  }
+}
+
+async function setVenueUseGlobalPricing(req, res) {
+  try {
+    const { venueId } = req.params;
+    const { useGlobalPricing } = req.body;
+
+    if (typeof useGlobalPricing !== "boolean") {
+      return res.status(400).json({ error: "useGlobalPricing must be a boolean" });
+    }
+
+    const venue = await Venue.findByIdAndUpdate(
+      venueId,
+      { useGlobalPricing },
+      { new: true }
+    ).select("_id name useGlobalPricing spotifyJukeboxPrice djNormalPrice djPriorityPrice");
+
+    if (!venue) {
+      return res.status(404).json({ error: "Venue not found" });
+    }
+
+    const enriched = attachGlobalPricingToVenue(venue);
+    const prices = resolveVenuePrices(enriched);
+
+    res.json({
+      message: useGlobalPricing
+        ? "Venue now uses global pricing"
+        : "Venue now uses custom pricing",
+      useGlobalPricing: venue.useGlobalPricing,
+      venue: {
+        id: String(venue._id),
+        name: venue.name,
+        useGlobalPricing: venue.useGlobalPricing,
+        ...prices,
+      },
+    });
+  } catch (err) {
+    console.error("Set Venue Use Global Pricing Error:", err.message);
+    res.status(500).json({ error: "Internal server error" });
+  }
+}
+
+async function setVenueActive(req, res) {
+  try {
+    const { venueId } = req.params;
+    const { active } = req.body;
+
+    if (typeof active !== "boolean") {
+      return res.status(400).json({ error: "active must be a boolean" });
+    }
+
+    const venue = await Venue.findByIdAndUpdate(
+      venueId,
+      { isActive: active },
+      { new: true }
+    ).select("_id name isActive");
+
+    if (!venue) {
+      return res.status(404).json({ error: "Venue not found" });
+    }
+
+    res.json({
+      message: active ? "Venue is now ONLINE" : "Venue is now OFFLINE",
+      isActive: venue.isActive,
+      venue: {
+        id: String(venue._id),
+        name: venue.name,
+        isActive: venue.isActive,
+      },
+    });
+  } catch (err) {
+    console.error("Set Venue Active Error:", err.message);
+    res.status(500).json({ error: "Internal server error" });
+  }
+}
+
+async function getVenuesSpotifyDeviceStatus(req, res) {
+  try {
+    const venueIds = Array.isArray(req.body?.venueIds) ? req.body.venueIds : [];
+    if (!venueIds.length) {
+      return res.json({ statuses: {} });
+    }
+
+    const uniqueIds = [...new Set(venueIds.map(String))].slice(0, 50);
+    const statuses = {};
+
+    await Promise.all(
+      uniqueIds.map(async (venueId) => {
+        try {
+          statuses[venueId] = await fetchVenueSpotifyDeviceDebug(venueId);
+        } catch {
+          statuses[venueId] = null;
+        }
+      })
+    );
+
+    res.json({ statuses });
+  } catch (err) {
+    console.error("Get Venues Spotify Device Status Error:", err.message);
     res.status(500).json({ error: "Internal server error" });
   }
 }
@@ -570,4 +732,9 @@ module.exports = {
   getMoneyVenues,
   getMoneyVenue,
   updateVenuePricing,
+  getPlatformPowers,
+  updatePlatformPowers,
+  setVenueUseGlobalPricing,
+  setVenueActive,
+  getVenuesSpotifyDeviceStatus,
 };

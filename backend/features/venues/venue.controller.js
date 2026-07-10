@@ -1,6 +1,7 @@
 const jwt = require("jsonwebtoken");
 const Venue = require("../../models/Venue");
 const { buildVenueRequestStats } = require("../../services/requestStatsService");
+const { attachGlobalPricingToVenue } = require("../../utils/venuePricing");
 
 /**
  * Generate JWT token for venue
@@ -147,7 +148,7 @@ async function getVenueProfile(req, res) {
       return res.status(404).json({ error: "Venue not found" });
     }
 
-    res.json(venue);
+    res.json(attachGlobalPricingToVenue(venue));
   } catch (err) {
     console.error("Get Venue Profile Error:", err.message);
     res.status(500).json({ error: "Internal server error" });
@@ -200,7 +201,7 @@ async function getPublicVenue(req, res) {
       return res.status(404).json({ error: "Venue not found" });
     }
 
-    res.json(venue);
+    res.json(attachGlobalPricingToVenue(venue));
   } catch (err) {
     console.error("Get Public Venue Error:", err.message);
     res.status(500).json({ error: "Internal server error" });

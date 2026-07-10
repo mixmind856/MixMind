@@ -17,7 +17,12 @@ const {
   getAnalyticsVenue,
   getMoneyVenues,
   getMoneyVenue,
-  updateVenuePricing
+  updateVenuePricing,
+  getPlatformPowers,
+  updatePlatformPowers,
+  setVenueUseGlobalPricing,
+  setVenueActive,
+  getVenuesSpotifyDeviceStatus
 } = require("./admin.controller");
 
 const router = express.Router();
@@ -73,5 +78,12 @@ router.get("/money/venue/:venueId", requireAdmin, getMoneyVenue);
 
 /* -------------------- VENUE PRICING -------------------- */
 router.put("/venues/:venueId/pricing", requireAdmin, updateVenuePricing);
+router.put("/venues/:venueId/use-global-pricing", requireAdmin, setVenueUseGlobalPricing);
+router.put("/venues/:venueId/active", requireAdmin, setVenueActive);
+router.post("/venues/spotify-device-status", requireAdmin, getVenuesSpotifyDeviceStatus);
+
+/* -------------------- PLATFORM POWERS -------------------- */
+router.get("/powers", requireAdmin, getPlatformPowers);
+router.put("/powers", requireAdmin, updatePlatformPowers);
 
 module.exports = router;

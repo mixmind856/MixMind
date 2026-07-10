@@ -1505,3 +1505,115 @@
   color: #86efac;
   font-size: 0.85rem;
 }
+
+.admin-powers-section {
+  margin-bottom: 28px;
+}
+
+.admin-powers-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: 16px;
+  margin-top: 16px;
+}
+
+.admin-powers-card {
+  padding: 18px;
+}
+
+.admin-powers-fields {
+  display: grid;
+  gap: 12px;
+  margin-bottom: 14px;
+}
+
+.admin-powers-field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-size: 0.85rem;
+  color: rgba(255, 255, 255, 0.82);
+}
+
+.admin-powers-field input {
+  padding: 8px 10px;
+  border-radius: 8px;
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  background: rgba(0, 0, 0, 0.25);
+  color: #fff;
+}
+
+.admin-powers-venue-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  max-height: 320px;
+  overflow-y: auto;
+}
+
+.admin-powers-venue-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 8px 10px;
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.admin-powers-venue-name {
+  font-size: 0.88rem;
+  color: rgba(255, 255, 255, 0.9);
+}
+
+.admin-powers-venue-info {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.admin-powers-venue-status {
+  font-size: 0.75rem;
+  color: rgba(255, 255, 255, 0.55);
+}
+
+.admin-powers-global-toggle {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 4px;
+  font-size: 0.78rem;
+  color: rgba(255, 255, 255, 0.82);
+  cursor: pointer;
+}
+
+.admin-powers-global-toggle input {
+  accent-color: #a855f7;
+}
+
+.admin-powers-toggle {
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  border-radius: 999px;
+  padding: 4px 10px;
+  font-size: 0.78rem;
+  cursor: pointer;
+  background: rgba(0, 0, 0, 0.2);
+  color: #fff;
+}
+
+.admin-powers-toggle.active {
+  border-color: rgba(34, 227, 161, 0.45);
+  background: rgba(34, 227, 161, 0.12);
+}
+
+.admin-powers-toggle.inactive {
+  border-color: rgba(248, 113, 113, 0.45);
+  background: rgba(248, 113, 113, 0.12);
+}
+
+.admin-powers-toggle:disabled {
+  opacity: 0.6;
+  cursor: wait;
+}

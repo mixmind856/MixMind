@@ -42,6 +42,7 @@ const getAllVenuesWithStats = async () => {
             approvedRequests,
             pendingRequests,
             isActive: venue.isActive || false,
+            useGlobalPricing: venue.useGlobalPricing !== false,
           };
         } catch (err) {
           console.error(`Error processing venue ${venue._id}:`, err);
@@ -53,6 +54,7 @@ const getAllVenuesWithStats = async () => {
             approvedRequests: 0,
             pendingRequests: 0,
             isActive: venue.isActive || false,
+            useGlobalPricing: venue.useGlobalPricing !== false,
           };
         }
       })
@@ -219,14 +221,13 @@ const getSongRequestDetails = async () => {
  */
 const getDashboardSummary = async () => {
   try {
-    const [venues, revenue, songRequests] = await Promise.all([
-      getAllVenuesWithStats(),
-      getRevenueBreakdown(),
-      getSongRequestDetails(),
-    ]);
+    const venues = await getAllVenuesWithStats();
 
     const activeVenues = venues.filter((v) => v.isActive).length;
     const inactiveVenues = venues.length - activeVenues;
+
+    const revenue = await getRevenueBreakdown();
+    const songRequests = await getSongRequestDetails();
 
     const totalRequests = songRequests.totalRequests;
     const totalApproved = songRequests.byStatus.approved.length;
@@ -235,14 +236,11 @@ const getDashboardSummary = async () => {
     const approvalRate =
       totalRequests > 0 ? ((totalApproved / totalRequests) * 100).toFixed(2) : 0;
 
-    // Calculate average revenue per venue
     const avgRevenuePerVenue =
       venues.length > 0 ? (revenue.totalRevenue / venues.length).toFixed(2) : 0;
 
-    // Get top songs
     const topSongs = songRequests.songPopularity.slice(0, 5);
 
-    // Get top venues
     const topVenuesList = venues
       .sort((a, b) => b.totalRevenue - a.totalRevenue)
       .slice(0, 5);

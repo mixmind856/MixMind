@@ -6,10 +6,15 @@ import {
   getMoneyVenues,
   getMoneyVenue,
   updateVenuePricing,
+  getAllVenuesStats,
+  getPlatformPowers,
+  updatePlatformPowers,
+  setVenueActive,
+  setVenueUseGlobalPricing,
+  getVenuesSpotifyDeviceStatus,
 } from "../services/adminStatsService";
-import { resolveVenuePrices } from "../utils/venuePricing";
+import { formatSpotifyDeviceBadge } from "../utils/spotifyDeviceStatus";
 import {
-  BarChart3,
   TrendingUp,
   Users,
   DollarSign,
@@ -21,6 +26,7 @@ import {
   MapPin,
   AlertCircle,
   QrCode,
+  Zap,
 } from "lucide-react";
 import "./AdminDashboard.css";
 
@@ -256,6 +262,12 @@ function SectionFilterControls({ value, onChange }) {
   );
 }
 
+function formatSpotifyDeviceLabel(statuses, venueId) {
+  const entry = statuses?.[venueId];
+  if (entry === undefined) return "Checking…";
+  return formatSpotifyDeviceBadge(entry);
+}
+
 const AdminDashboard = () => {
   const [isAuthenticated, setIsAuthenticated] = useState(
     () => !!localStorage.getItem("adminKey")?.trim()
@@ -266,7 +278,6 @@ const AdminDashboard = () => {
     () => !!localStorage.getItem("adminKey")?.trim()
   );
   const [error, setError] = useState(null);
-  const [activeTab, setActiveTab] = useState("overview");
   const [analyticsFilter, setAnalyticsFilter] = useState(() => defaultSectionFilter());
   const [revenueFilter, setRevenueFilter] = useState(() => defaultSectionFilter());
   const [venueFilter, setVenueFilter] = useState(() => defaultSectionFilter());
@@ -289,6 +300,7 @@ const AdminDashboard = () => {
   const [pricingSaving, setPricingSaving] = useState(false);
   const [pricingMessage, setPricingMessage] = useState(null);
   const [pricingError, setPricingError] = useState(null);
+  const [detailVenueUsesGlobalPricing, setDetailVenueUsesGlobalPricing] = useState(true);
   const [moneyFilter, setMoneyFilter] = useState(() => defaultSectionFilter());
   const [moneySectionData, setMoneySectionData] = useState(null);
   const [moneySectionError, setMoneySectionError] = useState(null);
@@ -300,10 +312,36 @@ const AdminDashboard = () => {
   const [moneyDetailLoading, setMoneyDetailLoading] = useState(false);
   const [moneyDetailError, setMoneyDetailError] = useState(null);
   const [moneyDetailTab, setMoneyDetailTab] = useState("summary");
+  const [powersForm, setPowersForm] = useState({
+    standardRequest: 1.0,
+    queueJump: 1.99,
+    playNext: 4.99,
+  });
+  const [powersSaving, setPowersSaving] = useState(false);
+  const [powersMessage, setPowersMessage] = useState(null);
+  const [powersError, setPowersError] = useState(null);
+  const [powersVenues, setPowersVenues] = useState([]);
+  const [spotifyDeviceStatuses, setSpotifyDeviceStatuses] = useState({});
+  const [venueActiveUpdating, setVenueActiveUpdating] = useState({});
+  const [useGlobalPricingUpdating, setUseGlobalPricingUpdating] = useState({});
 
   useEffect(() => {
     if (!isAuthenticated) return;
     fetchDashboardData();
+    (async () => {
+      try {
+        const [powersRes, venuesRes] = await Promise.all([
+          getPlatformPowers(),
+          getAllVenuesStats(),
+        ]);
+        if (powersRes?.globalPricing) {
+          setPowersForm(powersRes.globalPricing);
+        }
+        setPowersVenues(Array.isArray(venuesRes) ? venuesRes : []);
+      } catch (err) {
+        console.error("[admin powers]", err);
+      }
+    })();
   }, [isAuthenticated]);
 
   useEffect(() => {
@@ -386,6 +424,36 @@ const AdminDashboard = () => {
   }, [isAuthenticated, moneyFilter]);
 
   useEffect(() => {
+    if (!isAuthenticated) return;
+    const venueRowsLocal = venueSectionData?.venues ?? [];
+    const moneyRowsLocal = moneySectionData?.venues ?? [];
+    const ids = [
+      ...new Set(
+        [...venueRowsLocal, ...moneyRowsLocal, ...powersVenues]
+          .map((row) => row.venueId || row._id)
+          .filter(Boolean)
+          .map(String)
+      ),
+    ].slice(0, 50);
+    if (!ids.length) return;
+
+    let cancelled = false;
+    (async () => {
+      try {
+        const data = await getVenuesSpotifyDeviceStatus(ids);
+        if (!cancelled && data?.statuses) {
+          setSpotifyDeviceStatuses((prev) => ({ ...prev, ...data.statuses }));
+        }
+      } catch (err) {
+        console.error("[admin spotify device status]", err);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [isAuthenticated, venueSectionData, moneySectionData, powersVenues]);
+
+  useEffect(() => {
     if (!isAuthenticated || !moneyDetailVenueId) {
       setMoneyDetailData(null);
       setMoneyDetailError(null);
@@ -460,8 +528,12 @@ const AdminDashboard = () => {
         if (!res.ok) throw new Error("Could not load venue pricing");
         const data = await res.json();
         if (cancelled) return;
-        const prices = resolveVenuePrices(data);
-        setPricingForm(prices);
+        setPricingForm({
+          spotifyJukeboxPrice: data.spotifyJukeboxPrice ?? 1.0,
+          djNormalPrice: data.djNormalPrice ?? 2.0,
+          djPriorityPrice: data.djPriorityPrice ?? 4.99,
+        });
+        setDetailVenueUsesGlobalPricing(data.useGlobalPricing !== false);
         setPricingMessage(null);
         setPricingError(null);
       } catch (err) {
@@ -486,13 +558,86 @@ const AdminDashboard = () => {
         djNormalPrice: Number(pricingForm.djNormalPrice),
         djPriorityPrice: Number(pricingForm.djPriorityPrice),
       });
-      const prices = resolveVenuePrices(result.venue);
-      setPricingForm(prices);
       setPricingMessage(result.message || "Venue pricing updated");
     } catch (err) {
       setPricingError(err.message || "Failed to update pricing");
     } finally {
       setPricingSaving(false);
+    }
+  };
+
+  const handleSavePlatformPowers = async () => {
+    setPowersSaving(true);
+    setPowersMessage(null);
+    setPowersError(null);
+    try {
+      const result = await updatePlatformPowers({
+        standardRequest: Number(powersForm.standardRequest),
+        queueJump: Number(powersForm.queueJump),
+        playNext: Number(powersForm.playNext),
+      });
+      if (result?.globalPricing) {
+        setPowersForm(result.globalPricing);
+      }
+      setPowersMessage(result.message || "Global pricing updated");
+    } catch (err) {
+      setPowersError(err.message || "Failed to update global pricing");
+    } finally {
+      setPowersSaving(false);
+    }
+  };
+
+  const handleVenueUseGlobalPricingToggle = async (venueId, nextUseGlobal) => {
+    setUseGlobalPricingUpdating((prev) => ({ ...prev, [venueId]: true }));
+    try {
+      await setVenueUseGlobalPricing(venueId, nextUseGlobal);
+      setPowersVenues((prev) =>
+        prev.map((v) =>
+          String(v._id) === String(venueId)
+            ? { ...v, useGlobalPricing: nextUseGlobal }
+            : v
+        )
+      );
+    } catch (err) {
+      console.error("[admin venue use global pricing]", err);
+    } finally {
+      setUseGlobalPricingUpdating((prev) => ({ ...prev, [venueId]: false }));
+    }
+  };
+
+  const handleVenueActiveToggle = async (venueId, nextActive) => {
+    setVenueActiveUpdating((prev) => ({ ...prev, [venueId]: true }));
+    try {
+      await setVenueActive(venueId, nextActive);
+      setPowersVenues((prev) =>
+        prev.map((v) =>
+          String(v._id) === String(venueId) ? { ...v, isActive: nextActive } : v
+        )
+      );
+      if (venueSectionData?.venues) {
+        setVenueSectionData((prev) => ({
+          ...prev,
+          venues: prev.venues.map((row) =>
+            String(row.venueId) === String(venueId)
+              ? { ...row, isActive: nextActive }
+              : row
+          ),
+        }));
+      }
+      if (moneySectionData?.venues) {
+        setMoneySectionData((prev) => ({
+          ...prev,
+          venues: prev.venues.map((row) =>
+            String(row.venueId) === String(venueId)
+              ? { ...row, isActive: nextActive }
+              : row
+          ),
+        }));
+      }
+    } catch (err) {
+      console.error("[admin venue active]", err);
+    } finally {
+      setVenueActiveUpdating((prev) => ({ ...prev, [venueId]: false }));
     }
   };
 
@@ -672,7 +817,7 @@ const AdminDashboard = () => {
     return <div className="admin-dashboard">No data available</div>;
   }
 
-  const { summary, venues, revenue, requests } = dashboardData;
+  const { summary } = dashboardData;
   const venueRows =
     venueSectionData == null
       ? null
@@ -712,6 +857,137 @@ const AdminDashboard = () => {
           Revenue uses captured (MixMind) and succeeded (Jukebox) payments only.
         </span>
       </p>
+
+      <section className="summary-section admin-powers-section">
+        <div className="admin-insights-block-header">
+          <h2 style={{ margin: "0 0 6px", display: "flex", alignItems: "center", gap: 8 }}>
+            <Zap size={22} /> Powers
+          </h2>
+          <p className="subtitle" style={{ margin: 0, fontSize: "0.9rem", opacity: 0.8 }}>
+            Global platform controls and default Spotify pricing.
+          </p>
+        </div>
+
+        <div className="admin-powers-grid">
+          <div className="card admin-powers-card">
+            <h3 style={{ marginTop: 0 }}>Global Pricing</h3>
+            <div className="admin-powers-fields">
+              <label className="admin-powers-field">
+                <span>Standard Request</span>
+                <input
+                  type="number"
+                  min="0"
+                  step="0.01"
+                  value={powersForm.standardRequest}
+                  onChange={(e) =>
+                    setPowersForm((prev) => ({
+                      ...prev,
+                      standardRequest: e.target.value,
+                    }))
+                  }
+                />
+              </label>
+              <label className="admin-powers-field">
+                <span>Queue Jump</span>
+                <input
+                  type="number"
+                  min="0.01"
+                  step="0.01"
+                  value={powersForm.queueJump}
+                  onChange={(e) =>
+                    setPowersForm((prev) => ({
+                      ...prev,
+                      queueJump: e.target.value,
+                    }))
+                  }
+                />
+              </label>
+              <label className="admin-powers-field">
+                <span>Play Next</span>
+                <input
+                  type="number"
+                  min="0.01"
+                  step="0.01"
+                  value={powersForm.playNext}
+                  onChange={(e) =>
+                    setPowersForm((prev) => ({
+                      ...prev,
+                      playNext: e.target.value,
+                    }))
+                  }
+                />
+              </label>
+            </div>
+            {powersError && (
+              <p style={{ color: "#f87171", fontSize: "0.85rem" }}>{powersError}</p>
+            )}
+            {powersMessage && (
+              <p style={{ color: "#22E3A1", fontSize: "0.85rem" }}>{powersMessage}</p>
+            )}
+            <button
+              type="button"
+              className="refresh-button"
+              disabled={powersSaving}
+              onClick={handleSavePlatformPowers}
+            >
+              {powersSaving ? "Saving…" : "Save Changes"}
+            </button>
+          </div>
+
+          <div className="card admin-powers-card">
+            <h3 style={{ marginTop: 0 }}>Global Venue Control</h3>
+            <p className="subtitle" style={{ fontSize: "0.82rem", opacity: 0.75, marginBottom: 12 }}>
+              Activate or deactivate venues platform-wide.
+            </p>
+            <div className="admin-powers-venue-list">
+              {powersVenues.length === 0 ? (
+                <p style={{ opacity: 0.7, fontSize: "0.85rem" }}>Loading venues…</p>
+              ) : (
+                powersVenues.map((venue) => {
+                  const venueId = String(venue._id);
+                  const active = venue.isActive !== false;
+                  const useGlobal = venue.useGlobalPricing !== false;
+                  return (
+                    <div key={venueId} className="admin-powers-venue-row">
+                      <div className="admin-powers-venue-info">
+                        <span className="admin-powers-venue-name">{venue.name || venueId}</span>
+                        <span className="admin-powers-venue-status">
+                          {active ? "Active" : "Inactive"}
+                          {" · "}
+                          {useGlobal ? "Global pricing" : "Custom pricing"}
+                        </span>
+                        <label className="admin-powers-global-toggle">
+                          <input
+                            type="checkbox"
+                            checked={useGlobal}
+                            disabled={!!useGlobalPricingUpdating[venueId]}
+                            onChange={(e) =>
+                              handleVenueUseGlobalPricingToggle(venueId, e.target.checked)
+                            }
+                          />
+                          <span>Use Global Pricing</span>
+                        </label>
+                      </div>
+                      <button
+                        type="button"
+                        className={`admin-powers-toggle ${active ? "active" : "inactive"}`}
+                        disabled={!!venueActiveUpdating[venueId]}
+                        onClick={() => handleVenueActiveToggle(venueId, !active)}
+                      >
+                        {venueActiveUpdating[venueId]
+                          ? "…"
+                          : active
+                            ? "🟢 Active"
+                            : "🔴 Inactive"}
+                      </button>
+                    </div>
+                  );
+                })
+              )}
+            </div>
+          </div>
+        </div>
+      </section>
 
       {/* A) Analytics funnel */}
       <section className="summary-section funnel-section admin-insights-block">
@@ -902,6 +1178,30 @@ const AdminDashboard = () => {
                         <span className={`admin-venue-status-badge ${active ? "active" : "inactive"}`}>
                           {active ? "Active" : "Inactive"}
                         </span>
+                      </div>
+                      <div className="admin-venue-card-stat">
+                        <span>Spotify Device</span>
+                        <strong>{formatSpotifyDeviceLabel(spotifyDeviceStatuses, row.venueId)}</strong>
+                      </div>
+                      <div
+                        className="admin-venue-card-stat"
+                        onClick={(e) => e.stopPropagation()}
+                        onKeyDown={(e) => e.stopPropagation()}
+                        role="presentation"
+                      >
+                        <span>Venue Active</span>
+                        <button
+                          type="button"
+                          className={`admin-powers-toggle ${active ? "active" : "inactive"}`}
+                          disabled={!!venueActiveUpdating[row.venueId]}
+                          onClick={() => handleVenueActiveToggle(row.venueId, !active)}
+                        >
+                          {venueActiveUpdating[row.venueId]
+                            ? "…"
+                            : active
+                              ? "🟢 On"
+                              : "🔴 Off"}
+                        </button>
                       </div>
                       <div className="admin-venue-card-metric">
                         <span className="admin-venue-card-metric-label">Page visits</span>
@@ -1130,6 +1430,30 @@ const AdminDashboard = () => {
                           {active ? "Active" : "Inactive"}
                         </span>
                       </div>
+                      <div className="admin-money-metric">
+                        <span>Spotify Device</span>
+                        <strong>{formatSpotifyDeviceLabel(spotifyDeviceStatuses, row.venueId)}</strong>
+                      </div>
+                      <div
+                        className="admin-money-metric"
+                        onClick={(e) => e.stopPropagation()}
+                        onKeyDown={(e) => e.stopPropagation()}
+                        role="presentation"
+                      >
+                        <span>Venue Active</span>
+                        <button
+                          type="button"
+                          className={`admin-powers-toggle ${active ? "active" : "inactive"}`}
+                          disabled={!!venueActiveUpdating[row.venueId]}
+                          onClick={() => handleVenueActiveToggle(row.venueId, !active)}
+                        >
+                          {venueActiveUpdating[row.venueId]
+                            ? "…"
+                            : active
+                              ? "🟢 On"
+                              : "🔴 Off"}
+                        </button>
+                      </div>
                       <div className="admin-money-metric money-value-blue">
                         <span>Potential Revenue</span>
                         <strong>{formatGbp(row.potentialRevenue)}</strong>
@@ -1290,297 +1614,6 @@ const AdminDashboard = () => {
         </div>
       </section>
 
-      {/* TABS NAVIGATION */}
-      <div className="tabs-container">
-        <button
-          className={`tab-button ${activeTab === "overview" ? "active" : ""}`}
-          onClick={() => setActiveTab("overview")}
-        >
-          <BarChart3 size={18} /> Overview
-        </button>
-        <button
-          className={`tab-button ${activeTab === "venues" ? "active" : ""}`}
-          onClick={() => setActiveTab("venues")}
-        >
-          <MapPin size={18} /> Venues
-        </button>
-        <button
-          className={`tab-button ${activeTab === "revenue" ? "active" : ""}`}
-          onClick={() => setActiveTab("revenue")}
-        >
-          <DollarSign size={18} /> Revenue
-        </button>
-        <button
-          className={`tab-button ${activeTab === "songs" ? "active" : ""}`}
-          onClick={() => setActiveTab("songs")}
-        >
-          <Music size={18} /> Songs
-        </button>
-      </div>
-
-      {/* OVERVIEW TAB */}
-      {activeTab === "overview" && (
-        <section className="tab-content overview-section">
-          <div className="tab-grid">
-            {/* Request Status Distribution */}
-            <div className="card">
-              <h3>Request Status Distribution</h3>
-              <div className="status-distribution">
-                <div className="status-item approved">
-                  <CheckCircle size={20} />
-                  <div className="status-info">
-                    <p className="label">Approved</p>
-                    <p className="count">{summary.totalApproved}</p>
-                  </div>
-                </div>
-                <div className="status-item pending">
-                  <Clock size={20} />
-                  <div className="status-info">
-                    <p className="label">Pending</p>
-                    <p className="count">{summary.totalPending}</p>
-                  </div>
-                </div>
-                <div className="status-item rejected">
-                  <XCircle size={20} />
-                  <div className="status-info">
-                    <p className="label">Rejected</p>
-                    <p className="count">{summary.totalRejected}</p>
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            {/* Top 5 Venues by Revenue */}
-            <div className="card">
-              <h3>Top 5 Venues by Revenue</h3>
-              <div className="venues-list">
-                {venues.top.map((venue, index) => (
-                  <div key={venue._id} className="venue-item">
-                    <div className="rank">{index + 1}</div>
-                    <div className="venue-details">
-                      <p className="name">{venue.name || "Unknown Venue"}</p>
-                      <p className="stats">
-                        {venue.approvedRequests} approved requests
-                      </p>
-                    </div>
-                    <div className="revenue">
-                      ${venue.totalRevenue.toFixed(2)}
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
-
-            {/* Top 5 Songs */}
-            <div className="card full-width">
-              <h3>Top 5 Requested Songs</h3>
-              <div className="songs-list">
-                <div className="songs-header">
-                  <span className="rank">Rank</span>
-                  <span className="song">Song</span>
-                  <span className="requests">Requests</span>
-                  <span className="status">Approved</span>
-                </div>
-                {requests.topSongs.map((song, index) => (
-                  <div key={index} className="song-row">
-                    <span className="rank">#{index + 1}</span>
-                    <span className="song">
-                      <strong>{song.songName}</strong>
-                      <small>{song.artistName}</small>
-                    </span>
-                    <span className="requests">{song.totalRequests}</span>
-                    <span className="status">{song.approvedCount}</span>
-                  </div>
-                ))}
-              </div>
-            </div>
-          </div>
-        </section>
-      )}
-
-      {/* VENUES TAB */}
-      {activeTab === "venues" && (
-        <section className="tab-content venues-section">
-          <div className="venues-table-container">
-            <table className="data-table">
-              <thead>
-                <tr>
-                  <th>Venue Name</th>
-                  <th>Status</th>
-                  <th>Total Requests</th>
-                  <th>Approved</th>
-                  <th>Pending</th>
-                  <th>Total Revenue</th>
-                </tr>
-              </thead>
-              <tbody>
-                {venues.all.map((venue) => (
-                  <tr key={venue._id}>
-                    <td className="venue-name">
-                      {venue.name || "Unknown Venue"}
-                    </td>
-                    <td className="status">
-                      <span className={`status-badge ${venue.isActive ? "active" : "inactive"}`}>
-                        {venue.isActive ? "🟢 Active" : "🔴 Inactive"}
-                      </span>
-                    </td>
-                    <td>{venue.totalRequests}</td>
-                    <td className="approved">{venue.approvedRequests}</td>
-                    <td className="pending">{venue.pendingRequests}</td>
-                    <td className="revenue">
-                      ${venue.totalRevenue.toFixed(2)}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </section>
-      )}
-
-      {/* REVENUE TAB */}
-      {activeTab === "revenue" && (
-        <section className="tab-content revenue-section">
-          <div className="revenue-summary-card">
-            <h3>Revenue Summary</h3>
-            <div className="revenue-stats">
-              <div className="stat">
-                <p className="label">Total Revenue</p>
-                <p className="value">
-                  ${revenue.total.toLocaleString("en-US", {
-                    minimumFractionDigits: 2,
-                    maximumFractionDigits: 2,
-                  })}
-                </p>
-              </div>
-              <div className="stat">
-                <p className="label">Total Transactions</p>
-                <p className="value">{revenue.totalTransactions}</p>
-              </div>
-              <div className="stat">
-                <p className="label">Avg Transaction</p>
-                <p className="value">
-                  $
-                  {revenue.totalTransactions > 0
-                    ? (revenue.total / revenue.totalTransactions).toFixed(2)
-                    : "0.00"}
-                </p>
-              </div>
-            </div>
-          </div>
-
-          <div className="revenue-by-venue">
-            <h3>Revenue by Venue</h3>
-            <div className="venue-revenue-list">
-              {revenue.byVenue.map((venueRevenue) => (
-                <div key={venueRevenue.venueId} className="venue-revenue-card">
-                  <div className="venue-revenue-header">
-                    <h4>{venueRevenue.venueName}</h4>
-                    <span className="total">
-                      ${venueRevenue.totalAmount.toFixed(2)}
-                    </span>
-                  </div>
-                  <div className="venue-revenue-stats">
-                    <span className="transactions">
-                      {venueRevenue.transactionCount} transactions
-                    </span>
-                    <span className="avg">
-                      Avg: $
-                      {(
-                        venueRevenue.totalAmount /
-                        venueRevenue.transactionCount
-                      ).toFixed(2)}
-                    </span>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-        </section>
-      )}
-
-      {/* SONGS TAB */}
-      {activeTab === "songs" && (
-        <section className="tab-content songs-section">
-          <div className="songs-stats">
-            <div className="stat-card">
-              <h4>Total Requests</h4>
-              <p className="big-number">{requests.totalRequests}</p>
-            </div>
-            <div className="stat-card approved">
-              <h4>Approved</h4>
-              <p className="big-number">{requests.byStatus.approved.length}</p>
-            </div>
-            <div className="stat-card pending">
-              <h4>Pending</h4>
-              <p className="big-number">{requests.byStatus.pending.length}</p>
-            </div>
-            <div className="stat-card rejected">
-              <h4>Rejected</h4>
-              <p className="big-number">{requests.byStatus.rejected.length}</p>
-            </div>
-          </div>
-
-          <div className="songs-grid">
-            {/* Approved Requests */}
-            <div className="card">
-              <h3>✓ Approved Requests ({requests.byStatus.approved.length})</h3>
-              <div className="requests-list">
-                {requests.byStatus.approved.slice(0, 10).map((req) => (
-                  <div key={req._id} className="request-item approved">
-                    <p className="song">
-                      <strong>{req.songName}</strong>
-                      <small>{req.artistName}</small>
-                    </p>
-                    <p className="meta">
-                      {req.venueName} • {req.userName}
-                    </p>
-                    <p className="amount">${req.amount.toFixed(2)}</p>
-                  </div>
-                ))}
-              </div>
-            </div>
-
-            {/* Pending Requests */}
-            <div className="card">
-              <h3>⧗ Pending Requests ({requests.byStatus.pending.length})</h3>
-              <div className="requests-list">
-                {requests.byStatus.pending.slice(0, 10).map((req) => (
-                  <div key={req._id} className="request-item pending">
-                    <p className="song">
-                      <strong>{req.songName}</strong>
-                      <small>{req.artistName}</small>
-                    </p>
-                    <p className="meta">
-                      {req.venueName} • {req.userName}
-                    </p>
-                    <p className="amount">${req.amount.toFixed(2)}</p>
-                  </div>
-                ))}
-              </div>
-            </div>
-
-            {/* Rejected Requests */}
-            <div className="card">
-              <h3>✗ Rejected Requests ({requests.byStatus.rejected.length})</h3>
-              <div className="requests-list">
-                {requests.byStatus.rejected.slice(0, 10).map((req) => (
-                  <div key={req._id} className="request-item rejected">
-                    <p className="song">
-                      <strong>{req.songName}</strong>
-                      <small>{req.artistName}</small>
-                    </p>
-                    <p className="meta">
-                      {req.venueName} • {req.userName}
-                    </p>
-                    <p className="amount">${req.amount.toFixed(2)}</p>
-                  </div>
-                ))}
-              </div>
-            </div>
-          </div>
-        </section>
-      )}
 
       {/* VENUE DETAIL MODAL */}
       {detailVenueId && (
@@ -1776,8 +1809,15 @@ const AdminDashboard = () => {
                   <section className="admin-modal-section">
                     <h3>Request pricing</h3>
                     <p className="subtitle" style={{ marginBottom: "12px", lineHeight: 1.45 }}>
-                      Admin-controlled prices shown to customers on the public request page.
+                      Stored custom prices for this venue. When <strong>Use Global Pricing</strong> is
+                      enabled in Powers, customers see global prices instead until you turn it off.
                     </p>
+                    {detailVenueUsesGlobalPricing && (
+                      <p style={{ color: "#fbbf24", fontSize: "0.85rem", marginBottom: "12px" }}>
+                        This venue currently uses global pricing. Custom values below apply only after
+                        you disable Use Global Pricing in Powers.
+                      </p>
+                    )}
                     <div className="admin-pricing-form">
                       <label className="admin-pricing-field">
                         <span>Spotify/Jukebox Price (£)</span>
