@@ -22,7 +22,8 @@ const {
   updatePlatformPowers,
   setVenueUseGlobalPricing,
   setVenueActive,
-  getVenuesSpotifyDeviceStatus
+  getVenuesSpotifyDeviceStatus,
+  getVenuePayoutInvoicePdf
 } = require("./admin.controller");
 
 const router = express.Router();
@@ -75,6 +76,7 @@ router.get("/analytics/funnel", requireAdmin, getAnalyticsFunnel);
 /* -------------------- MONEY / REVENUE REPORTING -------------------- */
 router.get("/money/venues", requireAdmin, getMoneyVenues);
 router.get("/money/venue/:venueId", requireAdmin, getMoneyVenue);
+router.get("/payout-invoice/:venueId", requireAdmin, getVenuePayoutInvoicePdf);
 
 /* -------------------- VENUE PRICING -------------------- */
 router.put("/venues/:venueId/pricing", requireAdmin, updateVenuePricing);

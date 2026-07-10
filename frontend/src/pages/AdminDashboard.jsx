@@ -12,6 +12,7 @@ import {
   setVenueActive,
   setVenueUseGlobalPricing,
   getVenuesSpotifyDeviceStatus,
+  downloadVenuePayoutInvoice,
 } from "../services/adminStatsService";
 import { formatSpotifyDeviceBadge, getSpotifyDeviceActiveOffline } from "../utils/spotifyDeviceStatus";
 import {
@@ -2408,9 +2409,37 @@ const AdminDashboard = () => {
                     <section className="admin-modal-section">
                       <h3>Export report</h3>
                       <p className="subtitle" style={{ marginBottom: "14px", lineHeight: 1.45 }}>
-                        One row per request in the selected date range. All amounts in £ (GBP).
+                        Download request-level exports or a venue payout statement PDF for the
+                        selected date range. All amounts in £ (GBP).
                       </p>
                       <div className="admin-modal-downloads">
+                        <button
+                          type="button"
+                          className="admin-download-btn"
+                          onClick={async () => {
+                            if (!moneyDetailVenueId) return;
+                            try {
+                              const qm = sectionFilterToQuery(moneyFilter);
+                              const blob = await downloadVenuePayoutInvoice(
+                                moneyDetailVenueId,
+                                qm
+                              );
+                              const base = (moneyDetailData.venue?.name || "venue")
+                                .replace(/[^\w-]+/g, "_")
+                                .slice(0, 64);
+                              const url = URL.createObjectURL(blob);
+                              const a = document.createElement("a");
+                              a.href = url;
+                              a.download = `${base}-payout-invoice.pdf`;
+                              a.click();
+                              URL.revokeObjectURL(url);
+                            } catch (err) {
+                              console.error("[admin payout invoice]", err);
+                            }
+                          }}
+                        >
+                          Download Payout Invoice (PDF)
+                        </button>
                         <button
                           type="button"
                           className="admin-download-btn"

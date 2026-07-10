@@ -370,6 +370,30 @@ export const setVenueActive = async (venueId, active) => {
   return response.json();
 };
 
+export const downloadVenuePayoutInvoice = async (venueId, queryString = "") => {
+  const adminKey = requireAdminKey();
+  const qs =
+    queryString && queryString.startsWith("?")
+      ? queryString
+      : queryString
+        ? `?${queryString}`
+        : "";
+  const response = await fetch(
+    `${API_BASE_URL}/admin/payout-invoice/${encodeURIComponent(venueId)}${qs}`,
+    {
+      method: "GET",
+      headers: {
+        "x-admin-key": adminKey,
+      },
+    }
+  );
+  if (!response.ok) {
+    const data = await response.json().catch(() => ({}));
+    throw new Error(data.error || `Error: ${response.statusText}`);
+  }
+  return response.blob();
+};
+
 export const getVenuesSpotifyDeviceStatus = async (venueIds) => {
   const adminKey = requireAdminKey();
   const response = await fetch(`${API_BASE_URL}/admin/venues/spotify-device-status`, {

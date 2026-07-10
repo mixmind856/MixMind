@@ -33,6 +33,8 @@ const {
   writeGlobalPricing,
 } = require("../../utils/globalPricingStore");
 const { fetchVenueSpotifyDeviceDebug } = require("../../utils/spotifyDeviceDebug");
+const { buildVenuePayoutInvoiceData } = require("../../services/venuePayoutInvoiceService");
+const { generateVenuePayoutPdf } = require("../../services/venuePayoutPdfService");
 
 // Import queues
 const beatsourceQueue = require("../../queues/beatsourceQueue");
@@ -713,6 +715,34 @@ async function getVenuesSpotifyDeviceStatus(req, res) {
   }
 }
 
+async function getVenuePayoutInvoicePdf(req, res) {
+  try {
+    const { venueId } = req.params;
+    const invoiceData = await buildVenuePayoutInvoiceData(venueId, req.query);
+    const pdfBuffer = await generateVenuePayoutPdf(invoiceData);
+
+    const safeVenue = (invoiceData.venue.name || "venue")
+      .replace(/[^\w-]+/g, "_")
+      .slice(0, 48);
+    const filename = `mixmind-payout-${safeVenue}-${invoiceData.statementReference.replace(/[^\w-]+/g, "_").slice(0, 48)}.pdf`;
+
+    res.setHeader("Content-Type", "application/pdf");
+    res.setHeader("Content-Disposition", `attachment; filename="${filename}"`);
+    res.setHeader("Content-Length", pdfBuffer.length);
+    res.send(pdfBuffer);
+  } catch (err) {
+    console.error("Get Venue Payout Invoice PDF Error:", err.message);
+    const code = err.statusCode || 500;
+    if (code === 400) {
+      return res.status(400).json({ error: err.message || "Bad request" });
+    }
+    if (code === 404) {
+      return res.status(404).json({ error: err.message || "Not found" });
+    }
+    res.status(500).json({ error: "Internal server error" });
+  }
+}
+
 module.exports = {
   listVenueRequests,
   approveRequest,
@@ -737,4 +767,5 @@ module.exports = {
   setVenueUseGlobalPricing,
   setVenueActive,
   getVenuesSpotifyDeviceStatus,
+  getVenuePayoutInvoicePdf,
 };

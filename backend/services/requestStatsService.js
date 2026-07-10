@@ -194,6 +194,50 @@ function classifyJukeboxRequest(r) {
   };
 }
 
+function classifyMixMindRequestType(r, amount = null) {
+  const value = amount ?? mixmindRequestAmount(r);
+  if (value <= 0) return "free";
+  if (r.priorityRequest === true || r.priorityType === "play_next") return "play_next";
+  return "standard";
+}
+
+function classifyJukeboxRequestType(r, amount = null) {
+  const value = amount ?? jukeboxRequestAmount(r);
+  if (value <= 0) return "free";
+  if (r.queueJump === true) return "queue_jump";
+  return "standard";
+}
+
+function aggregateRequestTypeBreakdown(reqDocs = [], jbDocs = []) {
+  const counts = {
+    free: 0,
+    standard: 0,
+    queue_jump: 0,
+    play_next: 0,
+  };
+
+  for (const r of reqDocs) {
+    const classification = classifyMixMindRequest(r);
+    if (classification.includeInStats === false) continue;
+    const type = classifyMixMindRequestType(r, classification.amount);
+    counts[type] += 1;
+  }
+
+  for (const r of jbDocs) {
+    const classification = classifyJukeboxRequest(r);
+    if (classification.includeInStats === false) continue;
+    const type = classifyJukeboxRequestType(r, classification.amount);
+    counts[type] += 1;
+  }
+
+  return {
+    freeRequests: counts.free,
+    standardRequests: counts.standard,
+    queueJumpRequests: counts.queue_jump,
+    playNextRequests: counts.play_next,
+  };
+}
+
 function statsFromMixMindClassification(c) {
   if (c.includeInStats === false) {
     return emptyStats();
@@ -371,4 +415,7 @@ module.exports = {
   buildVenueRequestStats,
   getMixMindRequestStatsFields,
   getJukeboxRequestStatsFields,
+  classifyMixMindRequestType,
+  classifyJukeboxRequestType,
+  aggregateRequestTypeBreakdown,
 };
