@@ -7,6 +7,7 @@ const DEFAULTS = {
 };
 
 const NON_DJ_PRIORITY_PRICE = 2.99;
+/** Fallback Queue Jump Fee when global setting is missing. */
 const QUEUE_JUMP_FEE = 0.99;
 
 function usesGlobalPricing(venue) {
@@ -17,28 +18,29 @@ function getGlobalPricing(venue) {
   return venue?.globalPricing ?? readGlobalPricing();
 }
 
+/**
+ * queueJump in global pricing is an ADDITIONAL FEE, not a final price.
+ * Final Queue Jump total = standardRequest + queueJumpFee.
+ */
 function resolveVenuePrices(venue) {
   const global = getGlobalPricing(venue);
   const useGlobal = usesGlobalPricing(venue);
   const djNormalPrice = venue?.djNormalPrice ?? DEFAULTS.djNormalPrice;
   const djPriorityPrice = venue?.djPriorityPrice ?? DEFAULTS.djPriorityPrice;
 
-  let spotifyJukeboxPrice;
-  let queueJumpPrice;
-  let playNextPrice;
+  const spotifyJukeboxPrice = useGlobal
+    ? global.standardRequest ?? DEFAULTS.spotifyJukeboxPrice
+    : venue?.spotifyJukeboxPrice ?? DEFAULTS.spotifyJukeboxPrice;
 
-  if (useGlobal) {
-    spotifyJukeboxPrice = global.standardRequest ?? DEFAULTS.spotifyJukeboxPrice;
-    queueJumpPrice = global.queueJump ?? spotifyJukeboxPrice + QUEUE_JUMP_FEE;
-    playNextPrice = global.playNext ?? DEFAULTS.djPriorityPrice;
-  } else {
-    spotifyJukeboxPrice = venue?.spotifyJukeboxPrice ?? DEFAULTS.spotifyJukeboxPrice;
-    queueJumpPrice = spotifyJukeboxPrice + QUEUE_JUMP_FEE;
-    playNextPrice = djPriorityPrice;
-  }
+  const queueJumpFee = global.queueJump ?? QUEUE_JUMP_FEE;
+  const queueJumpPrice = spotifyJukeboxPrice + queueJumpFee;
+  const playNextPrice = useGlobal
+    ? global.playNext ?? DEFAULTS.djPriorityPrice
+    : djPriorityPrice;
 
   return {
     spotifyJukeboxPrice,
+    queueJumpFee,
     queueJumpPrice,
     playNextPrice,
     djNormalPrice,
@@ -79,7 +81,7 @@ function validatePricingField(value, fieldName) {
   if (!Number.isFinite(num)) {
     return `${fieldName} must be a number`;
   }
-  if (fieldName === "standardRequest") {
+  if (fieldName === "standardRequest" || fieldName === "queueJump") {
     if (num < 0) {
       return `${fieldName} must be at least 0`;
     }

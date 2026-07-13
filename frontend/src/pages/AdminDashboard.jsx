@@ -262,7 +262,7 @@ const AdminDashboard = () => {
   const [moneyDetailTab, setMoneyDetailTab] = useState("summary");
   const [powersForm, setPowersForm] = useState({
     standardRequest: 1.0,
-    queueJump: 1.99,
+    queueJump: 0.99,
     playNext: 4.99,
   });
   const [powersSaving, setPowersSaving] = useState(false);
@@ -2640,10 +2640,10 @@ const AdminDashboard = () => {
                 />
               </label>
               <label className="admin-pricing-field">
-                <span>Queue Jump (£)</span>
+                <span>Queue Jump Fee (£)</span>
                 <input
                   type="number"
-                  min="0.01"
+                  min="0"
                   step="0.01"
                   value={powersForm.queueJump}
                   onChange={(e) =>

@@ -294,6 +294,9 @@ const suppressNextSpotifySearchRef = useRef(false);
   }, [spotifyMode, venueId, selectedSpotifyTrack?.trackId]);
 
   const spotifyBasePrice = venue ? resolveVenuePrices(venue).spotifyJukeboxPrice : 0;
+  const queueJumpFee = venue
+    ? resolveVenuePrices(venue).queueJumpFee
+    : QUEUE_JUMP_FEE;
   const customerFinalPrice = spotifyMode
     ? venue
       ? resolveSpotifyRequestPrice(venue, {
@@ -827,7 +830,7 @@ console.log("✅ Song request created");
                   </p>
                   {spotifyChoiceConfirmed && spotifyQueueJump && (
                     <p className="text-xs mt-1" style={{ color: "rgba(255,255,255,0.6)" }}>
-                      Includes {formatGbp(QUEUE_JUMP_FEE)} Queue Jump
+                      Includes {formatGbp(queueJumpFee)} Queue Jump
                     </p>
                   )}
                 </div>
@@ -1377,7 +1380,7 @@ console.log("✅ Song request created");
                     <div className="text-sm font-semibold text-green-300">
                       Only{" "}
                       <span className="text-2xl font-bold">
-                        {formatGbp(QUEUE_JUMP_FEE)}
+                        {formatGbp(queueJumpFee)}
                       </span>{" "}
                       more
                     </div>

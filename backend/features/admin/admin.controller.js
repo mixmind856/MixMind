@@ -596,12 +596,6 @@ async function updatePlatformPowers(req, res) {
       }
     }
 
-    if (queueJump < standardRequest) {
-      return res.status(400).json({
-        error: "Queue Jump price must be greater than or equal to Standard Request price",
-      });
-    }
-
     const globalPricing = writeGlobalPricing({
       standardRequest,
       queueJump,

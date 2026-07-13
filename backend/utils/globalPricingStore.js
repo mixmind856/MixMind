@@ -5,7 +5,7 @@ const PRICING_FILE = path.join(__dirname, "../data/platformPricing.json");
 
 const FALLBACK = {
   standardRequest: 1.0,
-  queueJump: 1.99,
+  queueJump: 0.99,
   playNext: 4.99,
 };
 

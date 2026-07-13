@@ -4,6 +4,7 @@ const DEFAULTS = {
   djPriorityPrice: 4.99,
 };
 
+/** Fallback Queue Jump Fee when global setting is missing. */
 export const QUEUE_JUMP_FEE = 0.99;
 
 function usesGlobalPricing(venue) {
@@ -14,6 +15,10 @@ function getGlobalPricing(venue) {
   return venue?.globalPricing ?? null;
 }
 
+/**
+ * queueJump in globalPricing is an ADDITIONAL FEE, not a final price.
+ * Final total = standardRequest + queueJumpFee.
+ */
 export function resolveVenuePrices(venue) {
   const global = getGlobalPricing(venue);
   const useGlobal = usesGlobalPricing(venue);
@@ -21,25 +26,26 @@ export function resolveVenuePrices(venue) {
   const djPriorityPrice = venue?.djPriorityPrice ?? DEFAULTS.djPriorityPrice;
 
   let spotifyJukeboxPrice;
-  let queueJumpPrice;
-  let playNextPrice;
-
   if (useGlobal && global) {
     spotifyJukeboxPrice = global.standardRequest ?? DEFAULTS.spotifyJukeboxPrice;
-    queueJumpPrice = global.queueJump ?? spotifyJukeboxPrice + QUEUE_JUMP_FEE;
-    playNextPrice = global.playNext ?? DEFAULTS.djPriorityPrice;
   } else if (useGlobal) {
     spotifyJukeboxPrice = DEFAULTS.spotifyJukeboxPrice;
-    queueJumpPrice = DEFAULTS.spotifyJukeboxPrice + QUEUE_JUMP_FEE;
-    playNextPrice = DEFAULTS.djPriorityPrice;
   } else {
     spotifyJukeboxPrice = venue?.spotifyJukeboxPrice ?? DEFAULTS.spotifyJukeboxPrice;
-    queueJumpPrice = spotifyJukeboxPrice + QUEUE_JUMP_FEE;
-    playNextPrice = djPriorityPrice;
   }
+
+  const queueJumpFee =
+    global?.queueJump != null ? Number(global.queueJump) : QUEUE_JUMP_FEE;
+  const queueJumpPrice = spotifyJukeboxPrice + queueJumpFee;
+
+  const playNextPrice =
+    useGlobal && global
+      ? global.playNext ?? DEFAULTS.djPriorityPrice
+      : djPriorityPrice;
 
   return {
     spotifyJukeboxPrice,
+    queueJumpFee,
     queueJumpPrice,
     playNextPrice,
     djNormalPrice,
