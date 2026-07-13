@@ -1,0 +1,20 @@
+{
+  "playlistMode": {
+    "stripeFee": 0.25,
+    "platformCost": 0.0,
+    "venueSharePct": 50,
+    "mixmindSharePct": 50,
+    "exampleCustomerPays": 1.99
+  },
+  "djNormal": {
+    "customerPrice": 2.0,
+    "mixmindShare": 0.5,
+    "stripeFee": 0.25
+  },
+  "djPriority": {
+    "customerPrice": 4.99,
+    "mixmindShare": 1.0,
+    "stripeFee": 0.25
+  },
+  "futureFields": {}
+}

@@ -394,6 +394,38 @@ export const downloadVenuePayoutInvoice = async (venueId, queryString = "") => {
   return response.blob();
 };
 
+export const getPayoutCalculator = async () => {
+  const adminKey = requireAdminKey();
+  const response = await fetch(`${API_BASE_URL}/admin/payout-calculator`, {
+    method: "GET",
+    headers: {
+      "Content-Type": "application/json",
+      "x-admin-key": adminKey,
+    },
+  });
+  if (!response.ok) {
+    throw new Error(`Error: ${response.statusText}`);
+  }
+  return response.json();
+};
+
+export const updatePayoutCalculator = async (settings) => {
+  const adminKey = requireAdminKey();
+  const response = await fetch(`${API_BASE_URL}/admin/payout-calculator`, {
+    method: "PUT",
+    headers: {
+      "Content-Type": "application/json",
+      "x-admin-key": adminKey,
+    },
+    body: JSON.stringify(settings),
+  });
+  if (!response.ok) {
+    const data = await response.json().catch(() => ({}));
+    throw new Error(data.error || `Error: ${response.statusText}`);
+  }
+  return response.json();
+};
+
 export const getVenuesSpotifyDeviceStatus = async (venueIds) => {
   const adminKey = requireAdminKey();
   const response = await fetch(`${API_BASE_URL}/admin/venues/spotify-device-status`, {

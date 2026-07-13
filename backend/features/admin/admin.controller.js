@@ -35,6 +35,10 @@ const {
 const { fetchVenueSpotifyDeviceDebug } = require("../../utils/spotifyDeviceDebug");
 const { buildVenuePayoutInvoiceData } = require("../../services/venuePayoutInvoiceService");
 const { generateVenuePayoutPdf } = require("../../services/venuePayoutPdfService");
+const {
+  writePayoutCalculatorConfig,
+} = require("../../utils/payoutCalculatorStore");
+const { buildCalculatorPreview } = require("../../utils/payoutCalculator");
 
 // Import queues
 const beatsourceQueue = require("../../queues/beatsourceQueue");
@@ -743,6 +747,67 @@ async function getVenuePayoutInvoicePdf(req, res) {
   }
 }
 
+async function getPayoutCalculator(req, res) {
+  try {
+    const preview = buildCalculatorPreview();
+    res.json(preview);
+  } catch (err) {
+    console.error("Get Payout Calculator Error:", err.message);
+    res.status(500).json({ error: "Internal server error" });
+  }
+}
+
+async function updatePayoutCalculator(req, res) {
+  try {
+    const body = req.body || {};
+    const pl = body.playlistMode || {};
+    const dn = body.djNormal || {};
+    const dp = body.djPriority || {};
+
+    if (Number(pl.venueSharePct) + Number(pl.mixmindSharePct) > 100.0001) {
+      return res.status(400).json({
+        error: "Playlist Venue Share + MixMind Share must not exceed 100%",
+      });
+    }
+
+    const fields = [
+      ["playlistMode.stripeFee", pl.stripeFee],
+      ["playlistMode.platformCost", pl.platformCost],
+      ["playlistMode.venueSharePct", pl.venueSharePct],
+      ["playlistMode.mixmindSharePct", pl.mixmindSharePct],
+      ["playlistMode.exampleCustomerPays", pl.exampleCustomerPays],
+      ["djNormal.customerPrice", dn.customerPrice],
+      ["djNormal.mixmindShare", dn.mixmindShare],
+      ["djNormal.stripeFee", dn.stripeFee],
+      ["djPriority.customerPrice", dp.customerPrice],
+      ["djPriority.mixmindShare", dp.mixmindShare],
+      ["djPriority.stripeFee", dp.stripeFee],
+    ];
+
+    for (const [name, value] of fields) {
+      const n = Number(value);
+      if (!Number.isFinite(n) || n < 0) {
+        return res.status(400).json({ error: `${name} must be a number ≥ 0` });
+      }
+    }
+
+    const config = writePayoutCalculatorConfig({
+      playlistMode: pl,
+      djNormal: dn,
+      djPriority: dp,
+      futureFields: body.futureFields || {},
+    });
+
+    res.json({
+      message: "Payout calculator settings saved",
+      ...buildCalculatorPreview(config),
+    });
+  } catch (err) {
+    console.error("Update Payout Calculator Error:", err.message);
+    res.status(500).json({ error: "Internal server error" });
+  }
+}
+
 module.exports = {
   listVenueRequests,
   approveRequest,
@@ -768,4 +833,6 @@ module.exports = {
   setVenueActive,
   getVenuesSpotifyDeviceStatus,
   getVenuePayoutInvoicePdf,
+  getPayoutCalculator,
+  updatePayoutCalculator,
 };

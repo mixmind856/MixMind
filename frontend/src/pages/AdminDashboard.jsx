@@ -13,8 +13,16 @@ import {
   setVenueUseGlobalPricing,
   getVenuesSpotifyDeviceStatus,
   downloadVenuePayoutInvoice,
+  getPayoutCalculator,
+  updatePayoutCalculator,
 } from "../services/adminStatsService";
 import { formatSpotifyDeviceBadge, getSpotifyDeviceActiveOffline } from "../utils/spotifyDeviceStatus";
+import {
+  DEFAULT_PAYOUT_CALCULATOR,
+  calculatePlaylistPayout,
+  calculateDjPayout,
+  formatGbp as formatCalcGbp,
+} from "../utils/payoutCalculator";
 import {
   TrendingUp,
   Users,
@@ -265,22 +273,45 @@ const AdminDashboard = () => {
   const [venueActiveUpdating, setVenueActiveUpdating] = useState({});
   const [useGlobalPricingUpdating, setUseGlobalPricingUpdating] = useState({});
   const [payoutPdfDownloading, setPayoutPdfDownloading] = useState({});
+  const [calcForm, setCalcForm] = useState(() => ({ ...DEFAULT_PAYOUT_CALCULATOR }));
+  const [calcSaving, setCalcSaving] = useState(false);
+  const [calcMessage, setCalcMessage] = useState(null);
+  const [calcError, setCalcError] = useState(null);
 
   useEffect(() => {
     if (!isAuthenticated) return;
     fetchDashboardData();
     (async () => {
       try {
-        const [powersRes, venuesRes] = await Promise.all([
+        const [powersRes, venuesRes, calcRes] = await Promise.all([
           getPlatformPowers(),
           getAllVenuesStats(),
+          getPayoutCalculator(),
         ]);
         if (powersRes?.globalPricing) {
           setPowersForm(powersRes.globalPricing);
         }
         setPowersVenues(Array.isArray(venuesRes) ? venuesRes : []);
+        if (calcRes?.config) {
+          setCalcForm({
+            ...DEFAULT_PAYOUT_CALCULATOR,
+            ...calcRes.config,
+            playlistMode: {
+              ...DEFAULT_PAYOUT_CALCULATOR.playlistMode,
+              ...(calcRes.config.playlistMode || {}),
+            },
+            djNormal: {
+              ...DEFAULT_PAYOUT_CALCULATOR.djNormal,
+              ...(calcRes.config.djNormal || {}),
+            },
+            djPriority: {
+              ...DEFAULT_PAYOUT_CALCULATOR.djPriority,
+              ...(calcRes.config.djPriority || {}),
+            },
+          });
+        }
       } catch (err) {
-        console.error("[admin powers]", err);
+        console.error("[admin powers/calculator]", err);
       }
     })();
   }, [isAuthenticated]);
@@ -527,6 +558,74 @@ const AdminDashboard = () => {
       setPowersSaving(false);
     }
   };
+
+  const handleSavePayoutCalculator = async () => {
+    setCalcSaving(true);
+    setCalcMessage(null);
+    setCalcError(null);
+    try {
+      const result = await updatePayoutCalculator({
+        playlistMode: {
+          stripeFee: Number(calcForm.playlistMode.stripeFee),
+          platformCost: Number(calcForm.playlistMode.platformCost),
+          venueSharePct: Number(calcForm.playlistMode.venueSharePct),
+          mixmindSharePct: Number(calcForm.playlistMode.mixmindSharePct),
+          exampleCustomerPays: Number(calcForm.playlistMode.exampleCustomerPays),
+        },
+        djNormal: {
+          customerPrice: Number(calcForm.djNormal.customerPrice),
+          mixmindShare: Number(calcForm.djNormal.mixmindShare),
+          stripeFee: Number(calcForm.djNormal.stripeFee),
+        },
+        djPriority: {
+          customerPrice: Number(calcForm.djPriority.customerPrice),
+          mixmindShare: Number(calcForm.djPriority.mixmindShare),
+          stripeFee: Number(calcForm.djPriority.stripeFee),
+        },
+        futureFields: calcForm.futureFields || {},
+      });
+      if (result?.config) {
+        setCalcForm((prev) => ({
+          ...prev,
+          ...result.config,
+          playlistMode: { ...prev.playlistMode, ...result.config.playlistMode },
+          djNormal: { ...prev.djNormal, ...result.config.djNormal },
+          djPriority: { ...prev.djPriority, ...result.config.djPriority },
+        }));
+      }
+      setCalcMessage(result.message || "Payout calculator settings saved");
+    } catch (err) {
+      setCalcError(err.message || "Failed to save calculator settings");
+    } finally {
+      setCalcSaving(false);
+    }
+  };
+
+  const playlistPreview = useMemo(
+    () =>
+      calculatePlaylistPayout(calcForm.playlistMode.exampleCustomerPays, calcForm),
+    [calcForm]
+  );
+
+  const djNormalPreview = useMemo(
+    () =>
+      calculateDjPayout(
+        calcForm.djNormal.customerPrice,
+        calcForm.djNormal.mixmindShare,
+        calcForm.djNormal.stripeFee
+      ),
+    [calcForm]
+  );
+
+  const djPriorityPreview = useMemo(
+    () =>
+      calculateDjPayout(
+        calcForm.djPriority.customerPrice,
+        calcForm.djPriority.mixmindShare,
+        calcForm.djPriority.stripeFee
+      ),
+    [calcForm]
+  );
 
   const handleVenueUseGlobalPricingToggle = async (venueId, nextUseGlobal) => {
     setUseGlobalPricingUpdating((prev) => ({ ...prev, [venueId]: true }));
@@ -817,150 +916,6 @@ const AdminDashboard = () => {
           Revenue uses captured (MixMind) and succeeded (Jukebox) payments only.
         </span>
       </p>
-
-      <section className="summary-section admin-insights-block admin-powers-section">
-        <div className="admin-insights-block-header admin-powers-header">
-          <h2 className="admin-powers-title">
-            <Zap size={22} aria-hidden /> Powers
-          </h2>
-          <p className="admin-powers-subtitle">
-            Global platform controls and default Spotify pricing.
-          </p>
-        </div>
-
-        <div className="admin-powers-grid">
-          <div className="admin-powers-card">
-            <h3 className="admin-powers-card-title">Global Pricing</h3>
-            <p className="admin-powers-card-desc">
-              Default prices for venues with Use Global Pricing enabled.
-            </p>
-            <div className="admin-pricing-form admin-powers-fields">
-              <label className="admin-pricing-field">
-                <span>Standard Request (£)</span>
-                <input
-                  type="number"
-                  min="0"
-                  step="0.01"
-                  value={powersForm.standardRequest}
-                  onChange={(e) =>
-                    setPowersForm((prev) => ({
-                      ...prev,
-                      standardRequest: e.target.value,
-                    }))
-                  }
-                />
-              </label>
-              <label className="admin-pricing-field">
-                <span>Queue Jump (£)</span>
-                <input
-                  type="number"
-                  min="0.01"
-                  step="0.01"
-                  value={powersForm.queueJump}
-                  onChange={(e) =>
-                    setPowersForm((prev) => ({
-                      ...prev,
-                      queueJump: e.target.value,
-                    }))
-                  }
-                />
-              </label>
-              <label className="admin-pricing-field">
-                <span>Play Next (£)</span>
-                <input
-                  type="number"
-                  min="0.01"
-                  step="0.01"
-                  value={powersForm.playNext}
-                  onChange={(e) =>
-                    setPowersForm((prev) => ({
-                      ...prev,
-                      playNext: e.target.value,
-                    }))
-                  }
-                />
-              </label>
-            </div>
-            {powersError && (
-              <p className="admin-pricing-error" role="alert">{powersError}</p>
-            )}
-            {powersMessage && (
-              <p className="admin-pricing-success">{powersMessage}</p>
-            )}
-            <button
-              type="button"
-              className="refresh-button admin-powers-save-btn"
-              disabled={powersSaving}
-              onClick={handleSavePlatformPowers}
-            >
-              {powersSaving ? "Saving…" : "Save Changes"}
-            </button>
-          </div>
-
-          <div className="admin-powers-card admin-powers-venue-card">
-            <h3 className="admin-powers-card-title">Venue Controls</h3>
-            <p className="admin-powers-card-desc">
-              Manage venue status, Spotify device connectivity, and pricing mode.
-            </p>
-            <div className="admin-powers-venue-list">
-              {powersVenues.length === 0 ? (
-                <p className="admin-powers-empty">Loading venues…</p>
-              ) : (
-                powersVenues.map((venue) => {
-                  const venueId = String(venue._id);
-                  const active = venue.isActive !== false;
-                  const useGlobal = venue.useGlobalPricing !== false;
-                  return (
-                    <div key={venueId} className="admin-powers-venue-row">
-                      <div className="admin-powers-venue-main">
-                        <span className="admin-powers-venue-name">{venue.name || venueId}</span>
-                        <div className="admin-powers-venue-stats">
-                          <div className="admin-powers-venue-stat">
-                            <span className="admin-powers-venue-stat-label">Spotify Device</span>
-                            <SpotifyDeviceBadge statuses={spotifyDeviceStatuses} venueId={venueId} />
-                          </div>
-                          <div className="admin-powers-venue-stat">
-                            <span className="admin-powers-venue-stat-label">Pricing</span>
-                            <span className={`admin-powers-pricing-mode ${useGlobal ? "global" : "custom"}`}>
-                              {useGlobal ? "Global" : "Custom"}
-                            </span>
-                          </div>
-                        </div>
-                      </div>
-                      <div className="admin-powers-venue-actions">
-                        <button
-                          type="button"
-                          className={`admin-powers-toggle ${useGlobal ? "global-on" : "global-off"}`}
-                          disabled={!!useGlobalPricingUpdating[venueId]}
-                          onClick={() => handleVenueUseGlobalPricingToggle(venueId, !useGlobal)}
-                        >
-                          {useGlobalPricingUpdating[venueId]
-                            ? "…"
-                            : useGlobal
-                              ? "☑ Global Pricing"
-                              : "☐ Custom Pricing"}
-                        </button>
-                        <button
-                          type="button"
-                          className={`admin-powers-toggle ${active ? "active" : "inactive"}`}
-                          disabled={!!venueActiveUpdating[venueId]}
-                          onClick={() => handleVenueActiveToggle(venueId, !active)}
-                        >
-                          {venueActiveUpdating[venueId]
-                            ? "…"
-                            : active
-                              ? "🟢 Active"
-                              : "🔴 Inactive"}
-                        </button>
-                      </div>
-                    </div>
-                  );
-                })
-              )}
-            </div>
-          </div>
-        </div>
-      </section>
 
       {/* A) Analytics funnel */}
       <section className="summary-section funnel-section admin-insights-block">
@@ -2387,6 +2342,414 @@ const AdminDashboard = () => {
           </div>
         </div>
       )}
+
+      {/* 💰 Payout Calculator — single source of truth */}
+      <section className="summary-section admin-insights-block admin-calc-section">
+        <div className="admin-insights-block-header admin-powers-header">
+          <h2 className="admin-powers-title">💰 Payout Calculator</h2>
+          <p className="admin-powers-subtitle">
+            Shared payout configuration used by Venue Payout PDFs, balances, and future financial reports.
+          </p>
+        </div>
+
+        <div className="admin-calc-grid">
+          <div className="admin-powers-card admin-calc-card">
+            <h3 className="admin-powers-card-title">Playlist Mode</h3>
+            <div className="admin-pricing-form admin-powers-fields">
+              <label className="admin-pricing-field">
+                <span>Stripe Fee (per successful paid request) (£)</span>
+                <input
+                  type="number"
+                  min="0"
+                  step="0.01"
+                  value={calcForm.playlistMode.stripeFee}
+                  onChange={(e) =>
+                    setCalcForm((prev) => ({
+                      ...prev,
+                      playlistMode: { ...prev.playlistMode, stripeFee: e.target.value },
+                    }))
+                  }
+                />
+              </label>
+              <label className="admin-pricing-field">
+                <span>Spotify / Platform Cost (£)</span>
+                <input
+                  type="number"
+                  min="0"
+                  step="0.01"
+                  value={calcForm.playlistMode.platformCost}
+                  onChange={(e) =>
+                    setCalcForm((prev) => ({
+                      ...prev,
+                      playlistMode: { ...prev.playlistMode, platformCost: e.target.value },
+                    }))
+                  }
+                />
+              </label>
+              <label className="admin-pricing-field">
+                <span>Venue Share (%)</span>
+                <input
+                  type="number"
+                  min="0"
+                  max="100"
+                  step="1"
+                  value={calcForm.playlistMode.venueSharePct}
+                  onChange={(e) =>
+                    setCalcForm((prev) => ({
+                      ...prev,
+                      playlistMode: { ...prev.playlistMode, venueSharePct: e.target.value },
+                    }))
+                  }
+                />
+              </label>
+              <label className="admin-pricing-field">
+                <span>MixMind Share (%)</span>
+                <input
+                  type="number"
+                  min="0"
+                  max="100"
+                  step="1"
+                  value={calcForm.playlistMode.mixmindSharePct}
+                  onChange={(e) =>
+                    setCalcForm((prev) => ({
+                      ...prev,
+                      playlistMode: { ...prev.playlistMode, mixmindSharePct: e.target.value },
+                    }))
+                  }
+                />
+              </label>
+              <label className="admin-pricing-field">
+                <span>Live Example — Customer Pays (£)</span>
+                <input
+                  type="number"
+                  min="0"
+                  step="0.01"
+                  value={calcForm.playlistMode.exampleCustomerPays}
+                  onChange={(e) =>
+                    setCalcForm((prev) => ({
+                      ...prev,
+                      playlistMode: {
+                        ...prev.playlistMode,
+                        exampleCustomerPays: e.target.value,
+                      },
+                    }))
+                  }
+                />
+              </label>
+            </div>
+            <div className="admin-calc-preview">
+              <h4>Live Example</h4>
+              <ul className="admin-calc-preview-list">
+                <li>
+                  <span>Customer Pays</span>
+                  <strong>{formatCalcGbp(playlistPreview.customerPays)}</strong>
+                </li>
+                <li>
+                  <span>Stripe Fee</span>
+                  <strong>{formatCalcGbp(playlistPreview.stripeFee)}</strong>
+                </li>
+                <li>
+                  <span>Platform Cost</span>
+                  <strong>{formatCalcGbp(playlistPreview.platformCost)}</strong>
+                </li>
+                <li>
+                  <span>Remaining</span>
+                  <strong>{formatCalcGbp(playlistPreview.remaining)}</strong>
+                </li>
+                <li className="admin-calc-preview-emphasis">
+                  <span>Venue</span>
+                  <strong>{formatCalcGbp(playlistPreview.venue)}</strong>
+                </li>
+                <li className="admin-calc-preview-emphasis">
+                  <span>MixMind</span>
+                  <strong>{formatCalcGbp(playlistPreview.mixmind)}</strong>
+                </li>
+              </ul>
+            </div>
+          </div>
+
+          <div className="admin-powers-card admin-calc-card">
+            <h3 className="admin-powers-card-title">DJ Normal</h3>
+            <div className="admin-pricing-form admin-powers-fields">
+              <label className="admin-pricing-field">
+                <span>Customer Price (£)</span>
+                <input
+                  type="number"
+                  min="0"
+                  step="0.01"
+                  value={calcForm.djNormal.customerPrice}
+                  onChange={(e) =>
+                    setCalcForm((prev) => ({
+                      ...prev,
+                      djNormal: { ...prev.djNormal, customerPrice: e.target.value },
+                    }))
+                  }
+                />
+              </label>
+              <label className="admin-pricing-field">
+                <span>MixMind Share (£)</span>
+                <input
+                  type="number"
+                  min="0"
+                  step="0.01"
+                  value={calcForm.djNormal.mixmindShare}
+                  onChange={(e) =>
+                    setCalcForm((prev) => ({
+                      ...prev,
+                      djNormal: { ...prev.djNormal, mixmindShare: e.target.value },
+                    }))
+                  }
+                />
+              </label>
+              <label className="admin-pricing-field">
+                <span>Stripe Fee (£)</span>
+                <input
+                  type="number"
+                  min="0"
+                  step="0.01"
+                  value={calcForm.djNormal.stripeFee}
+                  onChange={(e) =>
+                    setCalcForm((prev) => ({
+                      ...prev,
+                      djNormal: { ...prev.djNormal, stripeFee: e.target.value },
+                    }))
+                  }
+                />
+              </label>
+            </div>
+            <div className="admin-calc-preview">
+              <h4>Venue Receives</h4>
+              <p className="admin-calc-venue-earns">{formatCalcGbp(djNormalPreview.venueReceives)}</p>
+              <p className="admin-calc-formula">
+                = Customer Price − Stripe Fee − MixMind Share
+              </p>
+            </div>
+          </div>
+
+          <div className="admin-powers-card admin-calc-card">
+            <h3 className="admin-powers-card-title">DJ Priority</h3>
+            <div className="admin-pricing-form admin-powers-fields">
+              <label className="admin-pricing-field">
+                <span>Customer Price (£)</span>
+                <input
+                  type="number"
+                  min="0"
+                  step="0.01"
+                  value={calcForm.djPriority.customerPrice}
+                  onChange={(e) =>
+                    setCalcForm((prev) => ({
+                      ...prev,
+                      djPriority: { ...prev.djPriority, customerPrice: e.target.value },
+                    }))
+                  }
+                />
+              </label>
+              <label className="admin-pricing-field">
+                <span>MixMind Share (£)</span>
+                <input
+                  type="number"
+                  min="0"
+                  step="0.01"
+                  value={calcForm.djPriority.mixmindShare}
+                  onChange={(e) =>
+                    setCalcForm((prev) => ({
+                      ...prev,
+                      djPriority: { ...prev.djPriority, mixmindShare: e.target.value },
+                    }))
+                  }
+                />
+              </label>
+              <label className="admin-pricing-field">
+                <span>Stripe Fee (£)</span>
+                <input
+                  type="number"
+                  min="0"
+                  step="0.01"
+                  value={calcForm.djPriority.stripeFee}
+                  onChange={(e) =>
+                    setCalcForm((prev) => ({
+                      ...prev,
+                      djPriority: { ...prev.djPriority, stripeFee: e.target.value },
+                    }))
+                  }
+                />
+              </label>
+            </div>
+            <div className="admin-calc-preview">
+              <h4>Venue Receives</h4>
+              <p className="admin-calc-venue-earns">{formatCalcGbp(djPriorityPreview.venueReceives)}</p>
+              <p className="admin-calc-formula">
+                = Customer Price − Stripe Fee − MixMind Share
+              </p>
+            </div>
+          </div>
+        </div>
+
+        {calcError && (
+          <p className="admin-pricing-error" role="alert" style={{ marginTop: 12 }}>
+            {calcError}
+          </p>
+        )}
+        {calcMessage && (
+          <p className="admin-pricing-success" style={{ marginTop: 12 }}>
+            {calcMessage}
+          </p>
+        )}
+        <button
+          type="button"
+          className="refresh-button admin-powers-save-btn"
+          style={{ marginTop: 14 }}
+          disabled={calcSaving}
+          onClick={handleSavePayoutCalculator}
+        >
+          {calcSaving ? "Saving…" : "Save Calculator Settings"}
+        </button>
+      </section>
+
+      {/* ⚡ Powers — admin configuration (bottom) */}
+      <section className="summary-section admin-insights-block admin-powers-section">
+        <div className="admin-insights-block-header admin-powers-header">
+          <h2 className="admin-powers-title">
+            <Zap size={22} aria-hidden /> Powers
+          </h2>
+          <p className="admin-powers-subtitle">
+            Global platform controls and default Spotify pricing.
+          </p>
+        </div>
+
+        <div className="admin-powers-grid">
+          <div className="admin-powers-card">
+            <h3 className="admin-powers-card-title">Global Pricing</h3>
+            <p className="admin-powers-card-desc">
+              Default prices for venues with Use Global Pricing enabled.
+            </p>
+            <div className="admin-pricing-form admin-powers-fields">
+              <label className="admin-pricing-field">
+                <span>Standard Request (£)</span>
+                <input
+                  type="number"
+                  min="0"
+                  step="0.01"
+                  value={powersForm.standardRequest}
+                  onChange={(e) =>
+                    setPowersForm((prev) => ({
+                      ...prev,
+                      standardRequest: e.target.value,
+                    }))
+                  }
+                />
+              </label>
+              <label className="admin-pricing-field">
+                <span>Queue Jump (£)</span>
+                <input
+                  type="number"
+                  min="0.01"
+                  step="0.01"
+                  value={powersForm.queueJump}
+                  onChange={(e) =>
+                    setPowersForm((prev) => ({
+                      ...prev,
+                      queueJump: e.target.value,
+                    }))
+                  }
+                />
+              </label>
+              <label className="admin-pricing-field">
+                <span>Play Next (£)</span>
+                <input
+                  type="number"
+                  min="0.01"
+                  step="0.01"
+                  value={powersForm.playNext}
+                  onChange={(e) =>
+                    setPowersForm((prev) => ({
+                      ...prev,
+                      playNext: e.target.value,
+                    }))
+                  }
+                />
+              </label>
+            </div>
+            {powersError && (
+              <p className="admin-pricing-error" role="alert">{powersError}</p>
+            )}
+            {powersMessage && (
+              <p className="admin-pricing-success">{powersMessage}</p>
+            )}
+            <button
+              type="button"
+              className="refresh-button admin-powers-save-btn"
+              disabled={powersSaving}
+              onClick={handleSavePlatformPowers}
+            >
+              {powersSaving ? "Saving…" : "Save Changes"}
+            </button>
+          </div>
+
+          <div className="admin-powers-card admin-powers-venue-card">
+            <h3 className="admin-powers-card-title">Venue Controls</h3>
+            <p className="admin-powers-card-desc">
+              Manage venue status, Spotify device connectivity, and pricing mode.
+            </p>
+            <div className="admin-powers-venue-list">
+              {powersVenues.length === 0 ? (
+                <p className="admin-powers-empty">Loading venues…</p>
+              ) : (
+                powersVenues.map((venue) => {
+                  const venueId = String(venue._id);
+                  const active = venue.isActive !== false;
+                  const useGlobal = venue.useGlobalPricing !== false;
+                  return (
+                    <div key={venueId} className="admin-powers-venue-row">
+                      <div className="admin-powers-venue-main">
+                        <span className="admin-powers-venue-name">{venue.name || venueId}</span>
+                        <div className="admin-powers-venue-stats">
+                          <div className="admin-powers-venue-stat">
+                            <span className="admin-powers-venue-stat-label">Spotify Device</span>
+                            <SpotifyDeviceBadge statuses={spotifyDeviceStatuses} venueId={venueId} />
+                          </div>
+                          <div className="admin-powers-venue-stat">
+                            <span className="admin-powers-venue-stat-label">Pricing</span>
+                            <span className={`admin-powers-pricing-mode ${useGlobal ? "global" : "custom"}`}>
+                              {useGlobal ? "Global" : "Custom"}
+                            </span>
+                          </div>
+                        </div>
+                      </div>
+                      <div className="admin-powers-venue-actions">
+                        <button
+                          type="button"
+                          className={`admin-powers-toggle ${useGlobal ? "global-on" : "global-off"}`}
+                          disabled={!!useGlobalPricingUpdating[venueId]}
+                          onClick={() => handleVenueUseGlobalPricingToggle(venueId, !useGlobal)}
+                        >
+                          {useGlobalPricingUpdating[venueId]
+                            ? "…"
+                            : useGlobal
+                              ? "☑ Global Pricing"
+                              : "☐ Custom Pricing"}
+                        </button>
+                        <button
+                          type="button"
+                          className={`admin-powers-toggle ${active ? "active" : "inactive"}`}
+                          disabled={!!venueActiveUpdating[venueId]}
+                          onClick={() => handleVenueActiveToggle(venueId, !active)}
+                        >
+                          {venueActiveUpdating[venueId]
+                            ? "…"
+                            : active
+                              ? "🟢 Active"
+                              : "🔴 Inactive"}
+                        </button>
+                      </div>
+                    </div>
+                  );
+                })
+              )}
+            </div>
+          </div>
+        </div>
+      </section>
 
       {/* FOOTER */}
       <footer className="dashboard-footer">

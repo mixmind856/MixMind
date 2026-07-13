@@ -1,9 +1,13 @@
-const mongoose = require("mongoose");
-const Payment = require("../models/Payment");
 const { buildMoneyVenue } = require("./adminMoneyService");
 const { buildVenueAnalyticsDeepDive, resolveAnalyticsWindow } = require("./analyticsFunnelService");
-const { roundMoney, fetchRequestDocs, aggregateRequestTypeBreakdown } = require("./requestStatsService");
-const { LIVE_VENUE_SHARE, LIVE_PLATFORM_SHARE } = require("../utils/revenueSplit");
+const {
+  fetchRequestDocs,
+  aggregateRequestTypeBreakdown,
+  classifyMixMindRequest,
+  classifyJukeboxRequest,
+} = require("./requestStatsService");
+const { calculatePeriodFinancials } = require("../utils/payoutCalculator");
+const { readPayoutCalculatorConfig } = require("../utils/payoutCalculatorStore");
 
 function formatLondonDate(d = new Date()) {
   return new Intl.DateTimeFormat("en-GB", {
@@ -57,62 +61,45 @@ function buildPerformanceRating(totalRequests) {
   return { stars: "★★", label: "Early Stage" };
 }
 
-async function sumVenuePaymentTransfers(venueId, from, toExclusive) {
-  if (!mongoose.Types.ObjectId.isValid(venueId)) {
-    return { venue: 0, platform: 0, dj: 0 };
+function countPaidSuccesses(reqDocs = [], jbDocs = []) {
+  let playlistPaidSuccessCount = 0;
+  let djPaidSuccessCount = 0;
+  let djPriorityPaidSuccessCount = 0;
+
+  for (const r of jbDocs) {
+    const c = classifyJukeboxRequest(r);
+    if (c.earnedRevenue > 0) playlistPaidSuccessCount += 1;
   }
 
-  const payments = await Payment.find({
-    venueId: new mongoose.Types.ObjectId(venueId),
-    transfersCreatedAt: { $gte: from, $lt: toExclusive },
-    transfers: { $exists: true, $not: { $size: 0 } },
-  })
-    .select("transfers")
-    .lean()
-    .exec();
-
-  const sums = { venue: 0, platform: 0, dj: 0 };
-  for (const payment of payments) {
-    for (const transfer of payment.transfers || []) {
-      const key = transfer.type;
-      if (key && Object.prototype.hasOwnProperty.call(sums, key)) {
-        sums[key] += Number(transfer.amount) || 0;
-      }
-    }
+  for (const r of reqDocs) {
+    const c = classifyMixMindRequest(r);
+    if (c.earnedRevenue <= 0) continue;
+    const isPriority = r.priorityRequest === true || r.priorityType === "play_next";
+    if (isPriority) djPriorityPaidSuccessCount += 1;
+    else djPaidSuccessCount += 1;
   }
 
   return {
-    venue: roundMoney(sums.venue),
-    platform: roundMoney(sums.platform),
-    dj: roundMoney(sums.dj),
+    playlistPaidSuccessCount,
+    djPaidSuccessCount,
+    djPriorityPaidSuccessCount,
   };
 }
 
-function computePayoutFinancials(moneyTotals, transferSums) {
-  const grossRevenue = roundMoney(moneyTotals.earnedRevenue);
-  const jukeboxEarned = roundMoney(moneyTotals.jukebox?.earnedRevenue || 0);
-
-  const venueFromTransfers = roundMoney(transferSums.venue || 0);
-  const platformFromTransfers = roundMoney(transferSums.platform || 0);
-  const djFromTransfers = roundMoney(transferSums.dj || 0);
-
-  const venueFromPlaylist = roundMoney(jukeboxEarned * LIVE_VENUE_SHARE);
-  const platformFromPlaylist = roundMoney(jukeboxEarned * LIVE_PLATFORM_SHARE);
-
-  const netVenuePayout = roundMoney(venueFromTransfers + venueFromPlaylist);
-  const mixmindCommission = roundMoney(platformFromTransfers + platformFromPlaylist);
-
-  const stripeFees = roundMoney(
-    Math.max(0, grossRevenue - netVenuePayout - mixmindCommission - djFromTransfers)
+/**
+ * Period financials via shared Payout Calculator (SSOT).
+ */
+function computePayoutFinancials(moneyTotals, paidCounts, configOverride) {
+  return calculatePeriodFinancials(
+    {
+      playlistEarned: moneyTotals.jukebox?.earnedRevenue || 0,
+      djEarned: moneyTotals.mixmind?.earnedRevenue || 0,
+      playlistPaidSuccessCount: paidCounts.playlistPaidSuccessCount || 0,
+      djPaidSuccessCount: paidCounts.djPaidSuccessCount || 0,
+      djPriorityPaidSuccessCount: paidCounts.djPriorityPaidSuccessCount || 0,
+    },
+    configOverride || readPayoutCalculatorConfig()
   );
-
-  return {
-    grossRevenue,
-    stripeFees,
-    mixmindCommission,
-    netVenuePayout,
-    totalPayable: netVenuePayout,
-  };
 }
 
 async function buildVenuePayoutInvoiceData(venueId, query = {}) {
@@ -125,9 +112,9 @@ async function buildVenuePayoutInvoiceData(venueId, query = {}) {
 
   const { reqDocs, jbDocs } = await fetchRequestDocs({ venueId, from, toExclusive });
   const requestTypes = aggregateRequestTypeBreakdown(reqDocs, jbDocs);
+  const paidCounts = countPaidSuccesses(reqDocs, jbDocs);
 
-  const transferSums = await sumVenuePaymentTransfers(venueId, from, toExclusive);
-  const financials = computePayoutFinancials(money.totals, transferSums);
+  const financials = computePayoutFinancials(money.totals, paidCounts);
   const funnel = analytics.funnel || {};
 
   const conversionRate =
@@ -175,6 +162,6 @@ module.exports = {
   buildStatementReference,
   buildTopRequestedSongs,
   buildPerformanceRating,
-  sumVenuePaymentTransfers,
+  countPaidSuccesses,
   computePayoutFinancials,
 };

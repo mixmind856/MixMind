@@ -23,7 +23,9 @@ const {
   setVenueUseGlobalPricing,
   setVenueActive,
   getVenuesSpotifyDeviceStatus,
-  getVenuePayoutInvoicePdf
+  getVenuePayoutInvoicePdf,
+  getPayoutCalculator,
+  updatePayoutCalculator
 } = require("./admin.controller");
 
 const router = express.Router();
@@ -87,5 +89,9 @@ router.post("/venues/spotify-device-status", requireAdmin, getVenuesSpotifyDevic
 /* -------------------- PLATFORM POWERS -------------------- */
 router.get("/powers", requireAdmin, getPlatformPowers);
 router.put("/powers", requireAdmin, updatePlatformPowers);
+
+/* -------------------- PAYOUT CALCULATOR (SSOT) -------------------- */
+router.get("/payout-calculator", requireAdmin, getPayoutCalculator);
+router.put("/payout-calculator", requireAdmin, updatePayoutCalculator);
 
 module.exports = router;

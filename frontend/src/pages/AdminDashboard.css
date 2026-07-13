@@ -1535,6 +1535,76 @@
   margin-bottom: 2rem;
 }
 
+.admin-calc-section {
+  margin-bottom: 2rem;
+}
+
+.admin-calc-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: 16px;
+  margin-top: 16px;
+}
+
+.admin-calc-card {
+  display: flex;
+  flex-direction: column;
+}
+
+.admin-calc-preview {
+  margin-top: 14px;
+  padding: 12px 14px;
+  border-radius: 10px;
+  background: rgba(0, 0, 0, 0.22);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+}
+
+.admin-calc-preview h4 {
+  margin: 0 0 10px;
+  color: #fff;
+  font-size: 0.9rem;
+}
+
+.admin-calc-preview-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.admin-calc-preview-list li {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  font-size: 0.85rem;
+  color: rgba(226, 232, 240, 0.75);
+}
+
+.admin-calc-preview-list li strong {
+  color: #fff;
+  font-weight: 600;
+}
+
+.admin-calc-preview-list li.admin-calc-preview-emphasis strong {
+  color: #86efac;
+  font-size: 0.95rem;
+}
+
+.admin-calc-venue-earns {
+  margin: 0;
+  color: #86efac;
+  font-size: 1.6rem;
+  font-weight: 700;
+}
+
+.admin-calc-formula {
+  margin: 6px 0 0;
+  font-size: 0.75rem;
+  color: rgba(226, 232, 240, 0.55);
+}
+
 .admin-powers-header {
   margin-bottom: 0.25rem;
 }

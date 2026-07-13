@@ -1,10 +1,24 @@
 const Stripe = require("stripe");
 const Payment = require("../../../models/Payment");
+const {
+  getDjSplitAmountsCents,
+  getLiveSplitAmountsCents,
+} = require("../../../utils/payoutCalculator");
+const { readPayoutCalculatorConfig } = require("../../../utils/payoutCalculatorStore");
 
 const DEMO_MODE = process.env.DEMO_MODE === "true" || !process.env.STRIPE_SECRET_KEY;
 const stripe = !DEMO_MODE ? new Stripe(process.env.STRIPE_SECRET_KEY, {
   apiVersion: "2023-10-16"
 }) : null;
+
+function resolveDjSplitCents(amountCents) {
+  const config = readPayoutCalculatorConfig();
+  const amountGbp = (Number(amountCents) || 0) / 100;
+  const normalDelta = Math.abs(amountGbp - config.djNormal.customerPrice);
+  const priorityDelta = Math.abs(amountGbp - config.djPriority.customerPrice);
+  const isPriority = priorityDelta < normalDelta;
+  return getDjSplitAmountsCents(amountCents, { isPriority }, config);
+}
 
 /**
  * Create checkout session for LIVE mode
@@ -316,9 +330,8 @@ async function createSplitTransfers(paymentIntentId, amountCents, venueId, mode 
     let mockTransfers = [];
     
     if (mode === "dj") {
-      // DJ MODE: DJ 44.44%, Venue 33.33%, Platform remainder
-      const djAmount = Math.floor(amountCents * 0.4444);
-      const venueAmount = Math.floor(amountCents * 0.3333);
+      // DJ MODE — venue / MixMind / DJ residual from Payout Calculator
+      const { venueAmount, djAmount } = resolveDjSplitCents(amountCents);
       
       mockTransfers = [
         { type: "dj", amount: djAmount / 100, transferId: `tr_demo_dj_${Date.now()}` },
@@ -327,8 +340,8 @@ async function createSplitTransfers(paymentIntentId, amountCents, venueId, mode 
       
       console.log(`✅ DEMO DJ splits: DJ £${(djAmount / 100).toFixed(2)}, Venue £${(venueAmount / 100).toFixed(2)}`);
     } else if (mode === "live") {
-      // LIVE MODE: Venue 60%, Platform 40%
-      const venueAmount = Math.floor(amountCents * 0.6);
+      // LIVE / Playlist — venue share from Payout Calculator
+      const { venueAmount } = getLiveSplitAmountsCents(amountCents);
       
       mockTransfers = [
         { type: "venue", amount: venueAmount / 100, transferId: `tr_demo_venue_${Date.now()}` }
@@ -377,13 +390,11 @@ async function createSplitTransfers(paymentIntentId, amountCents, venueId, mode 
     const transfers = [];
 
     if (mode === "dj") {
-      // DJ MODE: DJ 44.44%, Venue 33.33%, Platform remainder
-      const djAmount = Math.floor(amountCents * 0.4444);
-      const venueAmount = Math.floor(amountCents * 0.3333);
-      const platformAmount = amountCents - djAmount - venueAmount;
+      // DJ MODE — splits from Payout Calculator
+      const { venueAmount, platformAmount, djAmount } = resolveDjSplitCents(amountCents);
 
       // DJ transfer
-      if (process.env.STRIPE_DJ_ACCOUNT_ID) {
+      if (process.env.STRIPE_DJ_ACCOUNT_ID && djAmount > 0) {
         const djTransfer = await stripe.transfers.create({
           amount: djAmount,
           currency: "gbp",
@@ -399,7 +410,7 @@ async function createSplitTransfers(paymentIntentId, amountCents, venueId, mode 
       }
 
       // Venue transfer
-      if (process.env.STRIPE_VENUE_ACCOUNT_ID) {
+      if (process.env.STRIPE_VENUE_ACCOUNT_ID && venueAmount > 0) {
         const venueTransfer = await stripe.transfers.create({
           amount: venueAmount,
           currency: "gbp",
@@ -416,11 +427,10 @@ async function createSplitTransfers(paymentIntentId, amountCents, venueId, mode 
 
       console.log(`✅ DJ Mode splits complete. Platform keeps: £${(platformAmount / 100).toFixed(2)}`);
     } else if (mode === "live") {
-      // LIVE MODE: Venue 60%, Platform 40%
-      const venueAmount = Math.floor(amountCents * 0.6);
-      const platformAmount = amountCents - venueAmount;
+      // LIVE / Playlist — venue share from Payout Calculator
+      const { venueAmount, platformAmount } = getLiveSplitAmountsCents(amountCents);
 
-      if (process.env.STRIPE_VENUE_ACCOUNT_ID) {
+      if (process.env.STRIPE_VENUE_ACCOUNT_ID && venueAmount > 0) {
         const venueTransfer = await stripe.transfers.create({
           amount: venueAmount,
           currency: "gbp",
