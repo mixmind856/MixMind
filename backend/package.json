@@ -5,7 +5,8 @@
   "scripts": {
     "dev:api": "nodemon server.js",
     "dev:worker": "nodemon queues/songRequestWorker.js",
-    "dev:stack": "nodemon worker/stackProcessor.worker.js"
+    "dev:stack": "nodemon worker/stackProcessor.worker.js",
+    "dev:schedule": "nodemon worker/modeSchedule.worker.js"
   },
   "keywords": [],
   "author": "",

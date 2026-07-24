@@ -40,6 +40,39 @@ const VenueSchema = new Schema(
     spotifyLastActiveDeviceId: { type: String },
     spotifyLastActiveDeviceName: { type: String },
     spotifyLastDeviceSeenAt: { type: Date },
+
+    // Venue local timezone for scheduling (IANA). Default Europe/London.
+    timezone: { type: String, default: "Europe/London" },
+
+    // Automatic mode switching: list of weekly switch events (day + time → mode)
+    automaticScheduling: {
+      enabled: { type: Boolean, default: false },
+      // When true, schedule worker skips this venue until Resume Automatic
+      manualOverride: { type: Boolean, default: false },
+      entries: [
+        {
+          day: {
+            type: String,
+            enum: [
+              "monday",
+              "tuesday",
+              "wednesday",
+              "thursday",
+              "friday",
+              "saturday",
+              "sunday"
+            ],
+            required: true
+          },
+          time: { type: String, required: true }, // "HH:MM"
+          mode: {
+            type: String,
+            enum: ["playlist", "dj"],
+            required: true
+          }
+        }
+      ]
+    },
     
     // Genre Management System
     preferredGenres: {

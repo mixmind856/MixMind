@@ -117,6 +117,11 @@ connectDB()
           } else {
             console.log("📭 No active venues - Live Playlist Worker idle (toggle ON to start)");
           }
+
+          // Automatic Playlist ↔ DJ mode switching (polls every minute)
+          const { startModeScheduleWorker } = require("./worker/modeSchedule.worker");
+          startModeScheduleWorker({ runImmediately: true });
+          console.log("✅ Mode Schedule Worker started");
         } catch (err) {
           console.error("Worker startup error:", err.message);
         }

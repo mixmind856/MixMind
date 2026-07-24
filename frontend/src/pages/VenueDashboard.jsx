@@ -2,6 +2,7 @@ import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import axios from "axios";
 import DJAccessManagement from "../components/DJAccessManagement";
+import AutomaticModeSwitching from "../components/AutomaticModeSwitching";
 import logo from "../assets/Mixmind.jpeg";
 import { Music, Zap, Award, Flame, Info } from "lucide-react";
 import { resolveVenuePrices, formatGbp } from "../utils/venuePricing";
@@ -78,6 +79,9 @@ export default function VenueDashboard() {
   const [spotifyDebug, setSpotifyDebug] = useState(null);
   const [spotifyDeviceCheckLoading, setSpotifyDeviceCheckLoading] = useState(false);
   const [spotifyDeviceCheckError, setSpotifyDeviceCheckError] = useState(null);
+  const [automaticScheduling, setAutomaticScheduling] = useState(null);
+  const [venueTimezone, setVenueTimezone] = useState("Europe/London");
+  const [scheduleStatus, setScheduleStatus] = useState(null);
 
   useEffect(() => {
     const token = localStorage.getItem("venueToken");
@@ -147,7 +151,25 @@ export default function VenueDashboard() {
       setDJMode(venueData.djMode || false);
       setSpotifyMode(venueData.spotifyMode || false);
       setSpotifyConnected(!!venueData.spotifyConnected);
+      setAutomaticScheduling(venueData.automaticScheduling || null);
+      setVenueTimezone(venueData.timezone || "Europe/London");
       await fetchSpotifyDebugStatus(venueData._id, token);
+
+      // Load schedule status (next change, control mode)
+      try {
+        const scheduleRes = await fetch(
+          `${import.meta.env.VITE_API_URL}/venue/automatic-scheduling`,
+          { headers: { Authorization: `Bearer ${token}` } }
+        );
+        if (scheduleRes.ok) {
+          const scheduleData = await scheduleRes.json();
+          setAutomaticScheduling(scheduleData.automaticScheduling);
+          setVenueTimezone(scheduleData.timezone || "Europe/London");
+          setScheduleStatus(scheduleData.status || null);
+        }
+      } catch {
+        // Non-critical — dashboard still works without schedule status
+      }
 
       const statsRes = await fetch(
         `${import.meta.env.VITE_API_URL}/venue/request-stats`,
@@ -340,6 +362,18 @@ export default function VenueDashboard() {
 
       // Update ONLY Live Playlist state
       setLivePlaylistActive(data.active);
+
+      if (data.automaticScheduling) {
+        setAutomaticScheduling(data.automaticScheduling);
+        if (data.automaticScheduling.manualOverride) {
+          setScheduleStatus((prev) => ({
+            ...(prev || {}),
+            enabled: !!data.automaticScheduling.enabled,
+            manualOverride: true,
+            control: data.automaticScheduling.enabled ? "manual" : "disabled"
+          }));
+        }
+      }
       
       // DJ Mode state should remain unchanged
       console.log(`✅ Updated - Live Playlist: ${data.active}, DJ Mode: ${data.djMode} (unchanged)`);
@@ -542,6 +576,17 @@ export default function VenueDashboard() {
         if (typeof data.spotifyMode === "boolean") {
           setSpotifyMode(!!data.spotifyMode);
         }
+        if (data.automaticScheduling) {
+          setAutomaticScheduling(data.automaticScheduling);
+          if (data.automaticScheduling.manualOverride) {
+            setScheduleStatus((prev) => ({
+              ...(prev || {}),
+              enabled: !!data.automaticScheduling.enabled,
+              manualOverride: true,
+              control: data.automaticScheduling.enabled ? "manual" : "disabled"
+            }));
+          }
+        }
         setSuccessMsg(
           data.message ||
             "✅ DJ Mode enabled! Spotify mode has been turned off."
@@ -571,6 +616,17 @@ export default function VenueDashboard() {
         setDJMode(!!data.djMode);
         if (typeof data.spotifyMode === "boolean") {
           setSpotifyMode(!!data.spotifyMode);
+        }
+        if (data.automaticScheduling) {
+          setAutomaticScheduling(data.automaticScheduling);
+          if (data.automaticScheduling.manualOverride) {
+            setScheduleStatus((prev) => ({
+              ...(prev || {}),
+              enabled: !!data.automaticScheduling.enabled,
+              manualOverride: true,
+              control: data.automaticScheduling.enabled ? "manual" : "disabled"
+            }));
+          }
         }
         setSuccessMsg(data.message || "✅ DJ Mode disabled.");
         setShowDJModal(false);
@@ -875,6 +931,13 @@ export default function VenueDashboard() {
                   ? "✓ Enabled - DJ can accept/reject requests in real-time" 
                   : "Disabled - Set a DJ password to enable DJ Mode"}
               </p>
+              {automaticScheduling?.enabled && (
+                <p className="text-sm text-cyan-300/80 mt-2">
+                  {scheduleStatus?.control === "automatic"
+                    ? "🤖 Automatic scheduling is controlling mode switches. Use Switch to Manual to take over."
+                    : "👤 Manual override active — automatic scheduling is paused."}
+                </p>
+              )}
             </div>
             <div className="flex gap-3">
               <button
@@ -890,6 +953,43 @@ export default function VenueDashboard() {
             </div>
           </div>
         </div>
+
+        <AutomaticModeSwitching
+          schedule={automaticScheduling}
+          timezone={venueTimezone}
+          status={scheduleStatus}
+          currentFlags={{
+            djMode,
+            livePlaylistActive,
+            spotifyMode
+          }}
+          onFlagsChange={(flags) => {
+            if (typeof flags.djMode === "boolean") setDJMode(flags.djMode);
+            if (typeof flags.livePlaylistActive === "boolean") {
+              setLivePlaylistActive(flags.livePlaylistActive);
+            }
+            if (typeof flags.spotifyMode === "boolean") {
+              setSpotifyMode(flags.spotifyMode);
+            }
+          }}
+          onScheduleChange={(next) => {
+            setAutomaticScheduling(next);
+            setScheduleStatus((prev) =>
+              prev
+                ? {
+                    ...prev,
+                    enabled: !!next.enabled,
+                    manualOverride: !!next.manualOverride,
+                    control: !next.enabled
+                      ? "disabled"
+                      : next.manualOverride
+                        ? "manual"
+                        : "automatic"
+                  }
+                : prev
+            );
+          }}
+        />
 
         {/* Spotify Mode Control */}
         <div className={`bg-gradient-to-r ${spotifyMode ? 'from-violet-900/30 to-fuchsia-900/30 border-violet-500/30' : 'from-gray-900/30 to-gray-900/30 border-gray-500/30'} border rounded-xl p-8 mb-12`}>

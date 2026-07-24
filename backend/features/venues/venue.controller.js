@@ -2,6 +2,28 @@ const jwt = require("jsonwebtoken");
 const Venue = require("../../models/Venue");
 const { buildVenueRequestStats } = require("../../services/requestStatsService");
 const { attachGlobalPricingToVenue } = require("../../utils/venuePricing");
+const {
+  defaultAutomaticScheduling,
+  defaultAutomaticSchedulingSafe,
+  normalizeTimezone,
+  normalizeSchedulePayload,
+  buildScheduleStatus,
+  resolveScheduledMode
+} = require("../../services/modeScheduleService");
+const { applyScheduledModeIfNeeded } = require("../../services/venueModeService");
+
+/**
+ * If automatic scheduling is enabled, a manual mode toggle enters temporary override
+ * so the worker does not immediately flip the mode back.
+ */
+function markManualOverrideIfSchedulingEnabled(venue) {
+  if (venue?.automaticScheduling?.enabled && !venue.automaticScheduling.manualOverride) {
+    venue.automaticScheduling.manualOverride = true;
+    venue.markModified("automaticScheduling");
+    return true;
+  }
+  return false;
+}
 
 /**
  * Generate JWT token for venue
@@ -229,6 +251,11 @@ async function toggleLivePlaylist(req, res) {
     // Live Playlist toggle is NOW INDEPENDENT
     // DJ Mode remains unchanged when toggling Live Playlist
     venue.livePlaylistActive = active;
+
+    const enteredOverride = markManualOverrideIfSchedulingEnabled(venue);
+    if (enteredOverride) {
+      console.log(`   → Automatic scheduling: entered manual override`);
+    }
     
     console.log(`   → Live Playlist: ${active ? "ON" : "OFF"}`);
     console.log(`   → DJ Mode: ${venue.djMode ? "ON" : "OFF"} (unchanged)`);
@@ -271,6 +298,7 @@ async function toggleLivePlaylist(req, res) {
             message: "✅ Live playlist rotation started",
             active: true,
             djMode: venue.djMode,
+            automaticScheduling: venue.automaticScheduling,
             venue,
             worker: result
           });
@@ -280,6 +308,7 @@ async function toggleLivePlaylist(req, res) {
             message: result.message || "Status updated",
             active: true,
             djMode: venue.djMode,
+            automaticScheduling: venue.automaticScheduling,
             venue,
             worker: result
           });
@@ -291,6 +320,7 @@ async function toggleLivePlaylist(req, res) {
           message: "Live playlist rotation stopped",
           active: false,
           djMode: venue.djMode,
+          automaticScheduling: venue.automaticScheduling,
           venue
         });
       }
@@ -300,6 +330,7 @@ async function toggleLivePlaylist(req, res) {
         message: "Status updated but worker control failed",
         active,
         djMode: venue.djMode,
+        automaticScheduling: venue.automaticScheduling,
         venue,
         warning: workerErr.message
       });
@@ -361,25 +392,235 @@ async function toggleSpotifyMode(req, res) {
       return res.status(400).json({ error: "spotifyMode must be boolean" });
     }
 
-    const updateData = spotifyMode
-      ? { spotifyMode: true, djMode: false }
-      : { spotifyMode: false };
+    const venue = await Venue.findById(venueId);
+    if (!venue) {
+      return res.status(404).json({ error: "Venue not found" });
+    }
 
-    const venue = await Venue.findByIdAndUpdate(venueId, updateData, {
-      new: true
-    }).select("-password");
+    venue.spotifyMode = spotifyMode;
+    if (spotifyMode) {
+      venue.djMode = false;
+    }
+    markManualOverrideIfSchedulingEnabled(venue);
+    await venue.save();
+
+    res.json({
+      message: spotifyMode ? "Spotify mode enabled" : "Spotify mode disabled",
+      spotifyMode: venue.spotifyMode,
+      djMode: venue.djMode,
+      automaticScheduling: venue.automaticScheduling
+    });
+  } catch (err) {
+    console.error("Toggle Spotify Mode Error:", err.message);
+    res.status(500).json({ error: "Internal server error" });
+  }
+}
+
+/**
+ * Get automatic mode scheduling settings + live status
+ */
+async function getAutomaticScheduling(req, res) {
+  try {
+    const venueId = req.venue.id;
+    const venue = await Venue.findById(venueId).select(
+      "-password -djPassword -spotifyAccessToken -spotifyRefreshToken"
+    );
 
     if (!venue) {
       return res.status(404).json({ error: "Venue not found" });
     }
 
+    const scheduling = defaultAutomaticSchedulingSafe(
+      venue.automaticScheduling?.toObject?.() || venue.automaticScheduling
+    );
+
     res.json({
-      message: spotifyMode ? "Spotify mode enabled" : "Spotify mode disabled",
-      spotifyMode: venue.spotifyMode,
-      djMode: venue.djMode
+      timezone: normalizeTimezone(venue.timezone),
+      automaticScheduling: scheduling,
+      status: buildScheduleStatus(venue),
+      currentFlags: {
+        djMode: !!venue.djMode,
+        livePlaylistActive: !!venue.livePlaylistActive,
+        spotifyMode: !!venue.spotifyMode
+      }
     });
   } catch (err) {
-    console.error("Toggle Spotify Mode Error:", err.message);
+    console.error("Get Automatic Scheduling Error:", err.message);
+    res.status(500).json({ error: "Internal server error" });
+  }
+}
+
+/**
+ * Update automatic mode scheduling settings
+ */
+async function updateAutomaticScheduling(req, res) {
+  try {
+    const venueId = req.venue.id;
+    const { automaticScheduling, timezone, applyNow } = req.body;
+
+    const venue = await Venue.findById(venueId);
+    if (!venue) {
+      return res.status(404).json({ error: "Venue not found" });
+    }
+
+    if (timezone !== undefined) {
+      venue.timezone = normalizeTimezone(timezone);
+    }
+
+    if (automaticScheduling !== undefined) {
+      const existing =
+        venue.automaticScheduling?.toObject?.() ||
+        venue.automaticScheduling ||
+        defaultAutomaticScheduling();
+
+      const normalized = normalizeSchedulePayload({
+        ...existing,
+        ...automaticScheduling,
+        // Preserve override unless explicitly provided
+        manualOverride:
+          automaticScheduling.manualOverride !== undefined
+            ? !!automaticScheduling.manualOverride
+            : !!existing.manualOverride
+      });
+
+      venue.automaticScheduling = normalized;
+      venue.markModified("automaticScheduling");
+    }
+
+    await venue.save();
+
+    let applyResult = null;
+    const shouldApply =
+      applyNow === true ||
+      (venue.automaticScheduling?.enabled &&
+        !venue.automaticScheduling?.manualOverride &&
+        applyNow !== false);
+
+    if (shouldApply && venue.automaticScheduling?.enabled && !venue.automaticScheduling?.manualOverride) {
+      const scheduledMode = resolveScheduledMode(
+        venue.automaticScheduling,
+        venue.timezone
+      );
+      applyResult = await applyScheduledModeIfNeeded(
+        venue,
+        scheduledMode,
+        "schedule-save"
+      );
+    }
+
+    const fresh = await Venue.findById(venueId).select(
+      "-password -djPassword -spotifyAccessToken -spotifyRefreshToken"
+    );
+
+    res.json({
+      message: "Automatic scheduling updated",
+      timezone: normalizeTimezone(fresh.timezone),
+      automaticScheduling: fresh.automaticScheduling,
+      status: buildScheduleStatus(fresh),
+      applyResult,
+      currentFlags: {
+        djMode: !!fresh.djMode,
+        livePlaylistActive: !!fresh.livePlaylistActive,
+        spotifyMode: !!fresh.spotifyMode
+      }
+    });
+  } catch (err) {
+    console.error("Update Automatic Scheduling Error:", err.message);
+    if (err.message && /Invalid|required/i.test(err.message)) {
+      return res.status(400).json({ error: err.message });
+    }
+    res.status(500).json({ error: "Internal server error" });
+  }
+}
+
+/**
+ * Temporarily take manual control while automatic scheduling stays configured
+ */
+async function switchToManualMode(req, res) {
+  try {
+    const venueId = req.venue.id;
+    const venue = await Venue.findById(venueId);
+    if (!venue) {
+      return res.status(404).json({ error: "Venue not found" });
+    }
+
+    if (!venue.automaticScheduling) {
+      venue.automaticScheduling = defaultAutomaticScheduling();
+    }
+
+    if (!venue.automaticScheduling.enabled) {
+      return res.status(400).json({
+        error: "Automatic scheduling is not enabled"
+      });
+    }
+
+    venue.automaticScheduling.manualOverride = true;
+    venue.markModified("automaticScheduling");
+    await venue.save();
+
+    res.json({
+      message: "Switched to manual mode. Automatic scheduling paused.",
+      status: buildScheduleStatus(venue),
+      automaticScheduling: venue.automaticScheduling
+    });
+  } catch (err) {
+    console.error("Switch To Manual Mode Error:", err.message);
+    res.status(500).json({ error: "Internal server error" });
+  }
+}
+
+/**
+ * Resume automatic scheduling and immediately apply the current schedule
+ */
+async function resumeAutomaticMode(req, res) {
+  try {
+    const venueId = req.venue.id;
+    const venue = await Venue.findById(venueId);
+    if (!venue) {
+      return res.status(404).json({ error: "Venue not found" });
+    }
+
+    if (!venue.automaticScheduling) {
+      venue.automaticScheduling = defaultAutomaticScheduling();
+    }
+
+    if (!venue.automaticScheduling.enabled) {
+      return res.status(400).json({
+        error: "Automatic scheduling is not enabled"
+      });
+    }
+
+    venue.automaticScheduling.manualOverride = false;
+    venue.markModified("automaticScheduling");
+    await venue.save();
+
+    const scheduledMode = resolveScheduledMode(
+      venue.automaticScheduling,
+      venue.timezone
+    );
+    const applyResult = await applyScheduledModeIfNeeded(
+      venue,
+      scheduledMode,
+      "resume-automatic"
+    );
+
+    const fresh = await Venue.findById(venueId).select(
+      "-password -djPassword -spotifyAccessToken -spotifyRefreshToken"
+    );
+
+    res.json({
+      message: "Resumed automatic scheduling",
+      status: buildScheduleStatus(fresh),
+      automaticScheduling: fresh.automaticScheduling,
+      applyResult,
+      currentFlags: {
+        djMode: !!fresh.djMode,
+        livePlaylistActive: !!fresh.livePlaylistActive,
+        spotifyMode: !!fresh.spotifyMode
+      }
+    });
+  } catch (err) {
+    console.error("Resume Automatic Mode Error:", err.message);
     res.status(500).json({ error: "Internal server error" });
   }
 }
@@ -588,5 +829,9 @@ module.exports = {
   setPreferredGenres,
   getPreferredGenres,
   getAvailableGenres,
-  submitWaitlist
+  submitWaitlist,
+  getAutomaticScheduling,
+  updateAutomaticScheduling,
+  switchToManualMode,
+  resumeAutomaticMode
 };

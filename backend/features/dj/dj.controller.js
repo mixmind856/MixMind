@@ -66,6 +66,10 @@ async function initializeDJMode(req, res) {
     venue.djMode = true;
     venue.spotifyMode = false;
     venue.djPassword = hashedPassword;
+    if (venue.automaticScheduling?.enabled && !venue.automaticScheduling.manualOverride) {
+      venue.automaticScheduling.manualOverride = true;
+      venue.markModified("automaticScheduling");
+    }
     await venue.save();
 
     console.log(`   ✅ DJ Mode set to TRUE`);
@@ -75,7 +79,8 @@ async function initializeDJMode(req, res) {
     res.json({
       message: "DJ mode initialized successfully",
       djMode: venue.djMode,
-      spotifyMode: venue.spotifyMode
+      spotifyMode: venue.spotifyMode,
+      automaticScheduling: venue.automaticScheduling
     });
   } catch (err) {
     console.error("❌ Initialize DJ mode error:", err.message);
@@ -152,11 +157,16 @@ async function toggleDJMode(req, res) {
     if (nextDJMode) {
       venue.spotifyMode = false;
     }
+    if (venue.automaticScheduling?.enabled && !venue.automaticScheduling.manualOverride) {
+      venue.automaticScheduling.manualOverride = true;
+      venue.markModified("automaticScheduling");
+    }
     await venue.save();
 
     res.json({
       djMode: venue.djMode,
       spotifyMode: venue.spotifyMode,
+      automaticScheduling: venue.automaticScheduling,
       message: `DJ mode ${venue.djMode ? "enabled" : "disabled"} successfully`
     });
   } catch (err) {
